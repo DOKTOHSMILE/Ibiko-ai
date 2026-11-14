@@ -10,7 +10,9 @@ Nothing here is fixed yet. This file is the backlog.
 > (`IbikoAgent/*`, `DocumentTools`, `Documents.java`, `llama_jni.cpp`, `Models.kt`, `Net.java`, `HttpFetcher`,
 > `CommandRunner`, `TermuxSessionStore`, `ToolTimeouts`, `ProviderCredentials`, `AttachmentTools`) is absent,
 > `app/build.gradle` has no `--add-exports` flag, and `run_crew_tests.sh` is empty. The list describes another
-> codebase. Kept for the record; the real open work is in `docs/IBIKO_MASTER_BUILD_HANDBOOK.md` §10 and `PLAN.md`.
+> codebase. There is no `Models.kt` and no `ai/ibiko/models/` folder. Do not search for a `.kt` file or create one.
+> Models are Java (`ai.ibiko.llm.LocalModel`); the one in use is chosen in Settings. Kept for the record; the real
+> open work is in `docs/IBIKO_MASTER_BUILD_HANDBOOK.md` §10 and `PLAN.md`.
 
 ---
 
@@ -86,11 +88,7 @@ Nothing here is fixed yet. This file is the backlog.
 
 ## 8. The model list is empty, so "the model" cannot be chosen (P2)
 
-- **Stops:** selecting a model in the UI, and knowing which model produced a reply.
-- **Cause:** `Models.kt` never adds entries to its models list, and `Models.default` returns null
-  (`app/src/main/java/ai/ibiko/models/Models.kt:15-53`).
-- **Smallest next step:** populate the list from the device's model files (or from the API's
-  `/models` endpoint) and make `default` return the first one.
+- **Does not apply to this app.** There is no `Models.kt`. Do not search for `app/src/main/java/ai/ibiko/models/Models.kt` and do not create it. The on-device model is Java, `ai.ibiko.llm.LocalModel`. The model in use is chosen in Settings.
 
 ## 9. Nothing can be downloaded from the network (P2)
 

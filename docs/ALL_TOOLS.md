@@ -60,7 +60,7 @@ Two notes on where the evidence lives:
 | Tool | Status | What actually happens | Evidence |
 |---|---|---|---|
 | Local GGUF load | **P2 blocked** | `LLamaModel.load()` / `LLamaChatModel` call `llama_init_from_file`, which is not defined in `llama_jni.cpp` → `UnsatisfiedLinkError` at runtime. | `LIMITATIONS.md` item 7 |
-| Model picker in the UI | **P2 blocked** | `Models.kt` never fills its list and `Models.default` returns null, so there is no "current model" to report. | `LIMITATIONS.md` item 8 |
+| Model picker in the UI | not this app | There is no `Models.kt` and no `ai/ibiko/models/` folder. Do not search for a `.kt` file. The model is Java (`ai.ibiko.llm.LocalModel`) and is chosen in Settings. | `LIMITATIONS.md` item 8 |
 
 ## 6. Timeouts, credentials, progress
 

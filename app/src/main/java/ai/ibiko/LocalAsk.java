@@ -275,6 +275,13 @@ final class LocalAsk {
                         }), () -> !act.alive(id));
                 if (raw != null) {
                     sink.onText(raw);
+                } else if (act.alive(id)) {
+                    // the round came back with nothing: one model still answers, and the row says so
+                    act.handler.post(() -> {
+                        if (act.alive(id)) {
+                            act.activity("Think 2 didn't finish; answering once");
+                        }
+                    });
                 }
             }
             if (raw == null && act.alive(id) && pageTools.deep()) {

@@ -1,3 +1,11 @@
+# Listen lights when the voice is ready, and an API answer is not cut at 160 tokens (0.99.143)
+
+- [x] Listen stays dim only while the voice is still being made. A redraw no longer throws away the one check that would have lit it, and checking does not file the next sentence under the wrong reply.
+- [x] An API answer asked for at the everyday length (160 tokens), including Think 1 and a side answer, may run to 2,048 tokens. A 24-token check stays short. The phone's own model is unchanged.
+- [x] If Think 2's round comes back empty, the row says so and one model answers. It no longer goes quiet and answers once with no word about it.
+- [x] The old notes that named `Models.kt` now say that file is not in this app. Do not search for it.
+- [ ] On the phone: ask a real question on an API and open Listen after the reply. It should light once the voice is ready, and the reply should not stop mid-sentence.
+
 # A finished job is kept, and opening Ibiko shows it (0.99.142)
 
 - [x] A coding job that finishes after the screen is gone is written into the chat. It is not thrown away, and it does not pretend the job is still waiting.

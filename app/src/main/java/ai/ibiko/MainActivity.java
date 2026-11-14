@@ -1104,12 +1104,12 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
             @Override
             public boolean audioReady(String owner, String text) {
-                // every reply's voice is made ahead and kept: Listen plays the kept recording
+                // every reply's voice is made ahead and kept: Listen plays the kept recording.
+                // checking does not switch which message is being filed, or a later sentence lands under the wrong reply
                 if (talk == null) {
                     return true;
                 }
-                talk.setOwner(owner);
-                return talk.prepared(text);
+                return talk.preparedFor(owner, text);
             }
 
             @Override

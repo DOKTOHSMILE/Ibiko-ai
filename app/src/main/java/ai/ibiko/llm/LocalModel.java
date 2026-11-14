@@ -931,6 +931,12 @@ public final class LocalModel {
             (sl.restUntil <= now ? ready : resting).add(sl);
         }
         ready.addAll(resting);
+        // the everyday setting is 160 tokens, for the phone's own model. An API given that stops mid-sentence
+        // (Think 1 and a side answer go through here, not only the main reply). A 24-token check stays short.
+        // The ceiling is only a ceiling: a short answer still ends when it is finished.
+        if (maxTokens >= 64 && maxTokens < REMOTE_REPLY_MIN) {
+            maxTokens = REMOTE_REPLY_MIN;
+        }
         String firstFailure = null, failedName = null;
         // each provider: its fast model first for a simple request (when it has one), then its strong model
         List<Object[]> tries = new ArrayList<Object[]>();

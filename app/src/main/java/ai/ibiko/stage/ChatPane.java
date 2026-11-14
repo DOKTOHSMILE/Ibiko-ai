@@ -2473,16 +2473,31 @@ public final class ChatPane extends LinearLayout {
             listen.setEnabled(false);
             listen.setAlpha(0.35f);
             listen.setContentDescription("Preparing the voice");
-            host.prepareAudio(owner, spoken, () -> listen.post(() -> {
-                if (!host.audioReady(owner, spoken)) {
-                    return; // still not kept: the icon stays dim until the file is there
-                }
-                listen.setEnabled(true);
-                listen.animate().alpha(1f).setDuration(200).start();
-                listen.setContentDescription(label);
-            }));
+            final String who = owner;
+            final String words = spoken;
+            host.prepareAudio(who, words, () -> post(() -> lightListen(listen, who, words, label, 0)));
         }
         return listen;
+    }
+
+    /**
+     * Lights Listen once this reply's voice is kept. One check used to give up, so the icon stayed dim after the
+     * sound was ready (a redraw had thrown that check away, or the voice finished a moment later). A button that
+     * has left the screen is left alone: the new one checks for itself.
+     */
+    private void lightListen(android.widget.ImageButton listen, String owner, String spoken, String label, int tries) {
+        if (listen == null || !listen.isAttachedToWindow()) {
+            return;
+        }
+        if (!host.audioReady(owner, spoken)) {
+            if (tries < 450) { // about three minutes: a long reply is still being made
+                postDelayed(() -> lightListen(listen, owner, spoken, label, tries + 1), 400);
+            }
+            return;
+        }
+        listen.setEnabled(true);
+        listen.setAlpha(1f);
+        listen.setContentDescription(label);
     }
 
     /** True while drawing the latest turn (after the user's last message): only its voice is made at once. */
