@@ -76,7 +76,7 @@ public final class ChatTools {
 
     public boolean isOn(Tool t) {
         if (t == Tool.DEEP) {
-            return think > 0; // Think 1 and Think 2 both count as on; ordinary is off
+            return think == 1; // the tools card is Think 1 only; Think 2 is the Think button
         }
         return t == Tool.WORKERS || on.contains(t);
     }
@@ -87,7 +87,11 @@ public final class ChatTools {
             return; // workers stay on for every task
         }
         if (t == Tool.DEEP) {
-            think(enabled ? 1 : 0); // the tools card is Think 1, or ordinary; Think 2 is chosen on the Think button
+            if (enabled) {
+                think(1);
+            } else if (think == 1) {
+                think(0); // off clears Think 1 only; Think 2 stays until the Think button changes it
+            }
             return;
         }
         if (enabled && offered(persona).contains(t)) {

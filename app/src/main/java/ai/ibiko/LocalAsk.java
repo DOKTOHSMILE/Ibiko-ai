@@ -254,7 +254,9 @@ final class LocalAsk {
                 return act.alive(id);
             };
             String raw = null;
-            // Think 2, and an API is on: the selected model analyses, similar models add a solution and another view, then one answer
+            // Think 2 is chosen on the button: several API models, then one answer. A greeting stays one call.
+            // A coding job on Ibiko never reaches here (the agent takes it). The old skip for "file" or a long
+            // question was why Think 2 did nothing.
             if (pageTools.round() && !act.model.remoteOn()) {
                 act.handler.post(() -> {
                     if (act.alive(id)) {
@@ -262,10 +264,7 @@ final class LocalAsk {
                     }
                 });
             }
-            boolean ring = pageTools.round() && act.model.remoteOn()
-                    && ai.ibiko.llm.RoundThink.worth(english)
-                    && !ai.ibiko.llm.TaskSize.mayNeedAction(english)
-                    && !ai.ibiko.agent.Blueprint.applies(english);
+            boolean ring = pageTools.round() && act.model.remoteOn() && ai.ibiko.llm.RoundThink.worth(english);
             if (ring) {
                 raw = ai.ibiko.llm.RoundThink.run((model, sys, prompt) -> act.model.askNamed(model, sys, prompt, Math.max(length, 800)),
                         act.model.ring(), english, context, system, line -> act.handler.post(() -> {

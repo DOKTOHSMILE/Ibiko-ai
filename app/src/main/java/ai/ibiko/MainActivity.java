@@ -2992,7 +2992,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
         connectivity.start();
         ambient.start();
-        if (!workInHand()) {
+        if (!workInHand() && !ai.ibiko.llm.ReplyService.held()) {
             ai.ibiko.main.KeepAlive.done(this, "reply"); // a notice left up after the work had already finished
         }
     }
@@ -3127,16 +3127,23 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         ai.ibiko.voice.ReadAloudNotice.show(this, false, false, null, "", MainActivity.class);
         handler.removeCallbacks(taskBeat);
         handler.removeCallbacks(engineTick);
-        talk.shutdown();
-        keepAwake(false);
-        dropAway();
+        if (talk != null) {
+            talk.shutdown();
+        }
         listen.stop();
-        sync.shutdown();
-        connectivity.stop();
-        deskThread.shutdownNow();
-        buildThread.shutdownNow();
-        if (model != null) {
-            model.cancel();
+        // Home, or the system dropping the screen, must not cancel a job that is still going. Close (the notification)
+        // sets closed_by_pilot, and that does stop it.
+        boolean keep = workInHand() && prefs != null && !prefs.getBoolean("closed_by_pilot", false);
+        if (!keep) {
+            keepAwake(false);
+            dropAway();
+            deskThread.shutdownNow();
+            buildThread.shutdownNow();
+            if (model != null) {
+                model.cancel();
+            }
+            sync.shutdown();
+            connectivity.stop();
         }
         hub.removeListener(onDownload);
         super.onDestroy();

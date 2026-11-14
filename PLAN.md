@@ -1,3 +1,10 @@
+# Think 2 runs when it is chosen, and leaving the app does not cancel the job (0.99.141)
+
+- [x] Think 2 is no longer skipped because the question is long or contains a word like "file" or "fix". Choosing it runs the several-model pass. A greeting stays one answer. Think 2 needs an API.
+- [x] The tools card does not turn Think 2 off. Think 1 is that card. Think 2 is only the Think button.
+- [x] If the screen is dropped while a job is running, the job is not cancelled. Close on the notification still stops it.
+- [ ] On the phone: set Think 2, ask a real question on an API, leave Ibiko, and come back. The steps should name more than one model, and the job should still be going.
+
 # Work keeps going when Ibiko leaves the screen (0.99.140)
 
 - [x] A reply, a coding job, a clone or a download stays a foreground service with a wake lock. Leaving the app or turning the screen off does not freeze it.

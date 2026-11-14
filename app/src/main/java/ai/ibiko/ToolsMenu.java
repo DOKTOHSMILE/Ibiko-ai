@@ -215,12 +215,15 @@ final class ToolsMenu {
             icon.setColorFilter(a.getColor(on ? R.color.accent : R.color.icon));
             paintToggle(sw, on);
             card.setContentDescription(t.title);
-            card.setStateDescription(on ? "On" : "Off");
+            card.setStateDescription(t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() == 2 ? "Think 2" : on ? "On" : "Off");
         };
         paint.run();
         final Runnable flip = () -> {
             if (t == ai.ibiko.suit.ChatTools.Tool.GITHUB && reposLoading) {
                 return; // a quick second tap while GitHub is still loading changes nothing
+            }
+            if (t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() == 2) {
+                return; // Think 2 stays until the Think button changes it
             }
             boolean on = !tools.isOn(t);
             tools.set(t, on);
