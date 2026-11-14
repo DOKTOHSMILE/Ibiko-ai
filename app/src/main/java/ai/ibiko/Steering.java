@@ -58,6 +58,17 @@ final class Steering {
      * it as the next turn.
      */
     void steerIntoTask(String text, boolean attached) {
+        if (ai.ibiko.main.LiveWork.owner() != null && ai.ibiko.main.LiveWork.owner() != a
+                && a.model != null && (a.model.working() || a.model.coding)) {
+            // the job is on the screen that was destroyed: this message joins that job, it does not start another
+            String t = text == null ? "" : text.trim();
+            if (!t.isEmpty()) {
+                noteUser(t);
+                ai.ibiko.main.LiveWork.passSteer(a, t);
+                a.note("Sent \u2014 I'll read it and keep going");
+            }
+            return;
+        }
         if (!attached && a.model != null && a.model.coding && text != null && !text.trim().isEmpty()) {
             // sorted first (agent/Intake, no model call): only a change to the project reaches the job's plan; a note on
             // how to work reaches the job without re-planning; a question, a separate request or a "thanks" is answered

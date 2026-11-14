@@ -158,13 +158,13 @@ final class PhoneActs {
                 if (waiting == null) {
                     a.play(LocalTurn.speakAs(agent, "Nothing is waiting for a yes."), null);
                 } else {
-                    a.doAction(a.stager.take(), false);
+                    a.doAction(a.takeStaged(), false);
                 }
                 return;
             }
             case CANCEL:
                 if (a.stager.pending(System.currentTimeMillis()) != null) {
-                    a.stager.take();
+                    a.takeStaged();
                     a.closeStaged();
                     a.play(LocalTurn.speakAs(agent, "Cancelled. Nothing was sent."), null);
                 } else {

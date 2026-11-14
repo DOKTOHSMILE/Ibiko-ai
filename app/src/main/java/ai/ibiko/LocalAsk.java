@@ -127,6 +127,7 @@ final class LocalAsk {
                 + (thought.said == null ? "" : "\nIbiko's own view from the answers it has gathered ("
                         + ai.ibiko.ibiko1.formulas.Probability.words(thought.sure) + "): " + thought.said
                         + " Use it if it helps; correct it if it is wrong.");
+        ai.ibiko.main.LiveWork.began(act);
         act.hub.worker.execute(() -> {
             String asked = question;
             if (lang != null && act.alive(id)) {
@@ -335,6 +336,7 @@ final class LocalAsk {
             final boolean spokeLive = live.end(all);
             final String switchTo = tags.switchTo();
             act.handler.post(() -> {
+                ai.ibiko.main.LiveWork.ended(act);
                 act.writing.remove(id);
                 String w = act.replyWorkers.remove(id);
                 if (w != null) {
@@ -342,6 +344,7 @@ final class LocalAsk {
                             : all == null || all.trim().isEmpty() ? ai.ibiko.agent.AgentBoard.Outcome.FAILED : ai.ibiko.agent.AgentBoard.Outcome.DONE);
                 }
                 if (!act.alive(id)) {
+                    ai.ibiko.main.LiveWork.refresh(act);
                     return;
                 }
                 String body = all == null ? ""
@@ -359,6 +362,7 @@ final class LocalAsk {
                         act.unreadPages.add(agent); // a dot on that page's tab
                         act.personaTabs.update(act.stage.agent());
                     }
+                    ai.ibiko.main.LiveWork.refresh(act);
                     return;
                 }
                 if (!act.inFront && order == null && !body.isEmpty()) {
@@ -374,7 +378,8 @@ final class LocalAsk {
                     if (act.chats != null) {
                         act.chats.replyToPage(agent, kept, act.stampVoice());
                     }
-                    ai.ibiko.llm.ReplyNotice.show(act, agent, kept);
+                    ai.ibiko.llm.ReplyNotice.show(act.getApplicationContext(), agent, kept);
+                    ai.ibiko.main.LiveWork.refresh(act);
                     final String learnQ = question, learnA = kept;
                     act.hub.worker.execute(() -> {
                         if (ai.ibiko.chat.ui.UsageActivity.learningOn(act.prefs)) { // Settings › Data and privacy › learning

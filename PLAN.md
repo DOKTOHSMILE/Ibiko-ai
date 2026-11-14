@@ -1,3 +1,11 @@
+# A finished job is kept, and opening Ibiko shows it (0.99.142)
+
+- [x] A coding job that finishes after the screen is gone is written into the chat. It is not thrown away, and it does not pretend the job is still waiting.
+- [x] Stopping speech no longer clears every other task on the screen.
+- [x] Opening Ibiko while a job is still running says "Still working" and shows the reply when it lands. A message typed then joins that job.
+- [x] A comment draft is kept if you leave while it is being written. Yes still posts it after you open Ibiko, for six hours.
+- [ ] On the phone: start a coding job, leave Ibiko, open it again. It should say it is still working, then show the answer. Ask for a comment, leave, come back, and say yes.
+
 # Think 2 runs when it is chosen, and leaving the app does not cancel the job (0.99.141)
 
 - [x] Think 2 is no longer skipped because the question is long or contains a word like "file" or "fix". Choosing it runs the several-model pass. A greeting stays one answer. Think 2 needs an API.

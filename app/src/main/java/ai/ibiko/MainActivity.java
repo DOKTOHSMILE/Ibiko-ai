@@ -1243,6 +1243,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
 
         prefs = getSharedPreferences("ibiko", MODE_PRIVATE);
+        restoreStaged();
         if (!prefs.getBoolean("chat_spaces_adopted", false)) {
             // once: files from before each chat had its own folder go to the chat open now (repositories into repos/)
             final java.io.File here = chatSpace();
@@ -1437,6 +1438,66 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     /** In {@link BrainGate}. */
     void answer(String text) {
         gates.answer(text);
+    }
+
+    /** The reply or job finished on a screen that is no longer the one open: show what was saved, or that it is still going. */
+    void caughtUp() {
+        if (isFinishing() || chatPane == null) {
+            return;
+        }
+        chatPane.show();
+        if (model != null && (model.working() || model.coding)) {
+            armThink("Still working\u2026", "Still working\u2026");
+        }
+    }
+
+    /** A comment or post that was drafted while the screen was gone, so "yes" still reaches it after Ibiko is opened again. */
+    void keepStaged(ai.ibiko.brain.PendingAction p) {
+        stager.offer(p);
+        if (prefs == null || p == null) {
+            return;
+        }
+        prefs.edit().putString("staged_kind", p.kind.name())
+                .putString("staged_app", p.app == null ? "" : p.app)
+                .putLong("staged_at", p.createdAt)
+                .putString("staged_target", p.target == null ? "" : p.target)
+                .putString("staged_body", p.content == null ? "" : p.content)
+                .apply();
+    }
+
+    /** Takes the waiting action and forgets the copy kept for a screen that was closed. */
+    ai.ibiko.brain.PendingAction takeStaged() {
+        if (prefs != null) {
+            prefs.edit().remove("staged_kind").remove("staged_app").remove("staged_at")
+                    .remove("staged_target").remove("staged_body").apply();
+        }
+        return stager.take();
+    }
+
+    /** Puts back a draft saved while the screen was gone. The yes window starts now, and a draft older than six hours is dropped. */
+    void restoreStaged() {
+        if (prefs == null || stager.pending(System.currentTimeMillis()) != null) {
+            return;
+        }
+        String kind = prefs.getString("staged_kind", null);
+        if (kind == null || kind.isEmpty()) {
+            return;
+        }
+        long at = prefs.getLong("staged_at", 0);
+        if (at == 0 || System.currentTimeMillis() - at > 6L * 60 * 60 * 1000) {
+            takeStaged();
+            return;
+        }
+        String app = prefs.getString("staged_app", "");
+        String target = prefs.getString("staged_target", "");
+        String body = prefs.getString("staged_body", "");
+        try {
+            stager.offer(new ai.ibiko.brain.PendingAction(ai.ibiko.brain.PendingAction.Kind.valueOf(kind),
+                    body, app.isEmpty() ? null : app, System.currentTimeMillis(), null,
+                    target.isEmpty() ? null : target));
+        } catch (IllegalArgumentException bad) {
+            takeStaged();
+        }
     }
 
     /** The voice of {@code body}, made and kept under the reply it belongs to (the id that reply will be saved with). */
@@ -2981,6 +3042,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     @Override
     protected void onStart() {
         super.onStart();
+        ai.ibiko.main.LiveWork.show(this);
         handler.removeCallbacks(releaseModel); // back within five minutes: the model and what it read are still there
         dropAway();
         if (podView != null) {
@@ -3051,6 +3113,9 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         if (chatPane != null) {
             chatPane.show(); // replies that came in while Ibiko was in the background are in the chat
         }
+        if (model != null && (model.working() || model.coding) && ai.ibiko.main.LiveWork.owner() != this) {
+            armThink("Still working\u2026", "Still working\u2026"); // the job is on the screen that was closed
+        }
         applyProvider(); // back from the AI providers sheet: the brain the user chose answers
         applySettings(); // back from Settings: name, voice speed, Enter key, deleted chats
         meanings = null; // back from "What Ibiko remembers": phrasings it forgot are read again from the phone
@@ -3106,6 +3171,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
     @Override
     protected void onDestroy() {
+        ai.ibiko.main.LiveWork.hide(this);
         if (waitingForFiles) {
             super.onDestroy(); // closed at once for the first-start download: nothing was set up
             return;
@@ -3135,6 +3201,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         // sets closed_by_pilot, and that does stop it.
         boolean keep = workInHand() && prefs != null && !prefs.getBoolean("closed_by_pilot", false);
         if (!keep) {
+            ai.ibiko.main.LiveWork.ended(this);
             keepAwake(false);
             dropAway();
             deskThread.shutdownNow();

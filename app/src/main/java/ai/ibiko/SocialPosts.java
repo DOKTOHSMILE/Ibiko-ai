@@ -196,7 +196,7 @@ final class SocialPosts {
     void offerOrPost(PendingAction p) {
         act.stager.offer(p);
         if (autoPost()) {
-            act.stager.take();
+            act.takeStaged();
             act.doAction(p, true);
             return;
         }
@@ -251,6 +251,18 @@ final class SocialPosts {
                 .show();
     }
 
+    /** On screen, say it. Off screen, keep it in the chat and tell the open screen. */
+    void keepOrSay(String agent, String said) {
+        if (act.isFinishing() || !act.inFront) {
+            if (act.chats != null && said != null && !said.trim().isEmpty()) {
+                act.chats.replyToPage(agent, said);
+            }
+            ai.ibiko.main.LiveWork.refresh(act);
+            return;
+        }
+        act.play(LocalTurn.speakAs(agent, said), null);
+    }
+
     /** A date and a time for the version, then the usual schedule card (shown, kept on the yes). */
     void scheduleVersion(final String app, final String text) {
         final java.util.Calendar at = java.util.Calendar.getInstance();
@@ -289,14 +301,13 @@ final class SocialPosts {
             final String page = found == null ? "" : found;
             final String link = ai.ibiko.social.SocialPage.firstPostLink(page);
             act.handler.post(() -> {
-                if (act.isFinishing()) {
-                    return;
+                if (!act.isFinishing()) {
+                    act.endThink();
                 }
-                act.endThink();
                 if (link == null) {
                     String said = page.trim().isEmpty() ? "I couldn't find a " + net.shown + " post about " + query + "."
                             : (page.length() > 1500 ? page.substring(0, 1500) : page);
-                    act.play(LocalTurn.speakAs(agent, said), null);
+                    keepOrSay(agent, said);
                     return;
                 }
                 commentDraft(app, link, what);
@@ -319,14 +330,39 @@ final class SocialPosts {
                     piece -> true, null);
             final String text = answer == null ? null : answer.trim().replaceAll("^\"|\"$", "");
             act.handler.post(() -> {
-                act.endThink();
+                if (!act.isFinishing()) {
+                    act.endThink();
+                }
                 if (text == null || text.isEmpty()) {
-                    act.play(LocalTurn.speakAs(agent, "I couldn't write the comment."), null);
+                    keepOrSay(agent, "I couldn't write the comment.");
                     return;
                 }
                 PendingAction p = new PendingAction(PendingAction.Kind.COMMENT, text, app, System.currentTimeMillis(), null, link);
-                act.play(LocalTurn.speakAs(agent, "Here's the comment for that post:\n\n" + text
-                        + (autoPost() ? "\n\nPosting it now (auto-post is on)." : "\n\nSay yes to post it.")), null);
+                String said = "Here's the comment for that post:\n\n" + text
+                        + (autoPost() ? "\n\nPosting it now (auto-post is on)." : "\n\nSay yes to post it.");
+                if (act.isFinishing() || !act.inFront) {
+                    act.keepStaged(p);
+                    if (act.chats != null) {
+                        act.chats.replyToPage(agent, said);
+                    }
+                    if (!autoPost()) {
+                        try {
+                            ai.ibiko.llm.ReplyNotice.show(act.getApplicationContext(), agent, said);
+                        } catch (RuntimeException ignored) {
+                            // the draft is in the chat
+                        }
+                    } else {
+                        try {
+                            act.doAction(p, true);
+                            act.takeStaged();
+                        } catch (RuntimeException ignored) {
+                            // the screen is gone: the draft stays, and yes posts it when Ibiko is opened
+                        }
+                    }
+                    ai.ibiko.main.LiveWork.refresh(act);
+                    return;
+                }
+                act.play(LocalTurn.speakAs(agent, said), null);
                 offerOrPost(p);
             });
         }, "ibiko-comment").start();
