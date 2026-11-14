@@ -1,3 +1,9 @@
+# Leaving the app no longer crashes on a large screen (0.99.144)
+
+- [x] The chat and the message box are not copied into the activity's saved state. A long reply or a long unsent draft was about 700 KB, and Android crashed with TransactionTooLargeException as soon as the screen was left.
+- [x] An unsent message is kept in a file and put back when Ibiko opens. Sending it clears that file on the next pause.
+- [ ] On the phone: open a long chat, or leave a long draft in the box, then leave Ibiko. It should stay open in the background, and the draft should still be there when you come back.
+
 # Listen lights when the voice is ready, and an API answer is not cut at 160 tokens (0.99.143)
 
 - [x] Listen stays dim only while the voice is still being made. A redraw no longer throws away the one check that would have lit it, and checking does not file the next sentence under the wrong reply.

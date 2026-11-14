@@ -1064,6 +1064,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         // alive as the rendering/agent surface, while this screen is dedicated
         // to the conversation UI.
         setContentView(R.layout.activity_main);
+        restoreComposer();
         downloadStrip = new ai.ibiko.chat.ui.DownloadStrip(this);
         downloadStrip.bind();
         ai.ibiko.net.Transfers.listen(downloadStrip);
@@ -3092,11 +3093,51 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         if (chats != null) {
             chats.flush(); // nothing waits unsaved once the app leaves the screen
         }
+        keepComposer(); // the message box is not put in the activity state (that parcel was too big to leave the app)
         if (model != null && prefs != null) {
             prefs.edit().putString("usage_today", model.usage.save()).apply();
         }
         handler.removeCallbacks(engineTick);
         super.onPause();
+    }
+
+    /** Unsent words, kept in a file. The message box is not saved with the activity: a long draft crashed the app when the screen was left (the binder parcel was about 700 KB). */
+    private static final String COMPOSER_DRAFT = "composer-draft.txt";
+
+    private void keepComposer() {
+        android.widget.EditText field = findViewById(R.id.et_message);
+        File f = new File(getFilesDir(), COMPOSER_DRAFT);
+        String text = field == null || field.getText() == null ? "" : field.getText().toString();
+        try {
+            if (text.isEmpty()) {
+                f.delete();
+                return;
+            }
+            java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException ignored) {
+            // the words stay in the box until this pause; the next one tries again
+        }
+    }
+
+    private void restoreComposer() {
+        android.widget.EditText field = findViewById(R.id.et_message);
+        if (field == null || (field.getText() != null && field.getText().length() > 0)) {
+            return;
+        }
+        File f = new File(getFilesDir(), COMPOSER_DRAFT);
+        if (!f.isFile() || f.length() > 2_000_000) {
+            return;
+        }
+        try {
+            byte[] raw = java.nio.file.Files.readAllBytes(f.toPath());
+            String text = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
+            if (!text.isEmpty()) {
+                field.setText(text);
+                field.setSelection(text.length());
+            }
+        } catch (java.io.IOException ignored) {
+            // an unsent draft is missed once; the box is simply empty
+        }
     }
 
     @Override

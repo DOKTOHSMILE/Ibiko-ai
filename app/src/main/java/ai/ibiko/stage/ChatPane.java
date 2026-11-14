@@ -154,6 +154,9 @@ public final class ChatPane extends LinearLayout {
         thread = new LinearLayout(context);
         thread.setOrientation(VERTICAL);
         scroll = new ScrollView(context);
+        // the chat is already kept in the chat book. Putting every bubble into the activity's saved state
+        // overflowed the binder when the screen was left (TransactionTooLargeException, about 700 KB).
+        setSaveFromParentEnabled(false);
         // the transcript never takes the focus (or the keyboard) from the message box
         scroll.setFocusable(false);
         scroll.setFocusableInTouchMode(false);

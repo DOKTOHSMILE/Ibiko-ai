@@ -184,6 +184,7 @@
             android:paddingTop="8dp"
             android:paddingEnd="10dp"
             android:paddingBottom="6dp"
+            android:saveEnabled="false"
             android:scrollbars="vertical"
             android:textColor="@color/text_primary"
             android:textColorHint="@color/chat_hint"

@@ -64,6 +64,7 @@
             android:paddingTop="12dp"
             android:paddingEnd="14dp"
             android:paddingBottom="14dp"
+            android:saveEnabled="false"
             android:textColor="@color/code_text"
             android:textIsSelectable="true"
             android:textSize="13sp" />
