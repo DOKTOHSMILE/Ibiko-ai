@@ -270,8 +270,8 @@ final class AgentSession {
             // The screen may already be gone. The answer is written here, on this thread, so it is in the chat
             // even if the screen's handler is dropped. The open screen, if it is a new one, is told to redraw.
             final boolean away = a.isFinishing() || !a.inFront;
-            final boolean live = a.alive(id);
-            if (live && away && answer != null && !answer.trim().isEmpty() && a.chats != null) {
+            final boolean going = a.alive(id);
+            if (going && away && answer != null && !answer.trim().isEmpty() && a.chats != null) {
                 a.chats.replyToPage(persona, answer.trim());
                 try {
                     ai.ibiko.llm.ReplyNotice.show(a.getApplicationContext(), persona, answer);
@@ -284,7 +284,7 @@ final class AgentSession {
             }
             a.handler.post(() -> {
                 ai.ibiko.main.LiveWork.ended(a);
-                if (!live || away) {
+                if (!going || away) {
                     ai.ibiko.main.LiveWork.refresh(a);
                     return;
                 }

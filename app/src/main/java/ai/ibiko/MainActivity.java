@@ -1452,6 +1452,16 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
     }
 
+    /** The open screen redraws. {@link ai.ibiko.main.LiveWork} is outside this package, so it cannot post to the handler itself. */
+    public void redrawChat() {
+        handler.post(this::caughtUp);
+    }
+
+    /** A message typed on a later screen joins the job this screen still owns. */
+    public void acceptSteer(String text) {
+        steer.add(text);
+    }
+
     /** A comment or post that was drafted while the screen was gone, so "yes" still reaches it after Ibiko is opened again. */
     void keepStaged(ai.ibiko.brain.PendingAction p) {
         stager.offer(p);

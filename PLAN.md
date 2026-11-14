@@ -1,3 +1,10 @@
+# The project compiles again (0.99.145)
+
+- [x] An API reply's token ceiling is a final value, so the model call compiles. A 24-token check stays short. An everyday API answer may still run to 2,048 tokens.
+- [x] The screen that owns a job is told to redraw, and a message typed on a new screen is handed to that job, without reaching into the activity's fields.
+- [x] The coding job's "still going" flag no longer reuses the name of the text being written, which CodeAssist rejected.
+- [ ] On the phone: CodeAssist should list no errors. The edge-to-edge line is a warning. The chat already pads for the status bar, the navigation bar and the keyboard.
+
 # Leaving the app no longer crashes on a large screen (0.99.144)
 
 - [x] The chat and the message box are not copied into the activity's saved state. A long reply or a long unsent draft was about 700 KB, and Android crashed with TransactionTooLargeException as soon as the screen was left.

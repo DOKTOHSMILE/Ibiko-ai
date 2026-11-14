@@ -53,7 +53,7 @@ public final class LiveWork {
         if (now == null || now == from) {
             return;
         }
-        now.handler.post(now::caughtUp);
+        now.redrawChat();
     }
 
     /**
@@ -64,7 +64,7 @@ public final class LiveWork {
         if (job == null || job == from || text == null || text.trim().isEmpty()) {
             return false;
         }
-        job.steer.add(text.trim());
+        job.acceptSteer(text);
         return true;
     }
 }

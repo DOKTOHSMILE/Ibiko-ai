@@ -934,9 +934,7 @@ public final class LocalModel {
         // the everyday setting is 160 tokens, for the phone's own model. An API given that stops mid-sentence
         // (Think 1 and a side answer go through here, not only the main reply). A 24-token check stays short.
         // The ceiling is only a ceiling: a short answer still ends when it is finished.
-        if (maxTokens >= 64 && maxTokens < REMOTE_REPLY_MIN) {
-            maxTokens = REMOTE_REPLY_MIN;
-        }
+        final int room = maxTokens >= 64 && maxTokens < REMOTE_REPLY_MIN ? REMOTE_REPLY_MIN : maxTokens;
         String firstFailure = null, failedName = null;
         // each provider: its fast model first for a simple request (when it has one), then its strong model
         List<Object[]> tries = new ArrayList<Object[]>();
@@ -955,13 +953,13 @@ public final class LocalModel {
             // a quick message trims the chat only on a small window; a big model reads it all (and from its cache)
             final boolean brief = tier == TaskSize.Tier.FAST && sl.window > 0 && sl.window < 32_000;
             r.effortFor(tier);
-            final List<String[]> fitted = PromptFit.remoteTurns(turns, sl.window, maxTokens, brief);
+            final List<String[]> fitted = PromptFit.remoteTurns(turns, sl.window, room, brief);
             // no "Asking <provider>" step: it repeated between every real step (the model shows in the header)
             final int ticket = epoch.get();
             final int[] pieces = {0};
             final long began = System.currentTimeMillis();
             problem = null;
-            String answer = withTimeout(counting(sink, pieces), wrapped -> r.chat(system, fitted, maxTokens, temperature, wrapped),
+            String answer = withTimeout(counting(sink, pieces), wrapped -> r.chat(system, fitted, room, temperature, wrapped),
                     true);
             boolean timedOut = problem != null && problem.startsWith("the reply");
             if (ticket != epoch.get() && !timedOut) {
