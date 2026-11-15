@@ -1,3 +1,10 @@
+# The plan stops re-reading and uses what it already opened (0.99.148)
+
+- [x] A file, a folder listing, a search or a page is remembered the moment it is read. The next time, it is not opened again. The answer says it is cached and names the next unticked step.
+- [x] Asking a third time is refused. A file is read again only after it is changed, and then only because the old copy is thrown out.
+- [x] The same write or the same edit is not done twice. Workers share that memory, including a checker, so it does not read the lead's files all over again. A task that is continued later keeps the memory.
+- [ ] On the phone: give Ibiko a real coding task. The steps should move forward. The same file should not be read again and again.
+
 # A message that was waiting is still asked (0.99.147)
 
 - [x] A message sent in a chat that was not the one running is kept. Closing the screen no longer drops it. The next screen asks it when the job ends.

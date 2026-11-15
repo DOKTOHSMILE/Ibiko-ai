@@ -209,6 +209,8 @@ public final class CodeAgent {
     private final String connectorTools;
     private final int budgetChars;
     private final List<String> changed = new ArrayList<String>();
+    /** Reads, searches and writes already done. A repeat does not run again. Shared with this task's workers. */
+    private ReadCache reads = new ReadCache();
     /** Whether each step is narrated in the chat (on; tests of the bare loop turn it off). */
     public boolean narrate = true;
     private ai.ibiko.connect.GitHubGit git;
@@ -292,8 +294,9 @@ public final class CodeAgent {
             // one part: a second worker checks it, so every task still runs with workers (one does, one checks)
             List<Squad.Part> two = new ArrayList<Squad.Part>(given);
             two.add(new Squad.Part(null, given.get(0).minutes, "Check the work of the other worker on this part: "
-                    + given.get(0).text + "\nRead what it reads and changes, run the checks there are, and report every"
-                    + " problem with path:line. Change nothing yourself."));
+                    + given.get(0).text + "\nDo not re-read a file that was already read: it is cached, and reading it"
+                    + " again only goes in a circle. Read a file only if this part changed it, and only the lines it"
+                    + " changed. Run the checks there are, and report every problem with path:line. Change nothing yourself."));
             given = two;
         }
         final List<Squad.Part> plan = given;
@@ -343,13 +346,14 @@ public final class CodeAgent {
             w.repoScope = repoScope; // a worker keeps to the same repositories
             w.ownBlueprint = ownBlueprint; // the lead's project: its notes and record, no other project's
             w.ownRecord = ownRecord;
+            w.reads = reads; // a file the lead or another worker already read is not read again
             long until = System.currentTimeMillis() + mine.minutes * 60_000L;
             w.deadline = parentDeadline > 0 ? Math.min(parentDeadline, until) : until; // a hand never outlasts its agent
             try {
                 AgentBoard.step(row, "Working on its part (" + mine.minutes + " min)");
                 String report = w.run(Squad.brief(number, plan.size(), part, whole)
                         + (lookOnly ? "\n\nThis part changes nothing yet (the plan isn't checked, or this run only reads): look,"
-                                + " research, run checks and report what you found." : "")
+                                + " research, run checks and report what you found. Do not re-read a file another part already read." : "")
                         + (kept == null ? "" : "\n\nYour folder: " + show(workspace.toPath().relativize(kept.toPath()).toString())
                                 + ". Read and write only inside it.")
                         + "\nYour time: " + mine.minutes + " minutes. Work on your part only; when the time is nearly up, stop and report.", "");
@@ -1565,6 +1569,7 @@ public final class CodeAgent {
             File project = projectOf(task);
             ownBlueprint = ".blueprint/" + (project.equals(workspace) ? "workspace" : project.getName());
         }
+        reads.bind(new File(workspace, ownBlueprint + "/reads.cache"));
         if (planning || readOnly || worker) {
             blueprint = null; // plan mode has its own rules; reading answers no build; a worker follows the lead's plan
             return;
@@ -1742,6 +1747,29 @@ public final class CodeAgent {
         }
     }
 
+    /** The next unticked step, so a cached read points forward instead of back at the same file. */
+    private String nextStepLine() {
+        if (blueprint == null) {
+            return "";
+        }
+        String n = blueprint.nextStep();
+        return n == null ? "" : n;
+    }
+
+    /** A read, listing, search or page already done and unchanged, or null when it should really run. */
+    private String cached(String tool, String key, long stamp) {
+        return reads.again(tool, key, stamp, nextStepLine());
+    }
+
+    private void remember(String tool, String key, long stamp, String body) {
+        reads.keep(tool, key, stamp, body);
+    }
+
+    /** This exact write or edit already succeeded, or null the first time. */
+    private String doneAlready(String kind, String sig) {
+        return reads.done(kind, sig, nextStepLine());
+    }
+
     private String carryOut(Call c) throws IOException {
         placePaths(c);
         String wrongLang = tongue().blocked(c.a("path"), c.name);
@@ -1758,8 +1786,17 @@ public final class CodeAgent {
             case "workers":
                 return dispatch(c);
             case "list_files": {
-                String listed = listFiles(c.a("path").isEmpty() ? "." : c.a("path"));
-                host.step("Listed the files in " + show(c.a("path")), show(c.a("path")), lines(listed), -1, -1);
+                String folder = c.a("path").isEmpty() ? "." : c.a("path");
+                File dir = inside(folder);
+                long stamp = dir.lastModified();
+                String cached = cached("list_files", folder, stamp);
+                if (cached != null) {
+                    host.step("Used the cached listing of " + show(folder));
+                    return cached;
+                }
+                String listed = listFiles(folder);
+                remember("list_files", folder, stamp, listed);
+                host.step("Listed the files in " + show(folder), show(folder), lines(listed), -1, -1);
                 return listed;
             }
             case "read_file": {
@@ -1767,13 +1804,27 @@ public final class CodeAgent {
                 if (!f.isFile()) {
                     return "No such file: " + c.a("path");
                 }
+                String range = first(c.attrs, "start", "from", "line") + "-" + first(c.attrs, "end", "to");
+                String key = c.a("path") + "\u0000" + range;
+                long stamp = f.lastModified() ^ f.length();
+                String cached = cached("read_file", key, stamp);
+                if (cached != null) {
+                    host.step("Used the cached read of " + show(c.a("path")));
+                    return cached;
+                }
                 String text = SourceRead.read(f, first(c.attrs, "start", "from", "line"), first(c.attrs, "end", "to"));
+                remember("read_file", key, stamp, text);
                 opened.add(c.a("path"));
                 host.step("Read " + show(c.a("path")), c.a("path"), lines(clip(text, FILE_CHARS)), -1, -1);
                 return text;
             }
             case "write_file": {
                 File f = inside(c.a("path"));
+                String again = doneAlready("write", c.a("path") + "\u0000" + c.body.length() + ":" + c.body.hashCode());
+                if (again != null) {
+                    host.step("Already written " + show(c.a("path")) + " (cached)");
+                    return again;
+                }
                 File dir = f.getParentFile();
                 if (dir != null) {
                     dir.mkdirs();
@@ -1788,6 +1839,8 @@ public final class CodeAgent {
                 }
                 Files.write(f.toPath(), c.body.getBytes(StandardCharsets.UTF_8));
                 note(c.a("path"));
+                reads.note("write", c.a("path") + "\u0000" + c.body.length() + ":" + c.body.hashCode());
+                reads.changed(c.a("path"));
                 int lines = c.body.isEmpty() ? 0 : c.body.split("\n", -1).length;
                 ai.ibiko.connect.LineDiff.Result d = ai.ibiko.connect.LineDiff.of(before, c.body);
                 host.step((existed ? "Rewrote " : "Created ") + show(c.a("path")) + " (" + lines + (lines == 1 ? " line)" : " lines)"),
@@ -1803,8 +1856,13 @@ public final class CodeAgent {
                 if (!o.find()) {
                     return "An edit needs <old>…</old><new>…</new>.";
                 }
-                String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                 String old = o.group(1), now = o.group(2);
+                String again = doneAlready("edit", c.a("path") + "\u0000" + old.hashCode() + ":" + now.hashCode());
+                if (again != null) {
+                    host.step("Already edited " + show(c.a("path")) + " (cached)");
+                    return again;
+                }
+                String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                 int at = text.indexOf(old);
                 if (old.isEmpty() || at < 0) {
                     return "The old text isn't in " + c.a("path") + ". Read the file and copy it exactly.";
@@ -1821,6 +1879,8 @@ public final class CodeAgent {
                 }
                 Files.write(f.toPath(), after.getBytes(StandardCharsets.UTF_8));
                 note(c.a("path"));
+                reads.note("edit", c.a("path") + "\u0000" + old.hashCode() + ":" + now.hashCode());
+                reads.changed(c.a("path"));
                 ai.ibiko.connect.LineDiff.Result d = ai.ibiko.connect.LineDiff.of(text, after);
                 host.step("Edited " + show(c.a("path")), c.a("path"), d.lines, d.added, d.removed);
                 return "Edited " + c.a("path") + "." + afterEdit(f, c.a("path"));
@@ -1858,10 +1918,18 @@ public final class CodeAgent {
                 return "Unzipped " + n + " files into " + to + ".";
             }
             case "search": {
+                String key = c.a("query") + "\u0000" + c.a("path");
+                String cached = cached("search", key, 1L);
+                if (cached != null) {
+                    host.step("Used the cached search for \u201c" + clip(c.a("query"), 40) + "\u201d");
+                    return cached;
+                }
                 host.step("Searched for \u201c" + clip(c.a("query"), 40) + "\u201d");
                 String found = SourceRead.search(workspace, c.a("query"), c.a("path"));
                 String note = tongue().searchNote(c.a("query"));
-                return note == null ? found : note + "\n" + found;
+                String out = note == null ? found : note + "\n" + found;
+                remember("search", key, 1L, out);
+                return out;
             }
             case "run": {
                 String cmd = c.a("command").trim();
@@ -1922,9 +1990,18 @@ public final class CodeAgent {
                 if (!url.toLowerCase(Locale.US).startsWith("https://")) {
                     return "Only https addresses can be fetched.";
                 }
+                String cached = cached("fetch", url, 1L);
+                if (cached != null) {
+                    host.step("Used the cached page " + clip(url, 60));
+                    return cached;
+                }
                 host.step("Fetched " + clip(url, 60));
                 String page = host.fetch(url);
-                return page == null ? "The page couldn't be fetched." : clip(page, RESULT_CHARS);
+                String out = page == null ? "The page couldn't be fetched." : clip(page, RESULT_CHARS);
+                if (page != null) {
+                    remember("fetch", url, 1L, out);
+                }
+                return out;
             }
             case "connector": {
                 String call = c.a("call");

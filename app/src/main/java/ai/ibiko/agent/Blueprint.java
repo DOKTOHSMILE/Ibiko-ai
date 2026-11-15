@@ -50,7 +50,10 @@ public final class Blueprint {
             + " do not exist. Building starts as soon as PLAN.md has a goal and steps.\n"
             + "3 BUILD: one step at a time, in order, quickly. After each step run its check (read the changed lines back,"
             + " run the test) and tick '- [x]' in PLAN.md only when the check passed; a step whose check fails is fixed"
-            + " before the next one starts. Do not re-read what you already read or redo a ticked step.\n"
+            + " before the next one starts. Do not re-read what you already read or redo a ticked step. A file, a"
+            + " listing, a search or a page is cached the moment you read it: asking again does not read it again, and"
+            + " you are pointed at the next unticked step. Read a file again only after you change it, and then only"
+            + " the lines you changed.\n"
             + "4 ADAPT: the plan is a living list. When you learn that a step not yet done is wrong, unneeded or too big,"
             + " reword, split or drop it, and say why in one line under '## Changes'. A ticked step stays as it is, and the"
             + " plan is never replaced by a new one: new work is added as new steps (right after the last ticked one when the"
@@ -74,7 +77,8 @@ public final class Blueprint {
             + " Write PLAN.md now, exactly in this shape, then build step 1 (other files can be written as soon as this plan"
             + " is saved):\n"
             + "# Blueprint: <the task>\n## Goal\n<what done looks like>\n## Steps\n"
-            + "- [ ] 1. <one change> (files: path; check: how you prove it)\n";
+            + "- [ ] 1. <one change> (files: path; check: how you prove it)\n"
+            + "Reads are cached. A second read of the same file is not done. Build the next unticked step.\n";
 
     /**
      * After the survey, more reading is the loop that never builds. Null when this call may run. Otherwise the words
