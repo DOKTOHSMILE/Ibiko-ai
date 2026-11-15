@@ -653,7 +653,7 @@ public final class LocalModel {
         // learned examples are read only for real work, where they help more than the seconds they cost
         String learned = l == null || quick(question, maxTokens) ? "" : l.examplesFor(question, 1, 700);
         if (!learned.isEmpty()) {
-            step("Recalled similar answers I learned before");
+            step("Recalled how a similar request was decided");
             asked = learned + "\n\n" + (context == null ? "" : context + "\n\n") + "The user says: " + question;
         }
         final int ticket = epoch.get();
@@ -999,8 +999,9 @@ public final class LocalModel {
     }
 
     /**
-     * Where Ibiko keeps what the API models answer, to learn from (null: not learning). When the phone's own model
-     * answers, the closest past answers are given to it as examples.
+     * Where Ibiko keeps what both models answer, online and on the device, including why the decision went that way
+     * (null: not learning). When the phone's own model answers, the closest past decision is given to it as the
+     * logic to follow, not as words to copy.
      */
     public volatile ai.ibiko.learn.LearningLog learning;
 
@@ -1078,6 +1079,13 @@ public final class LocalModel {
         }
         usage.record(new UsageLog.Call("On this device: " + spec.weights, localWindow(), UsageLog.estimate(system), conversation,
                 UsageLog.estimate(message), Math.max(pieces, 1), false, now - began, now));
+        ai.ibiko.learn.LearningLog l = learning;
+        if (l != null) {
+            // the device's own answer is a lesson too, so a later turn can see where it and an API model disagreed
+            java.util.List<String[]> kept = new java.util.ArrayList<String[]>(turns);
+            kept.add(new String[]{"user", message == null ? "" : message});
+            l.record(system, kept, answer, "offline (" + spec.weights + ")", "LOCAL", now);
+        }
         noteSpeed(pieces, now - began);
     }
 

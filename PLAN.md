@@ -1,3 +1,10 @@
+# It learns the reason, not only the words (0.99.151)
+
+- [x] Every answer, from an API model and from the model on the phone, is kept with the decision: what kind of act it was, the limits the person stated, the lean those limits support, the moves the model made, and whether its own reason agrees.
+- [x] When the phone's model answers, it is shown that logic and told to follow it. The earlier wording is labelled as what was said, not as words to copy. A reply that states the lean is preferred over one that fights it.
+- [x] When the online model and the phone disagreed, both reasons are shown, and the model is told not to blend the wordings. The training export keeps the logic beside the messages.
+- [ ] On the phone: ask a choice ("should I rent or buy, I can't afford the deposit and I might leave in a year") on an API, then ask the same thing with the phone's own model. The second answer should follow the limits, not copy a reply that ignored them.
+
 # It decides what you asked before it acts (0.99.150)
 
 - [x] "Can you fix the bug" is a request, not a question. "How do I clone this" stays an explanation, so it is not run as a command. "Don't post this" is not a post.
