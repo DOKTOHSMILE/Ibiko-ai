@@ -99,6 +99,8 @@ public class SuitTest {
         assertEquals("12 x 7 = 84", c.answerAlone("what's 12 x 7?"));
         assertEquals("From what I learned earlier: Nairobi.", c.answerAlone("capital of Kenya"));
         assertNull(c.answerAlone("write me a poem"));
+        String choice = c.answerAlone("Should I rent or buy? I can't afford a deposit and I might leave in a year.");
+        assertTrue(choice, choice != null && choice.contains("Lean: rent"));
         assertTrue(c.context("hello").startsWith("Decision:"));
         assertTrue(c.context("hello").contains("Ibiko's reading of the message: greeting"));
     }

@@ -1,4 +1,11 @@
+# A stored answer that fights the limits is not repeated (0.99.152)
+
+- [x] With no model, a remembered reply was spoken even when it picked a side the person's own limits reject. That reply is no longer given back. A reply that states the lean still is. A fact such as a capital is unchanged.
+- [x] With no model and no usable memory, a judgement is answered by the decision itself (the limits, the lean, what would flip it), not by silence.
+- [ ] On the phone, offline, with no model loaded: ask the rent-or-buy question after an earlier "buy" answer. Ibiko should weigh the limits, not repeat "buy".
+
 # It learns the reason, not only the words (0.99.151)
+
 
 - [x] Every answer, from an API model and from the model on the phone, is kept with the decision: what kind of act it was, the limits the person stated, the lean those limits support, the moves the model made, and whether its own reason agrees.
 - [x] When the phone's model answers, it is shown that logic and told to follow it. The earlier wording is labelled as what was said, not as words to copy. A reply that states the lean is preferred over one that fights it.

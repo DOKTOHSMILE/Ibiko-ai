@@ -218,7 +218,26 @@ public final class BrainBox {
         if (asGood >= 1) {
             return null;
         }
-        return best.order.replace('\u2028', '\n');
+        String answer = best.order.replace('\u2028', '\n');
+        if (fightsLogic(question, answer)) {
+            return null; // a judgement the stored words fight is not repeated; the decision is made from their limits
+        }
+        return answer;
+    }
+
+    /**
+     * A stored reply must not be spoken again when the question is a judgement and those words pick a side the
+     * person's own limits do not support, or pick a side when nothing they said separates the options.
+     */
+    static boolean fightsLogic(String question, String answer) {
+        DecisionLogic g = DecisionLogic.of(question, answer, "offline");
+        if (g.lesson == null || !g.lesson.startsWith("Judgement")) {
+            return false;
+        }
+        if (g.lean == null || g.lean.isEmpty()) {
+            return true;
+        }
+        return !g.agrees(answer);
     }
 
     /** How much an answer is trusted: one learned once, or one chosen many times and so tried and true. */

@@ -2,6 +2,7 @@ package ai.ibiko.learn;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -63,5 +64,18 @@ public class BrainBoxTest {
         org.junit.Assert.assertFalse(BrainBox.correction("no worries, thanks for the time"));
         org.junit.Assert.assertTrue(b.forget("what's the time"));
         assertNull(b.recall("time"));
+    }
+
+    /** A stored reply that picks a side the person's limits reject is not spoken again. One that states the lean is. */
+    @Test
+    public void aJudgementIsNotRepeatedWhenItFightsTheLimits() throws Exception {
+        String q = "Should I rent or buy? I can't afford a deposit and I might leave in a year.";
+        BrainBox bad = new BrainBox(file());
+        bad.learnTalk(q, "Buy, because owning is always better.");
+        assertNull(bad.recallTalk(q));
+        BrainBox good = new BrainBox(file());
+        good.learnTalk(q, "Rent, because you can't afford the deposit and you might leave.");
+        String back = good.recallTalk(q);
+        assertTrue(back, back != null && back.contains("Rent"));
     }
 }
