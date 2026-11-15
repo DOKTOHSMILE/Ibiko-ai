@@ -135,11 +135,15 @@ final class IbikoTools {
             answer = a.foldSteer(id, system, question, "Result of " + c[0] + ":\n" + result, 600, answer, piece -> a.modelPiece(id, piece));
             final String folded = answer;
             a.handler.post(() -> {
-                if (!a.alive(id) || a.isFinishing()) {
+                if (!a.alive(id)) {
                     return;
                 }
                 a.endThink();
                 String text = folded == null || folded.trim().isEmpty() ? result : ai.ibiko.llm.ActionTags.strip(folded).trim();
+                if (a.isFinishing() || a.chatPane == null) {
+                    a.keepAnswer(agent, text);
+                    return;
+                }
                 a.play(LocalTurn.speakAs(agent, text), null);
             });
         });

@@ -1462,6 +1462,24 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         steer.add(text);
     }
 
+    /** A finished answer written into the chat when this screen is already gone. The open screen is told to redraw. */
+    void keepAnswer(String persona, String text) {
+        if (chats == null || text == null) {
+            return;
+        }
+        String kept = text.trim();
+        if (kept.isEmpty()) {
+            return;
+        }
+        chats.replyToPage(persona == null || persona.isEmpty() ? "ibiko" : persona, kept);
+        try {
+            ai.ibiko.llm.ReplyNotice.show(getApplicationContext(), persona, kept);
+        } catch (RuntimeException ignored) {
+            // the reply is in the chat even if the notice could not be posted
+        }
+        ai.ibiko.main.LiveWork.refresh(this);
+    }
+
     /** A comment or post that was drafted while the screen was gone, so "yes" still reaches it after Ibiko is opened again. */
     void keepStaged(ai.ibiko.brain.PendingAction p) {
         stager.offer(p);

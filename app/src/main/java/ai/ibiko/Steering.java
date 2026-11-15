@@ -134,9 +134,6 @@ final class Steering {
             String said = onDevice ? a.model.task(system, asked, ai.ibiko.chat.Tuning.CHAT_TOKENS.get(a.prefs), null)
                     : a.model.remoteTask(system, asked, ai.ibiko.chat.Tuning.CHAT_TOKENS.get(a.prefs));
             a.handler.post(() -> {
-                if (a.isFinishing() || a.chatPane == null) {
-                    return;
-                }
                 ai.ibiko.suit.FunctionCode.Call c = said == null ? null : ai.ibiko.suit.FunctionCode.parse(said);
                 if (c != null && c.code == ai.ibiko.suit.FunctionCode.ST) {
                     // for the job, as a note on how to go on: it reads it on its next step, without re-planning
@@ -147,6 +144,10 @@ final class Steering {
                 String shown = said == null ? null : ai.ibiko.chat.ReplyText.prepare(ai.ibiko.suit.FunctionCode.withoutCode(said)).trim();
                 if (shown == null || shown.isEmpty()) {
                     shown = c != null ? "Passed to the running job." : "I couldn't answer that just now; the job is still running.";
+                }
+                if (a.isFinishing() || a.chatPane == null) {
+                    a.keepAnswer(agent, shown);
+                    return;
                 }
                 a.chatPane.assistant(agent, shown);
             });

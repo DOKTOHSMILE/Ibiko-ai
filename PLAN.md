@@ -1,3 +1,9 @@
+# A side answer is kept when the screen is gone (0.99.146)
+
+- [x] A message sent while a job is running is still answered if you leave before it finishes. The answer is written into the chat, and the open screen is told.
+- [x] The same for a command result, a connector result, a council answer, a fact-check correction, a lookup, and a two-sided discussion. They used to be thrown away when the screen was already closing.
+- [ ] On the phone: start a job, send a short question, leave Ibiko, then come back. The short answer should be in the chat.
+
 # The project compiles again (0.99.145)
 
 - [x] An API reply's token ceiling is a final value, so the model call compiles. A 24-token check stays short. An everyday API answer may still run to 2,048 tokens.
