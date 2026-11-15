@@ -29,6 +29,7 @@ final class AgentSession {
                 a.model.remoteOn() ? 6000 : Math.max(220, a.model.window() / 6)); // what was already found, as much as the model can hold
         final String tools = a.connectorTools();
         a.model.coding = true;
+        ai.ibiko.main.LiveWork.began(a);
         a.showIbikoMode(true); // the agent's mode in the header while it works
         final String agentId = ai.ibiko.config.ModelRegistry.agentIdFor(persona); // Obi reads, Ivie reviews, Ibiko writes
         final ai.ibiko.config.ModelRegistry.Agent agentRow = ai.ibiko.config.ModelRegistry.of(a).agent(agentId);
@@ -245,6 +246,12 @@ final class AgentSession {
                             + workMs / 3_600_000 + " hours" : "Paused after " + round + " rounds")
                             + ". Say \u201ccontinue\u201d to keep going.)";
                 }
+            } catch (RuntimeException failed) {
+                if (a.model != null) {
+                    a.model.coding = false;
+                }
+                a.handler.post(() -> ai.ibiko.main.LiveWork.ended(a));
+                throw failed;
             } finally {
                 a.model.watchIdleMs = 0;
                 a.model.watchCapMs = 0;
@@ -262,15 +269,31 @@ final class AgentSession {
             if (!readOnly) {
                 a.recordIbikoFiles(workspace, changed);
             }
-            a.handler.post(() -> {
+            // The screen may already be gone. The answer is written here, on this thread, so it is in the chat
+            // even if the screen's handler is dropped. The open screen, if it is a new one, is told to redraw.
+            final boolean away = a.isFinishing() || !a.inFront;
+            final boolean going = a.alive(id);
+            if (going && away && answer != null && !answer.trim().isEmpty() && a.chats != null) {
+                a.chats.replyToPage(persona, answer.trim());
+                try {
+                    ai.ibiko.llm.ReplyNotice.show(a.getApplicationContext(), persona, answer);
+                } catch (RuntimeException ignored) {
+                    // the reply is in the chat even if the notice could not be posted
+                }
+            }
+            if (a.model != null) {
                 a.model.coding = false;
+            }
+            a.handler.post(() -> {
+                ai.ibiko.main.LiveWork.ended(a);
+                if (!going || away) {
+                    ai.ibiko.main.LiveWork.refresh(a);
+                    return;
+                }
                 a.refreshSend(); // the job is over: Stop goes back to Send
                 a.showIbikoMode(false); // the job is over: the mode goes back into the Tools sheet
                 a.handler.post(a.releaseHeld); // a message held while Ibiko worked goes now, even if this page moved on
                 a.refreshSend();
-                if (!a.alive(id) || a.isFinishing()) {
-                    return;
-                }
                 a.endThink();
                 if (passedTo != null) {
                     a.handOver(persona, task, passedTo); // not Ibiko's work: Obi or Ivie answers it

@@ -57,7 +57,25 @@ public class LearningLogTest {
         assertEquals("You are Obi.", first.get("content"));
         assertEquals("assistant", last.get("role"));
         assertEquals("Why did the chicken cross the road?", last.get("content"));
+        assertTrue(MiniJson.obj(MiniJson.obj(MiniJson.parse(line)).get("logic")).get("lesson").toString().length() > 10);
         log.clear();
         assertEquals(0, log.count());
+    }
+
+    @Test
+    public void aDecisionIsLearnedAsLogicNotAsWordsToCopy() throws Exception {
+        File dir = Files.createTempDirectory("learn").toFile();
+        LearningLog log = new LearningLog(dir);
+        String q = "Should I rent or buy? I can't afford a deposit and I might leave in a year.";
+        log.record("sys", ask(q), "Buy, because owning is always better.", "OpenAI (y)", "FAST", 1);
+        log.record("sys", ask(q), "Rent, because you can't afford the deposit and you might leave.", "offline (qwen)", "LOCAL", 2);
+        String ex = log.examplesFor("Should I rent or buy if I can't afford a deposit and I might leave in a year?", 1, 2500);
+        assertTrue(ex, ex.contains("follow the logic, not the wording"));
+        assertTrue(ex, ex.contains("support rent"));
+        assertTrue(ex, ex.contains("short stay") || ex.contains("might leave"));
+        assertTrue(ex, ex.contains("Said (offline)")); // the reply that states the lean, not the one that fights it
+        assertTrue(ex, ex.contains("other side (online)"));
+        assertTrue(ex, ex.contains("Do not blend"));
+        assertTrue(ex, ex.contains("owning is always better")); // the other model's words stay visible, as what not to follow blindly
     }
 }

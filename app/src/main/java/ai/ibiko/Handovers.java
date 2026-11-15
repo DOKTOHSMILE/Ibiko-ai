@@ -115,7 +115,26 @@ final class Handovers {
         a.deskThread.execute(() -> {
             final List<TurnLine> out = c.discuss(r.question, first, r.mode, null);
             a.handler.post(() -> {
-                if (!a.alive(id) || a.discussion != c || a.isFinishing()) {
+                if (!a.alive(id) || a.discussion != c) {
+                    return;
+                }
+                if (a.isFinishing() || a.chatPane == null) {
+                    StringBuilder kept = new StringBuilder();
+                    if (out != null) {
+                        for (TurnLine line : out) {
+                            if (line != null && line.text != null && !line.text.trim().isEmpty()) {
+                                if (kept.length() > 0) {
+                                    kept.append("\n\n");
+                                }
+                                kept.append(line.text.trim());
+                            }
+                        }
+                    }
+                    a.endThink();
+                    a.keepAnswer(first, kept.toString());
+                    if (a.discussion == c) {
+                        a.discussion = null;
+                    }
                     return;
                 }
                 a.endThink();

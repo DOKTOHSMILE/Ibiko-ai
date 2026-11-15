@@ -25,7 +25,7 @@ public final class CodeFit {
             + "|instagram|linkedin|telegram|tiktok|x\\.com");
     static final Pattern PICTURE = p("draw|picture|image|photo\\w*|logo|icon|illustration|artwork|paint\\w*|sketch|wallpaper|poster");
     static final Pattern FILE = p("pdf|docx?|word (document|file)|excel|spreadsheet|xlsx|csv|markdown|txt|file|download|export|save (it|this|that)");
-    static final Pattern SHELL = p("run|install|command|terminal|shell|bash|execute|ls|git|pip|npm|python3?|node|gcc|version|compile|uninstall");
+    static final Pattern SHELL = p("run|install|command|terminal|shell|bash|execute|ls|git|clone|pull|fetch|push|pip|npm|python3?|node|gcc|version|compile|uninstall");
     static final Pattern WORK = p("code|coding|program|app|website|web ?page|page|site|html|css|javascript|java|kotlin|python|script"
             + "|build|fix|bug|repo|repository|project|function|class|test|deploy|refactor|audit|commit|push|pull request|landing");
     static final Pattern WRITING = p("write|story|essay|report|article|script|book|chapter|letter|speech|proposal|plan");
@@ -41,8 +41,93 @@ public final class CodeFit {
     static final Pattern YES_NO = Pattern.compile("(?is)^\\s*(yes|yeah|yep|ok(ay)?|sure|go ahead|do it|send it|confirm|no|nope|cancel|"
             + "stop|don'?t|never mind)\\b.*");
 
-    /** Whether the order fits the user's words (always true for a null order or an empty message's harmless codes). */
+    /** Whether the order fits the user's words, or the reading of those words. */
     public static boolean fits(BrainOrder order, String userSaid) {
+        if (order == null) {
+            return true;
+        }
+        ai.ibiko.suit.Comprehension c = ai.ibiko.suit.Comprehension.of(userSaid);
+        if (c.refused && !open(order.kind)) {
+            return false; // "don't post" is not a request to post
+        }
+        boolean words = words(order, userSaid);
+        if (c.want != null) {
+            boolean same = same(order, c.want) || same(order, c.also);
+            if (same) {
+                return guarded(order.kind) ? words : true; // plan, auto, and yes stay on the user's own words
+            }
+            if (!open(order.kind)) {
+                return false; // they asked for a different function
+            }
+        } else if (c.act == ai.ibiko.suit.Comprehension.Act.QUESTION && !open(order.kind)) {
+            return false; // "how do I clone" wants an explanation, not the command the word happens to name
+        }
+        return words;
+    }
+
+    /** A look-up, a sum, the time, a tool, or handing the message on: always allowed. */
+    private static boolean open(BrainOrder.Kind kind) {
+        switch (kind) {
+            case SEARCH: case TIME: case CALC: case TOOL: case THINKTOGETHER: case HANDOVER: case SWITCH: case SAY:
+            case GREET: case CANNOT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** Mode changes and a yes or a no are never inferred. The user's words have to say them. */
+    private static boolean guarded(BrainOrder.Kind kind) {
+        switch (kind) {
+            case PLANMODE: case AUTOON: case AUTOOFF: case CONFIRM: case CANCEL: case NEWCHAT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static boolean same(BrainOrder order, ai.ibiko.suit.FunctionCode code) {
+        if (order == null || code == null) {
+            return false;
+        }
+        switch (order.kind) {
+            case SEARCH: return code == ai.ibiko.suit.FunctionCode.SR;
+            case SHELL: return code == ai.ibiko.suit.FunctionCode.SH;
+            case TOOL: return code == ai.ibiko.suit.FunctionCode.TL;
+            case PHOTO: return code == ai.ibiko.suit.FunctionCode.PH;
+            case IMAGE: return code == ai.ibiko.suit.FunctionCode.IM;
+            case SOCIAL: return code == ai.ibiko.suit.FunctionCode.SO;
+            case TIME: return code == ai.ibiko.suit.FunctionCode.TM;
+            case NAME: return code == ai.ibiko.suit.FunctionCode.NM;
+            case UNZIP: return code == ai.ibiko.suit.FunctionCode.UZ;
+            case FINDZIP: return code == ai.ibiko.suit.FunctionCode.FZ;
+            case CALC: return code == ai.ibiko.suit.FunctionCode.CA;
+            case MAKEFILE: return code == ai.ibiko.suit.FunctionCode.MF;
+            case STAGE: return code == ai.ibiko.suit.FunctionCode.AC;
+            case SOCIALINTEL: return code == ai.ibiko.suit.FunctionCode.SI;
+            case SCHEDULEPOST: return code == ai.ibiko.suit.FunctionCode.SP;
+            case NEWCHAT: return code == ai.ibiko.suit.FunctionCode.NC;
+            case SWITCH: return code == ai.ibiko.suit.FunctionCode.SW;
+            case HANDOVER: return code == ai.ibiko.suit.FunctionCode.HO;
+            case WORK: return code == ai.ibiko.suit.FunctionCode.WK;
+            case WRITEPLAN: return code == ai.ibiko.suit.FunctionCode.WP;
+            case THINKTOGETHER: return code == ai.ibiko.suit.FunctionCode.TT;
+            case READFILES: return code == ai.ibiko.suit.FunctionCode.RF;
+            case CARRYON: return code == ai.ibiko.suit.FunctionCode.CO;
+            case STEER: return code == ai.ibiko.suit.FunctionCode.ST;
+            case CONFIRM: return code == ai.ibiko.suit.FunctionCode.YS;
+            case CANCEL: return code == ai.ibiko.suit.FunctionCode.CX;
+            case PLANMODE: return code == ai.ibiko.suit.FunctionCode.PM;
+            case AUTOON: return code == ai.ibiko.suit.FunctionCode.AO;
+            case AUTOOFF: return code == ai.ibiko.suit.FunctionCode.AF;
+            case RETRY: return code == ai.ibiko.suit.FunctionCode.RT;
+            case SETTINGS: return code == ai.ibiko.suit.FunctionCode.OS;
+            default: return false;
+        }
+    }
+
+    /** Whether the order fits the user's words (always true for a null order or an empty message's harmless codes). */
+    private static boolean words(BrainOrder order, String userSaid) {
         if (order == null) {
             return true;
         }
@@ -83,6 +168,8 @@ public final class CodeFit {
                 return AGAIN.matcher(t).matches();
             case SETTINGS:
                 return SETTINGS.matcher(t).matches();
+            case STEER:
+                return p("tell the (job|task)|steer|focus on|skip the").matcher(t).matches();
             case CONFIRM: case CANCEL:
                 // a yes or a no of the user's own; "say yes or no" (the question read back, or heard by the mic) is neither
                 return YES_NO.matcher(t).matches() && !t.matches("(?is).*\\byes\\b.*\\bor\\b.*\\bno\\b.*");

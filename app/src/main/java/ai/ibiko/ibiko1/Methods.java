@@ -63,7 +63,7 @@ public final class Methods {
         }
     }
 
-    static final int MOST = 400;
+    public static final int MOST = 1600;
     /** A way is offered as a hint once it has been seen twice, or the pilot marked it right. */
     static final int TRUSTED = 2;
 

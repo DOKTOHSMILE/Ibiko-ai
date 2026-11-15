@@ -58,6 +58,17 @@ final class Steering {
      * it as the next turn.
      */
     void steerIntoTask(String text, boolean attached) {
+        if (ai.ibiko.main.LiveWork.owner() != null && ai.ibiko.main.LiveWork.owner() != a
+                && a.model != null && (a.model.working() || a.model.coding)) {
+            // the job is on the screen that was destroyed: this message joins that job, it does not start another
+            String t = text == null ? "" : text.trim();
+            if (!t.isEmpty()) {
+                noteUser(t);
+                ai.ibiko.main.LiveWork.passSteer(a, t);
+                a.note("Sent \u2014 I'll read it and keep going");
+            }
+            return;
+        }
         if (!attached && a.model != null && a.model.coding && text != null && !text.trim().isEmpty()) {
             // sorted first (agent/Intake, no model call): only a change to the project reaches the job's plan; a note on
             // how to work reaches the job without re-planning; a question, a separate request or a "thanks" is answered
@@ -123,9 +134,6 @@ final class Steering {
             String said = onDevice ? a.model.task(system, asked, ai.ibiko.chat.Tuning.CHAT_TOKENS.get(a.prefs), null)
                     : a.model.remoteTask(system, asked, ai.ibiko.chat.Tuning.CHAT_TOKENS.get(a.prefs));
             a.handler.post(() -> {
-                if (a.isFinishing() || a.chatPane == null) {
-                    return;
-                }
                 ai.ibiko.suit.FunctionCode.Call c = said == null ? null : ai.ibiko.suit.FunctionCode.parse(said);
                 if (c != null && c.code == ai.ibiko.suit.FunctionCode.ST) {
                     // for the job, as a note on how to go on: it reads it on its next step, without re-planning
@@ -136,6 +144,10 @@ final class Steering {
                 String shown = said == null ? null : ai.ibiko.chat.ReplyText.prepare(ai.ibiko.suit.FunctionCode.withoutCode(said)).trim();
                 if (shown == null || shown.isEmpty()) {
                     shown = c != null ? "Passed to the running job." : "I couldn't answer that just now; the job is still running.";
+                }
+                if (a.isFinishing() || a.chatPane == null) {
+                    a.keepAnswer(agent, shown);
+                    return;
                 }
                 a.chatPane.assistant(agent, shown);
             });

@@ -151,4 +151,56 @@ public class ComprehensionTest {
         assertEquals(Comprehension.Intent.INSTRUCTION, u.read("Save this document.").intent);
         assertFalse(u.read("Save this document.").negated);
     }
+
+    @Test
+    public void negationStaysOnItsOwnClause() {
+        Comprehension.Meaning m = ucl().read("Don't delete the file, rename it");
+        assertEquals(2, m.operations.size());
+        assertEquals("remove", m.operations.get(0).action);
+        assertTrue(m.operations.get(0).negated);
+        assertEquals("change", m.operations.get(1).action);
+        assertFalse(m.operations.get(1).negated);
+        assertFalse("the rename is still wanted", m.negated);
+    }
+
+    @Test
+    public void themIsThePluralThingAndItIsTheSingularOne() {
+        Comprehension u = ucl();
+        u.read("Draw two cars.");
+        Comprehension.Meaning painted = u.read("Paint them red.");
+        assertEquals("cars", painted.references.get("them"));
+        assertEquals("red", painted.first().attributes.get("colour"));
+        u.read("I bought a new car.");
+        assertEquals("car", u.read("Paint it red.").references.get("it"));
+    }
+
+    @Test
+    public void aQuestionAboutRemovingIsNotADeletion() {
+        Comprehension.Meaning m = ucl().read("What if I remove the door?");
+        assertEquals(Comprehension.Intent.EXPLANATION, m.intent);
+        assertTrue(m.operations.isEmpty());
+        Comprehension.Meaning how = ucl().read("tell me how to remove a tyre");
+        assertEquals(Comprehension.Intent.EXPLANATION, how.intent);
+    }
+
+    @Test
+    public void theRedOneContinuesTheLastThing() {
+        Comprehension u = ucl();
+        u.read("Draw a house.");
+        Comprehension.Meaning m = u.read("The red one");
+        assertEquals(Comprehension.Intent.MODIFICATION, m.intent);
+        assertEquals("house", m.first().target);
+        assertEquals("red", m.first().attributes.get("colour"));
+        Comprehension.Meaning want = u.read("I want a red car");
+        assertEquals("red car", want.desire);
+    }
+
+    @Test
+    public void aLimitAndAReasonAreKeptApartFromTheObject() {
+        Comprehension.Meaning m = ucl().read("Remove the door so that it closes, but not the frame");
+        assertEquals("door", m.first().target);
+        assertEquals("it closes", m.goal);
+        assertTrue(m.constraint, m.constraint != null && m.constraint.contains("frame"));
+        assertTrue(m.brief().contains("goal:"));
+    }
 }

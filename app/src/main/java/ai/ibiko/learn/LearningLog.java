@@ -16,12 +16,13 @@ import java.util.Set;
 import ai.ibiko.brain.MiniJson;
 
 /**
- * Ibiko learning from the API models it talks to: every answer an API model gives (the instructions, the
- * conversation, the request, the reply, which model, and Ibiko's steps, which arrive as their own calls) is kept on
- * this phone, one JSON line each. It is used two ways. Now: when the phone's own model answers, the closest past
- * answers are given to it as examples ({@link #examplesFor}). Later: {@link #exportForTraining} writes the lot in
- * the chat format fine-tuning tools read, to train Ibiko's own model on a GPU. Keys are never part of a record;
- * nothing leaves the phone unless the user exports it. Pure Java.
+ * Ibiko learning from every model it talks to, online or on the device: the instructions, the conversation, the
+ * request, the reply, which model, and the logic of the decision (what kind of act it was, the limits the person
+ * stated, the lean those limits support, the moves the model made, and whether its reason agrees). The words alone
+ * are not the lesson. Now: when the phone's own model answers, the closest past decision is given to it as the
+ * logic to follow, with the earlier wording only as what was said ({@link #examplesFor}). Later:
+ * {@link #exportForTraining} writes the lot in the chat format fine-tuning tools read, and keeps the logic beside
+ * the messages. Keys are never part of a record; nothing leaves the phone unless the user exports it. Pure Java.
  */
 public final class LearningLog {
     /** The file stops growing past this; the oldest half is dropped. */
@@ -38,7 +39,7 @@ public final class LearningLog {
         return file;
     }
 
-    /** One API answer: the instructions, the turns (role, text), the reply, and who wrote it. */
+    /** One answer, from an API model or from the model on the device: the turns, the reply, who wrote it, and why. */
     public synchronized void record(String system, List<String[]> turns, String reply, String source, String tier, long at) {
         if (reply == null || reply.trim().isEmpty() || turns == null || turns.isEmpty()) {
             return;
@@ -57,6 +58,7 @@ public final class LearningLog {
         }
         r.put("messages", msgs);
         r.put("reply", reply.trim());
+        r.put("logic", DecisionLogic.of(DecisionLogic.asked(turns), reply, source).toMap());
         try {
             if (file.length() > MAX_BYTES) {
                 dropOldestHalf();
@@ -87,14 +89,29 @@ public final class LearningLog {
     }
 
     /**
-     * The closest past answers to this request, as examples for the phone's own model ("A question like yours, and
-     * how it was answered"), at most {@code most} of them and {@code maxChars} long; empty when none is close.
-     * Only conversation answers count (not one-line orders or Ibiko's tool steps).
+     * The closest past decision to this request, for the phone's own model: the logic first (what was decided and
+     * why), then what was actually said, at most {@code most} of them and {@code maxChars} long. Empty when none is
+     * close. The model is told to follow the logic and to copy the words only when the facts are the same. Only
+     * conversation answers count (not one-line orders or Ibiko's tool steps). When the online model and the device
+     * disagreed, both reasons are shown and the model is told not to blend the wordings.
      */
     /** The learned questions filed by code (L<n>) and tags, read once and added to as the log grows. */
     private Codes index;
-    private final List<String[]> learned = new ArrayList<String[]>();
+    private final List<Kept> learned = new ArrayList<Kept>();
     private long indexedBytes = -1;
+
+    /** One kept answer: the question, the reply, and the decision behind it. */
+    private static final class Kept {
+        final String asked;
+        final String reply;
+        final DecisionLogic logic;
+
+        Kept(String asked, String reply, DecisionLogic logic) {
+            this.asked = asked;
+            this.reply = reply;
+            this.logic = logic;
+        }
+    }
 
     /** Files any answers added since the last look; files all again when the log was cut. */
     private void fileNew() {
@@ -125,8 +142,13 @@ public final class LearningLog {
             if (cut >= 0) {
                 asked = asked.substring(cut + 15);
             }
+            asked = asked.trim();
+            DecisionLogic logic = DecisionLogic.from(r);
+            if (logic == null) {
+                logic = DecisionLogic.of(asked, reply, MiniJson.str(r.get("source"), ""));
+            }
             index.add("L" + learned.size(), asked);
-            learned.add(new String[]{asked.trim(), reply.trim()});
+            learned.add(new Kept(asked, reply.trim(), logic));
         }
     }
 
@@ -136,14 +158,12 @@ public final class LearningLog {
             return "";
         }
         List<double[]> scored = new ArrayList<double[]>();
-        List<String[]> pairs = new ArrayList<String[]>();
         // by code: the question's tags pull the ids of the learned questions about it; only those are compared, not
         // every answer ever learned (the log is read once, then only what is new)
         fileNew();
         for (String code : index.recall(request, 60, 1)) {
-            String[] p = learned.get(Integer.parseInt(code.substring(1)));
-            String asked = p[0], reply = p[1];
-            Set<String> have = words(asked);
+            Kept p = learned.get(Integer.parseInt(code.substring(1)));
+            Set<String> have = words(p.asked);
             int same = 0;
             for (String w : want) {
                 if (have.contains(w)) {
@@ -151,27 +171,95 @@ public final class LearningLog {
                 }
             }
             double score = same / (double) (want.size() + have.size() - same);
+            if (p.logic != null && p.logic.agrees(p.reply)) {
+                score += 0.05; // a reply that states the lean is safer to show than one that fights it
+            }
             if (score >= 0.3) {
-                scored.add(new double[]{score, pairs.size()});
-                pairs.add(new String[]{asked, reply});
+                scored.add(new double[]{score, learnedIndex(code)});
             }
         }
         scored.sort((a, b) -> Double.compare(b[0], a[0]));
         StringBuilder out = new StringBuilder();
         Set<String> used = new HashSet<String>();
+        int shown = 0;
         for (double[] s : scored) {
-            String[] p = pairs.get((int) s[1]);
-            if (used.contains(p[0]) || used.size() >= most) {
+            Kept p = learned.get((int) s[1]);
+            if (used.contains(p.asked) || shown >= most) {
                 continue;
             }
-            String block = "Q: " + clip(p[0], 300) + "\nA: " + clip(p[1], 700) + "\n";
-            if (out.length() + block.length() > maxChars) {
-                break;
+            String block = block(p);
+            Kept other = otherSide(p, scored);
+            if (other != null) {
+                block += "The other side (" + other.logic.side + ") was not the same. Its logic: "
+                        + clip(other.logic.lesson, 180) + "\nSaid there: " + clip(other.reply, 120)
+                        + "\nKeep the reason that uses a limit they stated. Do not blend the wordings.\n";
             }
-            used.add(p[0]);
+            if (out.length() + block.length() > maxChars) {
+                if (out.length() == 0 && block.length() > maxChars) {
+                    block = clip(block, maxChars);
+                } else {
+                    break;
+                }
+            }
+            used.add(p.asked);
+            shown++;
             out.append(block);
         }
-        return out.length() == 0 ? "" : "Examples of how questions like this were answered before (use them as a guide):\n" + out;
+        return out.length() == 0 ? "" : "How a similar request was decided (follow the logic, not the wording):\n" + out;
+    }
+
+    private int learnedIndex(String code) {
+        return Integer.parseInt(code.substring(1));
+    }
+
+    private static String block(Kept p) {
+        DecisionLogic g = p.logic;
+        StringBuilder b = new StringBuilder();
+        b.append("Request: ").append(clip(p.asked, 220)).append('\n');
+        if (g != null && g.decision != null && !g.decision.isEmpty()) {
+            b.append(clip(g.decision, 220)).append('\n');
+        }
+        if (g != null && g.lesson != null && !g.lesson.isEmpty()) {
+            b.append("Logic: ").append(clip(g.lesson, 360)).append('\n');
+        }
+        b.append("Said (").append(g == null || g.side.isEmpty() ? "a model" : g.side).append("): ")
+                .append(clip(p.reply, 240)).append('\n');
+        return b.toString();
+    }
+
+    /** Another model's answer to the same request that does not say the same thing, or null. */
+    private Kept otherSide(Kept chosen, List<double[]> scored) {
+        if (chosen.logic == null) {
+            return null;
+        }
+        Set<String> want = words(chosen.asked);
+        for (double[] s : scored) {
+            Kept p = learned.get((int) s[1]);
+            if (p == chosen || p.logic == null || p.logic.side.equals(chosen.logic.side)) {
+                continue;
+            }
+            if (sameWords(want, words(p.asked)) < 0.5) {
+                continue;
+            }
+            if (p.reply.equalsIgnoreCase(chosen.reply)) {
+                continue;
+            }
+            return p;
+        }
+        return null;
+    }
+
+    private static double sameWords(Set<String> a, Set<String> b) {
+        if (a.isEmpty() || b.isEmpty()) {
+            return 0;
+        }
+        int same = 0;
+        for (String w : a) {
+            if (b.contains(w)) {
+                same++;
+            }
+        }
+        return same / (double) (a.size() + b.size() - same);
     }
 
     /**
@@ -202,6 +290,10 @@ public final class LearningLog {
             msgs.add(a);
             Map<String, Object> example = new LinkedHashMap<String, Object>();
             example.put("messages", msgs);
+            Object logic = r.get("logic");
+            if (logic != null) {
+                example.put("logic", logic); // the reason, so a later training run can learn it and not only the words
+            }
             out.write((MiniJson.write(example) + "\n").getBytes(StandardCharsets.UTF_8));
             n++;
         }

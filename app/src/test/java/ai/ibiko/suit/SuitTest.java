@@ -37,7 +37,9 @@ public class SuitTest {
     @Test
     public void theCortexReadsTheMessage() {
         Comprehension q = Comprehension.of("Can you fix the bug in MainActivity.java on doktohsmile/dvine-ai-frontend?");
-        assertEquals(Comprehension.Act.QUESTION, q.act);
+        assertEquals(Comprehension.Act.REQUEST, q.act);
+        assertEquals(FunctionCode.WK, q.want);
+        assertTrue(q.brief().contains("Decision: write \u00A7WK"));
         assertTrue(q.files.contains("MainActivity.java"));
         assertTrue(q.repos.toString(), q.repos.contains("doktohsmile/dvine-ai-frontend"));
         assertTrue(q.brief().contains("files: MainActivity.java"));
@@ -49,6 +51,9 @@ public class SuitTest {
         assertEquals("288", m.mathValue);
         assertTrue(m.brief().contains("exact arithmetic: 12 * 24 = 288"));
         assertTrue(Comprehension.of("Ask Ada Lovelace about it").names.contains("Ada Lovelace"));
+        String longNotes = "x".repeat(80) + " Decision: write \u00A7WK. " + "y".repeat(80);
+        String cut = Comprehension.keepDecision(longNotes, 50);
+        assertTrue(cut, cut.startsWith("Decision: write \u00A7WK."));
     }
 
     @Test
@@ -94,7 +99,10 @@ public class SuitTest {
         assertEquals("12 x 7 = 84", c.answerAlone("what's 12 x 7?"));
         assertEquals("From what I learned earlier: Nairobi.", c.answerAlone("capital of Kenya"));
         assertNull(c.answerAlone("write me a poem"));
-        assertTrue(c.context("hello").startsWith("Ibiko's reading of the message: greeting"));
+        String choice = c.answerAlone("Should I rent or buy? I can't afford a deposit and I might leave in a year.");
+        assertTrue(choice, choice != null && choice.contains("Lean: rent"));
+        assertTrue(c.context("hello").startsWith("Decision:"));
+        assertTrue(c.context("hello").contains("Ibiko's reading of the message: greeting"));
     }
 
     /** Passing work on, planning a piece, thinking together, the yes to an action: codes from the brain, never words. */

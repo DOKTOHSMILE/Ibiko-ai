@@ -127,6 +127,7 @@ final class LocalAsk {
                 + (thought.said == null ? "" : "\nIbiko's own view from the answers it has gathered ("
                         + ai.ibiko.ibiko1.formulas.Probability.words(thought.sure) + "): " + thought.said
                         + " Use it if it helps; correct it if it is wrong.");
+        ai.ibiko.main.LiveWork.began(act);
         act.hub.worker.execute(() -> {
             String asked = question;
             if (lang != null && act.alive(id)) {
@@ -197,12 +198,11 @@ final class LocalAsk {
                     + act.pilotProfile().brief() // what the pilot said about themselves, for every brain
                     + (pageTools.brief().isEmpty() ? "" : "\n" + pageTools.brief());
             if (!act.model.remoteOn() && act.model.quick(english, 160) && gathered.length() > act.QUICK_CONTEXT_CHARS) {
-                // an everyday message goes the speed test's way: little to read before the first word
-                gathered = gathered.substring(0, act.QUICK_CONTEXT_CHARS);
+                gathered = ai.ibiko.suit.Comprehension.keepDecision(gathered, act.QUICK_CONTEXT_CHARS);
             } else if (!act.model.remoteOn() && gathered.length() > act.DEVICE_CONTEXT_CHARS) {
-                // the device's model reads all of it before its first word: what is said about this question first
-                // (taught facts, the reference, the situation), the rest cut
-                gathered = gathered.substring(0, act.DEVICE_CONTEXT_CHARS);
+                // the device's model reads all of it before its first word: the decision stays, then what is
+                // said about this question (taught facts, the reference, the situation)
+                gathered = ai.ibiko.suit.Comprehension.keepDecision(gathered, act.DEVICE_CONTEXT_CHARS);
             }
             final String context = gathered;
             final ai.ibiko.llm.ActionTags tags = new ai.ibiko.llm.ActionTags();
@@ -273,8 +273,37 @@ final class LocalAsk {
                 }
                 return act.alive(id);
             };
-            String raw;
-            if (pageTools.deep()) {
+            String raw = null;
+            // Think 2 is chosen on the button: several API models, then one answer. A greeting stays one call.
+            // A coding job on Ibiko never reaches here (the agent takes it). The old skip for "file" or a long
+            // question was why Think 2 did nothing.
+            if (pageTools.round() && !act.model.remoteOn()) {
+                act.handler.post(() -> {
+                    if (act.alive(id)) {
+                        act.activity("Think 2 needs an API model; answering once");
+                    }
+                });
+            }
+            boolean ring = pageTools.round() && act.model.remoteOn() && ai.ibiko.llm.RoundThink.worth(english);
+            if (ring) {
+                raw = ai.ibiko.llm.RoundThink.run((model, sys, prompt) -> act.model.askNamed(model, sys, prompt, Math.max(length, 800)),
+                        act.model.ring(), english, context, system, line -> act.handler.post(() -> {
+                            if (act.alive(id)) {
+                                act.activity(line);
+                            }
+                        }), () -> !act.alive(id));
+                if (raw != null) {
+                    sink.onText(raw);
+                } else if (act.alive(id)) {
+                    // the round came back with nothing: one model still answers, and the row says so
+                    act.handler.post(() -> {
+                        if (act.alive(id)) {
+                            act.activity("Think 2 didn't finish; answering once");
+                        }
+                    });
+                }
+            }
+            if (raw == null && act.alive(id) && pageTools.deep()) {
                 // deep thinking, switched on for this chat: the same brain plans, drafts, checks and revises
                 raw = ai.ibiko.suit.DeepThink.think((sys, prompt) -> act.model.task(sys, prompt, length, null), system,
                         context + "\n\nThe user says: " + english, 3,
@@ -291,7 +320,7 @@ final class LocalAsk {
                 if (raw != null) {
                     sink.onText(raw);
                 }
-            } else {
+            } else if (raw == null && act.alive(id)) {
                 raw = act.model.reply(system, english, context, length, sink);
             }
             raw = foldSteer(id, system, english, context, length, raw, sink);
@@ -333,6 +362,7 @@ final class LocalAsk {
             final boolean spokeLive = live.end(all);
             final String switchTo = tags.switchTo();
             act.handler.post(() -> {
+                ai.ibiko.main.LiveWork.ended(act);
                 act.writing.remove(id);
                 String w = act.replyWorkers.remove(id);
                 if (w != null) {
@@ -340,6 +370,7 @@ final class LocalAsk {
                             : all == null || all.trim().isEmpty() ? ai.ibiko.agent.AgentBoard.Outcome.FAILED : ai.ibiko.agent.AgentBoard.Outcome.DONE);
                 }
                 if (!act.alive(id)) {
+                    ai.ibiko.main.LiveWork.refresh(act);
                     return;
                 }
                 String body = all == null ? ""
@@ -357,6 +388,7 @@ final class LocalAsk {
                         act.unreadPages.add(agent); // a dot on that page's tab
                         act.personaTabs.update(act.stage.agent());
                     }
+                    ai.ibiko.main.LiveWork.refresh(act);
                     return;
                 }
                 if (!act.inFront && order == null && !body.isEmpty()) {
@@ -372,7 +404,8 @@ final class LocalAsk {
                     if (act.chats != null) {
                         act.chats.replyToPage(agent, kept, act.stampVoice());
                     }
-                    ai.ibiko.llm.ReplyNotice.show(act, agent, kept);
+                    ai.ibiko.llm.ReplyNotice.show(act.getApplicationContext(), agent, kept);
+                    ai.ibiko.main.LiveWork.refresh(act);
                     final String learnQ = question, learnA = kept;
                     act.hub.worker.execute(() -> {
                         if (ai.ibiko.chat.ui.UsageActivity.learningOn(act.prefs)) { // Settings › Data and privacy › learning

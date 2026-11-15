@@ -146,11 +146,15 @@ final class SocialPosts {
                     : act.model.reply(system, question, "Result of " + capability + ":\n" + r.text, 900, piece -> act.modelPiece(id, piece));
             final String folded = answer;
             act.handler.post(() -> {
-                if (!act.alive(id) || act.isFinishing()) {
+                if (!act.alive(id) && !act.isFinishing()) {
                     return;
                 }
                 act.endThink();
                 String text = folded == null || folded.trim().isEmpty() ? r.text : ai.ibiko.llm.ActionTags.strip(folded).trim();
+                if (act.isFinishing() || act.chatPane == null) {
+                    act.keepAnswer(agent, text);
+                    return;
+                }
                 act.play(LocalTurn.speakAs(agent, text), null);
             });
         });
@@ -196,7 +200,7 @@ final class SocialPosts {
     void offerOrPost(PendingAction p) {
         act.stager.offer(p);
         if (autoPost()) {
-            act.stager.take();
+            act.takeStaged();
             act.doAction(p, true);
             return;
         }
@@ -251,6 +255,18 @@ final class SocialPosts {
                 .show();
     }
 
+    /** On screen, say it. Off screen, keep it in the chat and tell the open screen. */
+    void keepOrSay(String agent, String said) {
+        if (act.isFinishing() || !act.inFront) {
+            if (act.chats != null && said != null && !said.trim().isEmpty()) {
+                act.chats.replyToPage(agent, said);
+            }
+            ai.ibiko.main.LiveWork.refresh(act);
+            return;
+        }
+        act.play(LocalTurn.speakAs(agent, said), null);
+    }
+
     /** A date and a time for the version, then the usual schedule card (shown, kept on the yes). */
     void scheduleVersion(final String app, final String text) {
         final java.util.Calendar at = java.util.Calendar.getInstance();
@@ -261,6 +277,46 @@ final class SocialPosts {
             schedulePost(line);
         }, at.get(java.util.Calendar.HOUR_OF_DAY), at.get(java.util.Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(act)).show(),
                 at.get(java.util.Calendar.YEAR), at.get(java.util.Calendar.MONTH), at.get(java.util.Calendar.DAY_OF_MONTH)).show();
+    }
+
+    /**
+     * "Latest post about X and write a comment": search that network, then draft a comment under the first post.
+     * The comment still waits for the pilot's yes.
+     */
+    void commentOnLatest(final String app, final String query, final String what) {
+        final String agent = act.stage.agent();
+        final ai.ibiko.social.Platform net = ai.ibiko.social.Platform.named(app);
+        if (net == null) {
+            act.play(LocalTurn.speakAs(agent, "Say which network: Facebook or X."), null);
+            return;
+        }
+        if (ai.ibiko.social.SocialWeb.accounts(act).inUse(net) == null) {
+            act.play(LocalTurn.speakAs(agent, "I need you signed in to " + net.shown + " first: open the menu, then Connectors."), null);
+            return;
+        }
+        act.armThink("Finding the latest post", "Writing a comment");
+        new Thread(() -> {
+            String found;
+            try {
+                found = ai.ibiko.social.SocialWeb.search(act, net, query, 4000);
+            } catch (RuntimeException e) {
+                found = net.shown + ": the search couldn't run.";
+            }
+            final String page = found == null ? "" : found;
+            final String link = ai.ibiko.social.SocialPage.firstPostLink(page);
+            act.handler.post(() -> {
+                if (!act.isFinishing()) {
+                    act.endThink();
+                }
+                if (link == null) {
+                    String said = page.trim().isEmpty() ? "I couldn't find a " + net.shown + " post about " + query + "."
+                            : (page.length() > 1500 ? page.substring(0, 1500) : page);
+                    keepOrSay(agent, said);
+                    return;
+                }
+                commentDraft(app, link, what);
+            });
+        }, "ibiko-comment-latest").start();
     }
 
     /**
@@ -278,14 +334,39 @@ final class SocialPosts {
                     piece -> true, null);
             final String text = answer == null ? null : answer.trim().replaceAll("^\"|\"$", "");
             act.handler.post(() -> {
-                act.endThink();
+                if (!act.isFinishing()) {
+                    act.endThink();
+                }
                 if (text == null || text.isEmpty()) {
-                    act.play(LocalTurn.speakAs(agent, "I couldn't write the comment."), null);
+                    keepOrSay(agent, "I couldn't write the comment.");
                     return;
                 }
                 PendingAction p = new PendingAction(PendingAction.Kind.COMMENT, text, app, System.currentTimeMillis(), null, link);
-                act.play(LocalTurn.speakAs(agent, "Here's the comment for that post:\n\n" + text
-                        + (autoPost() ? "\n\nPosting it now (auto-post is on)." : "\n\nSay yes to post it.")), null);
+                String said = "Here's the comment for that post:\n\n" + text
+                        + (autoPost() ? "\n\nPosting it now (auto-post is on)." : "\n\nSay yes to post it.");
+                if (act.isFinishing() || !act.inFront) {
+                    act.keepStaged(p);
+                    if (act.chats != null) {
+                        act.chats.replyToPage(agent, said);
+                    }
+                    if (!autoPost()) {
+                        try {
+                            ai.ibiko.llm.ReplyNotice.show(act.getApplicationContext(), agent, said);
+                        } catch (RuntimeException ignored) {
+                            // the draft is in the chat
+                        }
+                    } else {
+                        try {
+                            act.doAction(p, true);
+                            act.takeStaged();
+                        } catch (RuntimeException ignored) {
+                            // the screen is gone: the draft stays, and yes posts it when Ibiko is opened
+                        }
+                    }
+                    ai.ibiko.main.LiveWork.refresh(act);
+                    return;
+                }
+                act.play(LocalTurn.speakAs(agent, said), null);
                 offerOrPost(p);
             });
         }, "ibiko-comment").start();

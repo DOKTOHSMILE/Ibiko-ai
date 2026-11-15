@@ -551,6 +551,23 @@ public final class TalkBridge extends UtteranceProgressListener {
         return true;
     }
 
+    /** As {@link #prepared(String)} for one message. Does not change which message the voice is filing under now. */
+    public boolean preparedFor(String messageOwner, String text) {
+        if (neural == null || !humanChosen() || text == null) {
+            return true; // the device's voice: nothing to make ahead
+        }
+        boolean ivie = woman();
+        VoiceTuning t = tuning[ivie ? 1 : 0];
+        for (String sentence : SentenceStream.split(text)) {
+            String said = SentenceStream.speakable(sentence);
+            if (said != null && !said.trim().isEmpty()
+                    && !neural.has(messageOwner, said, speakerFor(ivie), madeRate(t.rate))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** The inner-thought voice: same voice, softer, a touch lower and slower. */
     public void whisper(boolean ivie, String text, TalkDone done) {
         say(ivie, text, done, true);

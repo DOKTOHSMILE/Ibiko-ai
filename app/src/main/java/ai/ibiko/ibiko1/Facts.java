@@ -29,7 +29,7 @@ import java.util.Locale;
  * columns (subject, relation, object, surface, strength, confirmed); an older four-column line loads as strength 1.
  */
 public final class Facts {
-    public static final int MOST = 20000;
+    public static final int MOST = 80000;
 
     private final File file;
     private final List<Row> all = new ArrayList<Row>();

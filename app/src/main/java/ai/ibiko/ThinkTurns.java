@@ -75,15 +75,22 @@ final class ThinkTurns {
             }
             final ai.ibiko.agent.Council.Result done = r;
             a.handler.post(() -> {
-                if (!a.alive(id) || a.isFinishing()) {
+                if (!a.alive(id) && !a.isFinishing()) {
                     return;
                 }
-                a.endThink();
                 if (done == null) {
+                    if (a.isFinishing()) {
+                        return;
+                    }
                     // the council couldn't finish (the model failed): the usual single answer instead
                     a.askLocal(question, null, false, ai.ibiko.chat.Tuning.BIG_TOKENS.get(a.prefs));
                     return;
                 }
+                if (a.isFinishing() || a.chatPane == null) {
+                    a.keepAnswer(speaker, done.answer);
+                    return;
+                }
+                a.endThink();
                 a.model.note(question, done.answer);
                 a.play(LocalTurn.speakAs(speaker, done.answer), null);
                 if (ai.ibiko.agent.Council.building(question) && !"ibiko".equals(speaker) && a.chats != null && a.chatPane != null) {
@@ -114,6 +121,8 @@ final class ThinkTurns {
                     a.handler.post(() -> {
                         if (a.chatPane != null && !a.isFinishing()) {
                             a.chatPane.assistant(persona, own);
+                        } else {
+                            a.keepAnswer(persona, own);
                         }
                     });
                 }
@@ -152,6 +161,8 @@ final class ThinkTurns {
             a.handler.post(() -> {
                 if (a.chatPane != null && !a.isFinishing()) {
                     a.chatPane.assistant(persona, correction);
+                } else {
+                    a.keepAnswer(persona, correction);
                 }
             });
         });
@@ -190,21 +201,34 @@ final class ThinkTurns {
                 }
             }, System.currentTimeMillis());
             a.handler.post(() -> {
-                if (!a.alive(id) || a.isFinishing()) {
+                if (!a.alive(id) && !a.isFinishing()) {
+                    return;
+                }
+                String said;
+                if (found != null && !found.trim().isEmpty()) {
+                    said = found;
+                } else {
+                    BrainAnswer noted = a.brain.respond(question, agent);
+                    said = noted != null && noted.answered && a.plain(noted) ? null
+                            : "I looked that up and don't have a source I can stand behind, so I won't guess.";
+                    if (said == null) {
+                        if (a.isFinishing() || a.chatPane == null) {
+                            a.endThink();
+                            a.keepAnswer(agent, noted.spoken());
+                            return;
+                        }
+                        a.endThink();
+                        a.play(noted.lines, null);
+                        return;
+                    }
+                }
+                if (a.isFinishing() || a.chatPane == null) {
+                    a.endThink();
+                    a.keepAnswer(agent, said);
                     return;
                 }
                 a.endThink();
-                if (found != null && !found.trim().isEmpty()) {
-                    a.play(LocalTurn.speakAs(agent, found), null);
-                    return;
-                }
-                BrainAnswer noted = a.brain.respond(question, agent);
-                if (noted != null && noted.answered && a.plain(noted)) {
-                    a.play(noted.lines, null);
-                } else {
-                    a.play(LocalTurn.speakAs(agent,
-                            "I looked that up and don't have a source I can stand behind, so I won't guess."), null);
-                }
+                a.play(LocalTurn.speakAs(agent, said), null);
             });
         });
     }

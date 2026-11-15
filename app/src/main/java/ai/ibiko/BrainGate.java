@@ -44,6 +44,9 @@ final class BrainGate {
 
     void answer(String text) {
         a.askedAt = System.currentTimeMillis(); // a reply to this may be read out (speakReply)
+        if (ai.ibiko.social.SocialPage.cleared(text)) {
+            ai.ibiko.social.SocialWeb.resumePaused(a); // the site's check is done: the 24-hour pause comes off
+        }
         answer(text, false);
     }
 
@@ -86,9 +89,22 @@ final class BrainGate {
                     // to it, pause / continue / show the download). Without it there is nothing to read the words.
                     return a.modelCommand(a.control(t));
                 })
-                // with a brain in the suit no wording runs anything: the brain reads the sizes (\u00A7BD) and the yes or no
+                // with a brain in the suit no wording runs anything, except a comment on the latest
+                // post (that is the social accounts, not a coding job): the brain reads the sizes (\u00A7BD) and the yes or no
                 // to an action shown waiting (\u00A7YS, \u00A7CX); the card's own buttons are the pilot's direct control
                 .route("post, share or copy", t -> !a.brainReads() && a.stagedAction(t))
+                // "latest Facebook post about X and write a comment" is the social accounts, not a coding job
+                .route("comment on the latest post", t -> {
+                    if (a.backgroundTask != null) {
+                        return false;
+                    }
+                    String[] latest = ai.ibiko.social.PostDrafts.commentOnLatest(t);
+                    if (latest == null) {
+                        return false;
+                    }
+                    a.commentOnLatest(latest[0], latest[1], latest[2]);
+                    return true;
+                })
                 // no "make a file", "retry" or "read the meaning" by wording: the brain gives those as codes
                 .route("brain", t -> {
                     askTheBrain(t);
@@ -202,16 +218,25 @@ final class BrainGate {
                         a.hub.worker.execute(() -> {
                             boolean ok = a.model.load(ai.ibiko.chat.Tuning.modelThreads(a.prefs));
                             a.handler.post(() -> {
-                                if (a.isFinishing()) {
-                                    return;
-                                }
                                 if (ok && a.model.ready()) {
+                                    if (a.isFinishing()) {
+                                        if (a.chats != null && a.chats.current() != null) {
+                                            a.heldChat.add(new String[] { a.pageKey(), waiting });
+                                            a.parkHeld();
+                                            ai.ibiko.main.LiveWork.askWaiting(a);
+                                        }
+                                        return;
+                                    }
                                     a.resending = true; // already in the chat: asked again now the model is up
                                     try {
                                         answer(waiting, false);
                                     } finally {
                                         a.resending = false;
                                     }
+                                } else if (a.isFinishing() || a.chatPane == null) {
+                                    a.keepAnswer(a.stage == null ? "ibiko" : a.stage.agent(), a.model.spec.weights
+                                            + " couldn't start: " + (a.model.problem() == null ? "not enough memory" : a.model.problem())
+                                            + ". Choose a smaller model or an API in the model menu.");
                                 } else {
                                     a.play(LocalTurn.speakAs(a.stage.agent(), a.model.spec.weights + " couldn't start: "
                                             + (a.model.problem() == null ? "not enough memory" : a.model.problem())
@@ -266,18 +291,23 @@ final class BrainGate {
         return "tools:" + group + ":group";
     }
 
-    /** The suit's codes this page's brain is told about: only the tools switched on, and the suit's own controls. */
     /**
-     * The instructions for a reply: in full for an API model; short for the device's own model, which reads every
-     * token of them before its first word (the full set is about 2,000 tokens; a small model reads them slowly and
-     * cannot use them). The warm-up and the reply use the same text, so what was read ahead is kept.
+     * The instructions for a reply. An API model gets the suit's list. The phone's own model gets the how-to for
+     * every function this chat allows, so it knows when to write the code and what Ibiko does next. The warm-up
+     * and the reply use the same text.
      */
     String systemFor(String agent, boolean acts) {
         String today = new java.text.SimpleDateFormat("EEEE d MMMM yyyy", java.util.Locale.UK).format(new java.util.Date());
         if (a.model != null && !a.model.remoteOn()) {
             java.util.Set<ai.ibiko.suit.FunctionCode> allowed = a.chatTools(agent).allowedCodes();
-            return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today)
-                    + (acts ? ai.ibiko.suit.FunctionCode.lean(a.connectorTools(), allowed) : "");
+            String how = "";
+            if (acts) {
+                how = ai.ibiko.suit.FunctionCode.knowHow(a.connectorTools(), allowed);
+                if (allowed.contains(ai.ibiko.suit.FunctionCode.SI)) {
+                    how += ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE;
+                }
+            }
+            return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today) + how;
         }
         return ai.ibiko.llm.PersonaPrompt.system(agent, a.brain.userName(), today, a.selfSheet()) + (acts ? suitCodes(agent) : "");
     }
@@ -352,6 +382,7 @@ final class BrainGate {
             }
             if (a.chats != null && a.chats.current() != null) {
                 a.heldChat.add(new String[] { a.pageKey(), text });
+                a.parkHeld();
             }
             // said on this page and kept there, not a notice that fades: the message is waiting, not lost
             String busyWith = a.runAgent == null ? "Another chat" : a.labelOf(a.runAgent);

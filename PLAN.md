@@ -1,3 +1,137 @@
+# A stored answer that fights the limits is not repeated (0.99.152)
+
+- [x] With no model, a remembered reply was spoken even when it picked a side the person's own limits reject. That reply is no longer given back. A reply that states the lean still is. A fact such as a capital is unchanged.
+- [x] With no model and no usable memory, a judgement is answered by the decision itself (the limits, the lean, what would flip it), not by silence.
+- [ ] On the phone, offline, with no model loaded: ask the rent-or-buy question after an earlier "buy" answer. Ibiko should weigh the limits, not repeat "buy".
+
+# It learns the reason, not only the words (0.99.151)
+
+
+- [x] Every answer, from an API model and from the model on the phone, is kept with the decision: what kind of act it was, the limits the person stated, the lean those limits support, the moves the model made, and whether its own reason agrees.
+- [x] When the phone's model answers, it is shown that logic and told to follow it. The earlier wording is labelled as what was said, not as words to copy. A reply that states the lean is preferred over one that fights it.
+- [x] When the online model and the phone disagreed, both reasons are shown, and the model is told not to blend the wordings. The training export keeps the logic beside the messages.
+- [ ] On the phone: ask a choice ("should I rent or buy, I can't afford the deposit and I might leave in a year") on an API, then ask the same thing with the phone's own model. The second answer should follow the limits, not copy a reply that ignored them.
+
+# It decides what you asked before it acts (0.99.150)
+
+- [x] "Can you fix the bug" is a request, not a question. "How do I clone this" stays an explanation, so it is not run as a command. "Don't post this" is not a post.
+- [x] The reading names the function: a real photo, a picture to make, a file to read, a directory to make, a button to add, two steps joined by "and" or "then". A code for a different function is dropped. A greeting is still not plan mode. A look-up is still allowed.
+- [x] That decision is the first line the model reads, and it is kept when the rest of the notes are cut to fit the phone's model. Ibiko 1 sees the same line.
+- [ ] On the phone: ask the phone's own model to read a file, to make a directory, and "how do I clone a repo". The first two should act. The third should explain.
+
+# The phone's own model can run every function, and Ibiko 1 keeps more (0.99.149)
+
+- [x] The phone's own model is told, for every function this chat allows, when to write the code, the exact line, and what Ibiko does next. The short list is still there for the size check. A code the chat has turned off is not included. A greeting is still not a plan, a share, or a yes.
+- [x] Ibiko 1's stores hold four times as much: 20,000 confirmed answers, 80,000 facts, 1,600 methods, 12,000 truth-ledger lines, and 800 sentence shapes (16,000 pattern characters).
+- [ ] On the phone: with the phone's own model, ask it to search, to make a file, and to say the time. Each should run. "Hello" should stay a greeting.
+
+# The plan stops re-reading and uses what it already opened (0.99.148)
+
+- [x] A file, a folder listing, a search or a page is remembered the moment it is read. The next time, it is not opened again. The answer says it is cached and names the next unticked step.
+- [x] Asking a third time is refused. A file is read again only after it is changed, and then only because the old copy is thrown out.
+- [x] The same write or the same edit is not done twice. Workers share that memory, including a checker, so it does not read the lead's files all over again. A task that is continued later keeps the memory.
+- [ ] On the phone: give Ibiko a real coding task. The steps should move forward. The same file should not be read again and again.
+
+# A message that was waiting is still asked (0.99.147)
+
+- [x] A message sent in a chat that was not the one running is kept. Closing the screen no longer drops it. The next screen asks it when the job ends.
+- [x] A note the running job never read is kept the same way, and asked as its own turn once the job is finished.
+- [x] A social answer, a photograph, and a finished design are written into the chat if the screen closes before they can be shown. A message that was waiting for the on-device model to start is still asked.
+- [ ] On the phone: start a job, switch chats and send a message, leave Ibiko, come back. When the job ends, that message should be asked.
+
+# A side answer is kept when the screen is gone (0.99.146)
+
+- [x] A message sent while a job is running is still answered if you leave before it finishes. The answer is written into the chat, and the open screen is told.
+- [x] The same for a command result, a connector result, a council answer, a fact-check correction, a lookup, and a two-sided discussion. They used to be thrown away when the screen was already closing.
+- [ ] On the phone: start a job, send a short question, leave Ibiko, then come back. The short answer should be in the chat.
+
+# The project compiles again (0.99.145)
+
+- [x] An API reply's token ceiling is a final value, so the model call compiles. A 24-token check stays short. An everyday API answer may still run to 2,048 tokens.
+- [x] The screen that owns a job is told to redraw, and a message typed on a new screen is handed to that job, without reaching into the activity's fields.
+- [x] The coding job's "still going" flag no longer reuses the name of the text being written, which CodeAssist rejected.
+- [ ] On the phone: CodeAssist should list no errors. The edge-to-edge line is a warning. The chat already pads for the status bar, the navigation bar and the keyboard.
+
+# Leaving the app no longer crashes on a large screen (0.99.144)
+
+- [x] The chat and the message box are not copied into the activity's saved state. A long reply or a long unsent draft was about 700 KB, and Android crashed with TransactionTooLargeException as soon as the screen was left.
+- [x] An unsent message is kept in a file and put back when Ibiko opens. Sending it clears that file on the next pause.
+- [ ] On the phone: open a long chat, or leave a long draft in the box, then leave Ibiko. It should stay open in the background, and the draft should still be there when you come back.
+
+# Listen lights when the voice is ready, and an API answer is not cut at 160 tokens (0.99.143)
+
+- [x] Listen stays dim only while the voice is still being made. A redraw no longer throws away the one check that would have lit it, and checking does not file the next sentence under the wrong reply.
+- [x] An API answer asked for at the everyday length (160 tokens), including Think 1 and a side answer, may run to 2,048 tokens. A 24-token check stays short. The phone's own model is unchanged.
+- [x] If Think 2's round comes back empty, the row says so and one model answers. It no longer goes quiet and answers once with no word about it.
+- [x] The old notes that named `Models.kt` now say that file is not in this app. Do not search for it.
+- [ ] On the phone: ask a real question on an API and open Listen after the reply. It should light once the voice is ready, and the reply should not stop mid-sentence.
+
+# A finished job is kept, and opening Ibiko shows it (0.99.142)
+
+- [x] A coding job that finishes after the screen is gone is written into the chat. It is not thrown away, and it does not pretend the job is still waiting.
+- [x] Stopping speech no longer clears every other task on the screen.
+- [x] Opening Ibiko while a job is still running says "Still working" and shows the reply when it lands. A message typed then joins that job.
+- [x] A comment draft is kept if you leave while it is being written. Yes still posts it after you open Ibiko, for six hours.
+- [ ] On the phone: start a coding job, leave Ibiko, open it again. It should say it is still working, then show the answer. Ask for a comment, leave, come back, and say yes.
+
+# Think 2 runs when it is chosen, and leaving the app does not cancel the job (0.99.141)
+
+- [x] Think 2 is no longer skipped because the question is long or contains a word like "file" or "fix". Choosing it runs the several-model pass. A greeting stays one answer. Think 2 needs an API.
+- [x] The tools card does not turn Think 2 off. Think 1 is that card. Think 2 is only the Think button.
+- [x] If the screen is dropped while a job is running, the job is not cancelled. Close on the notification still stops it.
+- [ ] On the phone: set Think 2, ask a real question on an API, leave Ibiko, and come back. The steps should name more than one model, and the job should still be going.
+
+# Work keeps going when Ibiko leaves the screen (0.99.140)
+
+- [x] A reply, a coding job, a clone or a download stays a foreground service with a wake lock. Leaving the app or turning the screen off does not freeze it.
+- [x] Home and swiping the app away do not stop that service while work is still going. Close is the notification's Close button.
+- [x] The background switch cannot be turned off.
+- [ ] On the phone: start a long reply or a coding job, leave Ibiko, and come back. The work should have carried on.
+
+# Three levels of thinking, and a work log that no longer crashes (0.99.139)
+
+- [x] The Think button is a menu, not an on/off switch. Ordinary is the default (one answer). Think 1 is the old Think (plan, check, revise). Think 2 is several API models on one question, then one answer.
+- [x] The choice is kept for every chat. Tools › Deep thinking is the same choice: off is Ordinary, on is Think 1.
+- [x] A continued coding job no longer copies its whole work log. The task line and the latest steps are kept; the middle is left out. That copy was the out-of-memory crash (about 32 MB, on a 256 MB heap).
+- [ ] On the phone: tap Think and choose Ordinary, Think 1, then Think 2. Ask a question on an API with Think 2. Continue a long coding job and confirm it does not crash.
+
+# Java only, and several models on one question (0.99.138)
+
+
+- [x] A project that is Java and has no Kotlin is told so. A `.kt` read or write is refused, and a search for Kotlin is told those files are not on disk.
+- [x] With an API on, the server's model list is read once and models of a similar size are added to that provider's list.
+- [x] A real question (not a greeting, a tool order, or a coding job) is analysed by the selected model, answered by the next, seen from another angle, then each model adds what it would change. The selected model writes one answer.
+- [ ] On the phone: ask a question with an API connected. The steps should name more than one model, and the agent must not create or open `.kt` files in this app.
+
+# The audit stops, then the build starts (0.99.137)
+
+- [x] A survey reads the files the task touches (at most 24, and 32 pieces), and lists the rest of the tree. It does not send every file in a clone to the model.
+- [x] Once that map is written, continue does not survey the repository again. A plan that already has a goal and steps goes to build, including one whose phase line still says check.
+- [x] After the survey, look-only workers are refused, and further reading is refused, until PLAN.md is written. A numbered step list counts, not only checkboxes.
+- [ ] On the phone: give a build task on a cloned repository, let the survey finish, and confirm the next steps edit files instead of reading the tree again for hours.
+
+# A comment on the latest post (0.99.136)
+
+- [x] "Latest Facebook post about X and write a comment" is read as that, including the wording from the chat (Facebook, latest post, concerning or mentioning, and write a comment). It is not handed to the coding agent.
+- [x] Ibiko searches that network, takes the first post link, and drafts a comment. Nothing is posted until the user says yes.
+- [ ] On the phone: ask again for the latest Facebook post about Elon Musk and a comment.
+
+# Social search after a cleared check (0.99.135)
+
+- [x] Saying the check is finished ("I cleared it", "no longer paused") lifts the 24-hour pause. A search the user just asked for still loads while a pause is on; a healthy page lifts it, a real checkpoint pauses again.
+- [x] Facebook is read from the plain page first, then the full page, then a plain HTTPS fetch with the account's cookies. Post links (including story.php) are kept, and the comment instruction is at the top so it is not cut off.
+- [x] When the signed-in page still doesn't load, public results for the same words are returned, with a post link when one is there. A comment is written only after the user says yes.
+- [ ] On the phone: say "I cleared it", then ask again for the latest Facebook post about Elon Musk and a comment.
+
+# Private repositories, and a direction for every function (0.99.134)
+
+- [x] A private GitHub zip keeps the token across GitHub's redirect, and falls back to the file API if the zip mirror refuses it.
+- [x] Shell git clone, fetch, pull, push and gh use the signed-in token through ask-pass and a credential helper. The token is not in the command.
+- [x] A folder git itself cloned (a .git, no Ibiko record) pulls with that same shell.
+- [x] docs/APP_FUNCTIONS.md tells, for every function, when to write the code and what Ibiko does next. Ibiko 1's device model reads that sheet and a fitting code is carried out.
+- [x] Plain words for a private clone, a pull, handing work on, steering a running job, a social search, a scheduled post, and GitHub tools.
+- [ ] On the phone: Connectors, GitHub, signed in, then clone and pull a private repository.
+
 # Room under the chat (0.99.133)
 
 - [x] 35% of the chat's height empty under the last message: new messages rest mid-screen.

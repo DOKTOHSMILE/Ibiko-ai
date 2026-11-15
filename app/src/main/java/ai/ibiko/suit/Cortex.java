@@ -24,7 +24,8 @@ public final class Cortex {
 
     /**
      * An answer with no model, or null when it needs one (then Ibiko says it has no brain for that yet). Only
-     * arithmetic, greetings, thanks and what was learned: nothing is made up.
+     * arithmetic, greetings, thanks, a judgement weighed from the person's own limits, and what was learned:
+     * nothing is made up.
      */
     public String answerAlone(String message) {
         Comprehension c = Comprehension.of(message);
@@ -38,6 +39,13 @@ public final class Cortex {
             return "You're welcome.";
         }
         String known = learned == null ? null : learned.apply(message);
-        return known == null ? null : "From what I learned earlier: " + known;
+        if (known != null) {
+            return "From what I learned earlier: " + known;
+        }
+        if (c.judgement) {
+            // no stored answer that survives the limits: say how to decide it, instead of nothing
+            return ai.ibiko.ibiko1.formulas.Critical.deliberate(message);
+        }
+        return null;
     }
 }

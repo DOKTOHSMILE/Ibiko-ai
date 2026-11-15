@@ -52,7 +52,7 @@ public final class Knowledge {
 
     /** How close a question's meaning must be to a learned one to reuse its answer. */
     static final double CLOSE = 0.6;
-    public static final int MOST = 5000;
+    public static final int MOST = 20000;
 
     private static final Set<String> STOP = new HashSet<String>(Arrays.asList("a", "an", "the", "please", "pls", "can",
             "could", "would", "will", "you", "u", "me", "my", "i", "to", "for", "of", "is", "are", "was", "were", "be",

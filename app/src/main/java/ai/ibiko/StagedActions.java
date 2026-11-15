@@ -52,7 +52,7 @@ final class StagedActions {
         String lower = text.trim().toLowerCase(java.util.Locale.US);
         ai.ibiko.brain.ActionPlanner.Reply r = a.stager.reply(lower, now);
         if (r == ai.ibiko.brain.ActionPlanner.Reply.CONFIRMED) {
-            doAction(a.stager.take(), false);
+            doAction(a.takeStaged(), false);
             return true;
         }
         if (r == ai.ibiko.brain.ActionPlanner.Reply.CANCELLED) {
@@ -73,7 +73,7 @@ final class StagedActions {
             return;
         }
         if (a.prefs.getBoolean("actions_auto", false) || a.autoPost() && p.kind != PendingAction.Kind.COPY) {
-            a.stager.take();
+            a.takeStaged();
             doAction(p, true); // the user chose auto-approve
             return;
         }
@@ -94,12 +94,12 @@ final class StagedActions {
                 .setTitle(p.kind == PendingAction.Kind.COPY ? "Copy this?" : "Post on " + p.appName() + "?")
                 .setMessage(p.content + "\n\n" + where)
                 .setPositiveButton(p.kind == PendingAction.Kind.COPY ? "Copy" : "Send it", (d, w) -> {
-                    PendingAction now = a.stager.take();
+                    PendingAction now = a.takeStaged();
                     if (now != null) {
                         doAction(now, false);
                     }
                 })
-                .setNegativeButton("Cancel", (d, w) -> a.stager.take()) // dropped quietly: Cancel is not a message
+                .setNegativeButton("Cancel", (d, w) -> a.takeStaged()) // dropped quietly: Cancel is not a message
                 .show();
     }
 

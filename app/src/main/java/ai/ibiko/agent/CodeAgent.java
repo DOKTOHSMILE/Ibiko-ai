@@ -219,6 +219,8 @@ public final class CodeAgent {
     private final String connectorTools;
     private final int budgetChars;
     private final List<String> changed = new ArrayList<String>();
+    /** Reads, searches and writes already done. A repeat does not run again. Shared with this task's workers. */
+    private ReadCache reads = new ReadCache();
     /** Whether each step is narrated in the chat (on; tests of the bare loop turn it off). */
     public boolean narrate = true;
     private ai.ibiko.connect.GitHubGit git;
@@ -262,6 +264,8 @@ public final class CodeAgent {
     private long deadline;
     /** The one folder this worker may read and write (the project it is on); null: the whole workspace. */
     private File scope;
+    /** Which languages this folder really has, so a Java tree is not searched for Kotlin. Counted once a run. */
+    private ProjectLang tongue;
 
     /** Every worker started in this run, for the count in the summary. */
     private int workersUsed;
@@ -282,9 +286,13 @@ public final class CodeAgent {
                     : "Workers are switched off for this chat (Tools \u203A Workers). Do the parts yourself, one after another.";
         }
         // before the plan is checked (or when this run only reads) workers still help, at once, on parts that change
-        // nothing: surveying the code, researching on the web, running checks and tests, reading and reporting
+        // nothing: surveying the code, researching on the web, running checks and tests, reading and reporting.
+        // Once the repository has been surveyed, more of those only go in circles: the lead writes the plan and builds.
         final boolean lookOnly = readOnly || (blueprint != null && blueprint.phase() != Blueprint.Phase.BUILD
                 && blueprint.phase() != Blueprint.Phase.VERIFY);
+        if (lookOnly && surveyDone) {
+            return Blueprint.BUILD_NOW;
+        }
         List<Squad.Part> given = Squad.assignments(c.body);
         if (depth == 1 && given.size() > Squad.MOST_HANDS) {
             given = new ArrayList<Squad.Part>(given.subList(0, Squad.MOST_HANDS));
@@ -296,8 +304,9 @@ public final class CodeAgent {
             // one part: a second worker checks it, so every task still runs with workers (one does, one checks)
             List<Squad.Part> two = new ArrayList<Squad.Part>(given);
             two.add(new Squad.Part(null, given.get(0).minutes, "Check the work of the other worker on this part: "
-                    + given.get(0).text + "\nRead what it reads and changes, run the checks there are, and report every"
-                    + " problem with path:line. Change nothing yourself."));
+                    + given.get(0).text + "\nDo not re-read a file that was already read: it is cached, and reading it"
+                    + " again only goes in a circle. Read a file only if this part changed it, and only the lines it"
+                    + " changed. Run the checks there are, and report every problem with path:line. Change nothing yourself."));
             given = two;
         }
         final List<Squad.Part> plan = given;
@@ -349,13 +358,14 @@ public final class CodeAgent {
             w.repoScope = repoScope; // a worker keeps to the same repositories
             w.ownBlueprint = ownBlueprint; // the lead's project: its notes and record, no other project's
             w.ownRecord = ownRecord;
+            w.reads = reads; // a file the lead or another worker already read is not read again
             long until = System.currentTimeMillis() + mine.minutes * 60_000L;
             w.deadline = parentDeadline > 0 ? Math.min(parentDeadline, until) : until; // a hand never outlasts its agent
             try {
                 AgentBoard.step(row, "Working on its part (" + mine.minutes + " min)");
                 String report = w.run(Squad.brief(number, plan.size(), part, whole)
                         + (lookOnly ? "\n\nThis part changes nothing yet (the plan isn't checked, or this run only reads): look,"
-                                + " research, run checks and report what you found." : "")
+                                + " research, run checks and report what you found. Do not re-read a file another part already read." : "")
                         + (kept == null ? "" : "\n\nYour folder: " + show(workspace.toPath().relativize(kept.toPath()).toString())
                                 + ". Read and write only inside it.")
                         + "\nYour time: " + mine.minutes + " minutes. Work on your part only; when the time is nearly up, stop and report.", "");
@@ -450,6 +460,7 @@ public final class CodeAgent {
     }
 
     private void saved() {
+        fitWork(); // the log is what gets carried into the next round: keep it inside the budget before it is copied
         if (checkpoint != null && work != null) {
             try {
                 checkpoint.accept(work.toString());
@@ -494,6 +505,14 @@ public final class CodeAgent {
         return this;
     }
 
+    /** The languages actually in this folder, counted once. A worker uses its own folder. */
+    private ProjectLang tongue() {
+        if (tongue == null) {
+            tongue = ProjectLang.of(scope != null ? scope : workspace);
+        }
+        return tongue;
+    }
+
     public String system() {
         return (role != null ? role.brief() + "\n" : depth == 0 && squad && !readOnly && !planning ? Org.lead() : "")
                 + (planning ? "You are " + persona + ", Ibiko's coding agent, working like Claude Code on the user's device. "
@@ -509,6 +528,7 @@ public final class CodeAgent {
                 + (readOnly || planning ? "" : compact ? WorkingMethod.SHORT : WorkingMethod.RULES) // how a careful engineer works
                 + (compact ? "" : ai.ibiko.ibiko1.formulas.Probability.AGENT) // decisions by likelihood and cost
                 + (shipping && !readOnly ? Shipping.RULES : "") // batch by batch to the repository
+                + tongue().rule()
                 + " Each reply is EITHER exactly one tool call OR your final answer, never both.\n"
                 + "Tools (use this exact form; FOLDER/FILE stands for a real path from the workspace list, never a file that isn't there):\n"
                 + "<tool name=\"list_files\" path=\".\"/>\n"
@@ -858,9 +878,12 @@ public final class CodeAgent {
         this.task = task == null ? "" : task;
         outOfSteps = false;
         StringBuilder work = new StringBuilder();
-        if (resume != null && !resume.trim().isEmpty()) {
+        // a carried-on log can be tens of megabytes; trim() would copy all of it and run the phone out of memory
+        String prior = WorkLog.kept(resume, budgetChars);
+        this.resume = prior.isEmpty() ? null : prior;
+        if (resume != null) {
             // "continue", "give me the result": the same work goes on, with everything already read
-            work.append(resume.trim()).append("\n\nThe user now says: ").append(task.trim()).append('\n');
+            work.append(resume).append("\n\nThe user now says: ").append(task.trim()).append('\n');
         } else {
             if (earlier != null && !earlier.trim().isEmpty()) {
                 work.append("Earlier in this chat:\n").append(earlier.trim()).append("\n\n");
@@ -891,7 +914,8 @@ public final class CodeAgent {
                 takeNotes(incoming);
                 saved();
             }
-            String reply = brain.ask(system(), trimmed(work.toString()));
+            fitWork();
+            String reply = brain.ask(system(), work.toString());
             String text = reply == null ? "" : reply.replaceAll("(?s)<think>.*?(</think>|$)", "").trim();
             if (text.isEmpty()) {
                 String failed = brain.why();
@@ -976,17 +1000,26 @@ public final class CodeAgent {
                 String result;
                 lastStep = null;
                 placePaths(call); // projects/<name> is the clone at repos/<name>
-                String refused = blueprint == null ? null : blueprint.gate(call.name, call.a("path"));
-                if (refused != null) {
-                    result = refused; // plan first: nothing but PLAN.md changes before the blueprint passes its check
+                String held = blueprint == null ? null
+                        : Blueprint.afterSurvey(surveyDone, blueprint.phase(), call.name, looksAfterSurvey);
+                if (held != null) {
+                    result = held; // the survey is done: another read or another look-only squad is the loop
                 } else {
-                    try {
-                        result = carryOut(call);
-                    } catch (IOException | RuntimeException e) {
-                        result = "Error: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    if (surveyDone && (call.name.equals("read_file") || call.name.equals("list_files")
+                            || call.name.equals("search") || call.name.equals("fetch"))) {
+                        looksAfterSurvey++;
                     }
-                    result = blueprintAfter(call, result);
-                    result = readErrors(call, result);
+                    String refused = blueprint == null ? null : blueprint.gate(call.name, call.a("path"));
+                    if (refused != null) {
+                        result = refused; // plan first: nothing but PLAN.md changes before the blueprint passes its check
+                    } else {
+                        try {
+                            result = carryOut(call);
+                        } catch (IOException | RuntimeException e) {
+                            result = "Error: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                        }
+                        result = blueprintAfter(call, result);
+                    }
                 }
                 if (!modelSaid && narrate) {
                     // never silent: what it was doing and what came back, in the chat between the steps
@@ -1048,7 +1081,8 @@ public final class CodeAgent {
             // a round of long work is over: a short note for the user, and the work goes on from here
             outOfSteps = true;
             work.append("\n<result>\n").append(PROGRESS_NOW).append("\n</result>\n");
-            String note = brain.ask(system(), trimmed(work.toString()));
+            fitWork();
+            String note = brain.ask(system(), work.toString());
             note = note == null ? "" : note.replaceAll("(?s)<think>.*?(</think>|$)", "").trim();
             String fin = finalOf(note);
             note = fin != null && !fin.isEmpty() ? fin : note;
@@ -1102,7 +1136,8 @@ public final class CodeAgent {
     /** The report written from everything done so far (a big allowance); null when the model gave nothing usable. */
     private String report(StringBuilder work, String last) {
         work.append("\n").append(last).append("\n<result>\n").append(REPORT_NOW).append("\n</result>\n");
-        String full = brain.askLong(system(), trimmed(work.toString()));
+        fitWork();
+        String full = brain.askLong(system(), work.toString());
         if (full == null) {
             return null;
         }
@@ -1160,6 +1195,16 @@ public final class CodeAgent {
 
     private String summary() {
         return changed.isEmpty() ? "" : "\n\nChanged: " + String.join(", ", changed);
+    }
+
+    /** Drops the middle of the work log once it passes the budget, without copying the part that is left out. */
+    private void fitWork() {
+        if (work == null || work.length() <= budgetChars) {
+            return;
+        }
+        String small = WorkLog.kept(work, budgetChars);
+        work = new StringBuilder(small.length() + 256);
+        work.append(small);
     }
 
     /** Keeps the start (the task) and as much of the latest work as fits. */
@@ -1613,20 +1658,27 @@ public final class CodeAgent {
     }
 
     private int blueprintNudges;
+    /** The survey for this task already wrote a map: do not read the tree again, write the plan and build. */
+    private boolean surveyDone;
+    /** Reads allowed after that map, before further reading is refused. */
+    private int looksAfterSurvey;
 
     /** A real task gets a blueprint; one carried on picks up its PLAN.md where it was. */
     private void startBlueprint(String task, StringBuilder work) {
         blueprintNudges = 0;
+        surveyDone = false;
+        looksAfterSurvey = 0;
         if (ownBlueprint == null) {
             // only this project's reading notes may be read (a worker is given its lead's)
             File project = projectOf(task);
             ownBlueprint = ".blueprint/" + (project.equals(workspace) ? "workspace" : project.getName());
         }
+        reads.bind(new File(workspace, ownBlueprint + "/reads.cache"));
         if (planning || readOnly || worker) {
             blueprint = null; // plan mode has its own rules; reading answers no build; a worker follows the lead's plan
             return;
         }
-        boolean carryOn = resume != null && !resume.trim().isEmpty();
+        boolean carryOn = !WorkLog.blank(resume);
         File kept = carryOn ? latestBlueprint() : null;
         if (kept == null && !Blueprint.applies(usersWords != null ? usersWords : task)) {
             blueprint = null;
@@ -1645,36 +1697,54 @@ public final class CodeAgent {
         if (line != null) {
             host.step(line);
         }
+        // a plan that already has a goal and steps is built now, even when the file still says CHECK or PLAN
+        if (blueprint.startBuilding()) {
+            String built = blueprint.announce();
+            if (built != null) {
+                host.step(built);
+            }
+        }
+        boolean building = blueprint.phase() == Blueprint.Phase.BUILD || blueprint.phase() == Blueprint.Phase.VERIFY
+                || blueprint.phase() == Blueprint.Phase.DONE;
         File root = projectOf(task);
         String rel = ".blueprint/" + (root.equals(workspace) ? "workspace" : root.getName()) + "/";
         File keep = new File(workspace, rel);
-        boolean unfinished = Survey.unfinished(keep);
+        String asked = task;
         if (carryOn) {
-            // carried on after the device closed or the connection broke: where the work stood is read first, from
-            // the blueprint folder, before anything is read again
-            String stood = Survey.whereItStood(keep);
-            if (!stood.isEmpty()) {
-                host.step("Read where the work stood (" + rel + "SURVEY.md)");
-                work.append("\nWhere this task stood before the break, from ").append(rel)
-                        .append(" (your own progress record: what was read, what is still to read, what was found):\n")
-                        .append(clip(stood, Math.max(3000, budgetChars / 4))).append('\n');
+            String earlier = firstTask(resume);
+            if (earlier != null && !earlier.isEmpty()) {
+                asked = earlier;
             }
         }
-        if ((kept == null || unfinished) && !host.stopped()) {
-            // understand first: several readers go through the code at once, line by line, and write down what is there;
-            // a reading the break cut off carries on with only the parts still to read
+        boolean unfinished = Survey.unfinished(keep);
+        if (!building && !Survey.enough(keep, asked) && (kept == null || unfinished) && !host.stopped()) {
+            // the files the task touches, not the whole tree: a map that already covers them is not read again
             String map = null;
             try {
-                map = Survey.run(root, keep, task, brain::askQuiet, brain.readers(), host::step);
+                map = Survey.run(root, keep, asked, brain::askQuiet, brain.readers(), host::step);
             } catch (RuntimeException e) {
                 map = null;
             }
             if (map != null) {
-                work.append("\nCodebase map, written by the survey readers (each file read line by line; the notes are in ")
-                        .append(rel).append("). This is what the code is now: use it for '## Found' and '## Reuse',"
-                                + " and read a file yourself only where a note is not enough.\n")
+                work.append("\nCodebase map, written by the survey readers (the files the task touches, read line by line;"
+                        + " the rest of the tree is only listed; the notes are in ")
+                        .append(rel).append("). Use it for '## Found' and '## Reuse'. Do not survey the repository again.\n")
                         .append(clip(map, Math.max(4000, budgetChars / 3))).append('\n');
             }
+        }
+        if (carryOn) {
+            // where the work stood, after this run's survey so a half-finished audit of the whole tree is not the instruction
+            String stood = Survey.whereItStood(keep);
+            if (!stood.isEmpty()) {
+                host.step("Read where the work stood (" + rel + "SURVEY.md)");
+                work.append("\nWhere this task stood, from ").append(rel)
+                        .append(" (what was read, what is still to read, what was found):\n")
+                        .append(clip(stood, Math.max(3000, budgetChars / 4))).append('\n');
+            }
+        }
+        if (!building && Survey.enough(keep, asked)) {
+            surveyDone = true;
+            work.append("\n").append(Blueprint.BUILD_NOW).append('\n');
         }
     }
 
@@ -1781,8 +1851,36 @@ public final class CodeAgent {
         }
     }
 
+    /** The next unticked step, so a cached read points forward instead of back at the same file. */
+    private String nextStepLine() {
+        if (blueprint == null) {
+            return "";
+        }
+        String n = blueprint.nextStep();
+        return n == null ? "" : n;
+    }
+
+    /** A read, listing, search or page already done and unchanged, or null when it should really run. */
+    private String cached(String tool, String key, long stamp) {
+        return reads.again(tool, key, stamp, nextStepLine());
+    }
+
+    private void remember(String tool, String key, long stamp, String body) {
+        reads.keep(tool, key, stamp, body);
+    }
+
+    /** This exact write or edit already succeeded, or null the first time. */
+    private String doneAlready(String kind, String sig) {
+        return reads.done(kind, sig, nextStepLine());
+    }
+
     private String carryOut(Call c) throws IOException {
         placePaths(c);
+        String wrongLang = tongue().blocked(c.a("path"), c.name);
+        if (wrongLang != null) {
+            host.step(wrongLang.startsWith("Not written") ? "Not written: this project is Java, not Kotlin" : "No Kotlin file here");
+            return wrongLang;
+        }
         if (readOnly && (c.name.equals("write_file") || c.name.equals("edit_file") || c.name.equals("run") || c.name.equals("git")
                 || c.name.equals("make_file") || c.name.equals("zip") || c.name.equals("unzip"))) {
             return planning ? "Plan mode: nothing is changed yet. Put this change in the plan; it runs once the user approves."
@@ -1792,8 +1890,17 @@ public final class CodeAgent {
             case "workers":
                 return dispatch(c);
             case "list_files": {
-                String listed = listFiles(c.a("path").isEmpty() ? "." : c.a("path"));
-                host.step("Listed the files in " + show(c.a("path")), show(c.a("path")), lines(listed), -1, -1);
+                String folder = c.a("path").isEmpty() ? "." : c.a("path");
+                File dir = inside(folder);
+                long stamp = dir.lastModified();
+                String cached = cached("list_files", folder, stamp);
+                if (cached != null) {
+                    host.step("Used the cached listing of " + show(folder));
+                    return cached;
+                }
+                String listed = listFiles(folder);
+                remember("list_files", folder, stamp, listed);
+                host.step("Listed the files in " + show(folder), show(folder), lines(listed), -1, -1);
                 return listed;
             }
             case "read_file": {
@@ -1801,13 +1908,27 @@ public final class CodeAgent {
                 if (!f.isFile()) {
                     return "No such file: " + c.a("path");
                 }
+                String range = first(c.attrs, "start", "from", "line") + "-" + first(c.attrs, "end", "to");
+                String key = c.a("path") + "\u0000" + range;
+                long stamp = f.lastModified() ^ f.length();
+                String cached = cached("read_file", key, stamp);
+                if (cached != null) {
+                    host.step("Used the cached read of " + show(c.a("path")));
+                    return cached;
+                }
                 String text = SourceRead.read(f, first(c.attrs, "start", "from", "line"), first(c.attrs, "end", "to"));
+                remember("read_file", key, stamp, text);
                 opened.add(c.a("path"));
                 host.step("Read " + show(c.a("path")), c.a("path"), lines(clip(text, FILE_CHARS)), -1, -1);
                 return text;
             }
             case "write_file": {
                 File f = inside(c.a("path"));
+                String again = doneAlready("write", c.a("path") + "\u0000" + c.body.length() + ":" + c.body.hashCode());
+                if (again != null) {
+                    host.step("Already written " + show(c.a("path")) + " (cached)");
+                    return again;
+                }
                 File dir = f.getParentFile();
                 if (dir != null) {
                     dir.mkdirs();
@@ -1822,6 +1943,8 @@ public final class CodeAgent {
                 }
                 Files.write(f.toPath(), c.body.getBytes(StandardCharsets.UTF_8));
                 note(c.a("path"));
+                reads.note("write", c.a("path") + "\u0000" + c.body.length() + ":" + c.body.hashCode());
+                reads.changed(c.a("path"));
                 int lines = c.body.isEmpty() ? 0 : c.body.split("\n", -1).length;
                 ai.ibiko.connect.LineDiff.Result d = ai.ibiko.connect.LineDiff.of(before, c.body);
                 host.step((existed ? "Rewrote " : "Created ") + show(c.a("path")) + " (" + lines + (lines == 1 ? " line)" : " lines)"),
@@ -1837,8 +1960,13 @@ public final class CodeAgent {
                 if (!o.find()) {
                     return "An edit needs <old>…</old><new>…</new>.";
                 }
-                String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                 String old = o.group(1), now = o.group(2);
+                String again = doneAlready("edit", c.a("path") + "\u0000" + old.hashCode() + ":" + now.hashCode());
+                if (again != null) {
+                    host.step("Already edited " + show(c.a("path")) + " (cached)");
+                    return again;
+                }
+                String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                 int at = text.indexOf(old);
                 if (old.isEmpty() || at < 0) {
                     return "The old text isn't in " + c.a("path") + ". Read the file and copy it exactly.";
@@ -1855,6 +1983,8 @@ public final class CodeAgent {
                 }
                 Files.write(f.toPath(), after.getBytes(StandardCharsets.UTF_8));
                 note(c.a("path"));
+                reads.note("edit", c.a("path") + "\u0000" + old.hashCode() + ":" + now.hashCode());
+                reads.changed(c.a("path"));
                 ai.ibiko.connect.LineDiff.Result d = ai.ibiko.connect.LineDiff.of(text, after);
                 host.step("Edited " + show(c.a("path")), c.a("path"), d.lines, d.added, d.removed);
                 return "Edited " + c.a("path") + "." + afterEdit(f, c.a("path"));
@@ -1892,8 +2022,18 @@ public final class CodeAgent {
                 return "Unzipped " + n + " files into " + to + ".";
             }
             case "search": {
+                String key = c.a("query") + "\u0000" + c.a("path");
+                String cached = cached("search", key, 1L);
+                if (cached != null) {
+                    host.step("Used the cached search for \u201c" + clip(c.a("query"), 40) + "\u201d");
+                    return cached;
+                }
                 host.step("Searched for \u201c" + clip(c.a("query"), 40) + "\u201d");
-                return SourceRead.search(workspace, c.a("query"), c.a("path"));
+                String found = SourceRead.search(workspace, c.a("query"), c.a("path"));
+                String note = tongue().searchNote(c.a("query"));
+                String out = note == null ? found : note + "\n" + found;
+                remember("search", key, 1L, out);
+                return out;
             }
             case "run": {
                 String cmd = c.a("command").trim();
@@ -1954,9 +2094,18 @@ public final class CodeAgent {
                 if (!url.toLowerCase(Locale.US).startsWith("https://")) {
                     return "Only https addresses can be fetched.";
                 }
+                String cached = cached("fetch", url, 1L);
+                if (cached != null) {
+                    host.step("Used the cached page " + clip(url, 60));
+                    return cached;
+                }
                 host.step("Fetched " + clip(url, 60));
                 String page = host.fetch(url);
-                return page == null ? "The page couldn't be fetched." : clip(page, RESULT_CHARS);
+                String out = page == null ? "The page couldn't be fetched." : clip(page, RESULT_CHARS);
+                if (page != null) {
+                    remember("fetch", url, 1L, out);
+                }
+                return out;
             }
             case "connector": {
                 String call = c.a("call");
@@ -2013,9 +2162,21 @@ public final class CodeAgent {
                 return stepped("Git log of " + show(c.a("path")), git.log(inside(folderOf(c))));
             case "branches":
                 return stepped("Branches of " + show(c.a("path")), git.branches(inside(folderOf(c))));
-            case "pull":
+            case "pull": {
+                File dir = inside(folderOf(c));
                 host.step("Pulling " + show(c.a("path")));
-                return git.pull(inside(folderOf(c)));
+                try {
+                    return git.pull(dir);
+                } catch (IOException e) {
+                    // a folder git itself cloned (a private repository, with its own .git) has no Ibiko record
+                    String why = e.getMessage() == null ? "" : e.getMessage();
+                    if (why.contains("isn't a cloned repository") && new File(dir, ".git").isDirectory()) {
+                        String out = host.run("git pull", dir);
+                        return out == null || out.trim().isEmpty() ? "git pull gave nothing back." : out;
+                    }
+                    throw e;
+                }
+            }
             case "fetch":
                 return stepped("Fetched " + branchOf(c), git.fetch(inside(folderOf(c)), c.a("branch")));
             case "merge":

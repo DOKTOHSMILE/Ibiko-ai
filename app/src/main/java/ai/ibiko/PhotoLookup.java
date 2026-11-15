@@ -93,20 +93,24 @@ final class PhotoLookup {
             final int count = found;
             final String chosen = used;
             a.handler.post(() -> {
-                if (!a.alive(id) || a.isFinishing()) {
+                if (!a.alive(id) && !a.isFinishing()) {
                     return;
                 }
+                String who = a.stage == null ? "ibiko" : a.stage.agent();
                 a.endThink();
                 android.graphics.Bitmap bm = got == null ? null
                         : ai.ibiko.render.field.Raster.decode(got);
                 if (bm == null) {
-                    a.play(LocalTurn.speakAs(a.stage.agent(),
-                            a.shownPhotos.isEmpty() ? "I looked for photographs of "
-                                    + ai.ibiko.llm.DrawPrompt.article(subject)
-                                    + " and didn't get one I can show. I didn't draw a stand-in."
-                                    : "I've already shown the photographs I found of "
-                                            + ai.ibiko.llm.DrawPrompt.article(subject) + "."),
-                            null);
+                    String missed = a.shownPhotos.isEmpty() ? "I looked for photographs of "
+                            + ai.ibiko.llm.DrawPrompt.article(subject)
+                            + " and didn't get one I can show. I didn't draw a stand-in."
+                            : "I've already shown the photographs I found of "
+                                    + ai.ibiko.llm.DrawPrompt.article(subject) + ".";
+                    if (a.isFinishing() || a.chatPane == null) {
+                        a.keepAnswer(who, missed);
+                    } else {
+                        a.play(LocalTurn.speakAs(who, missed), null);
+                    }
                     return;
                 }
                 if (chosen != null) {
@@ -123,11 +127,22 @@ final class PhotoLookup {
                 } catch (java.io.IOException ignored) {
                     shot = null;
                 }
+                String line = "Here's a photograph of " + ai.ibiko.llm.DrawPrompt.article(subject)
+                        + (count > 1 ? ". I found " + count + " and this is one of them." : ".")
+                        + " It is a real picture, not a measured 3D model.";
+                if (a.isFinishing() || a.stage == null || a.chatPane == null) {
+                    if (a.chats != null && shot != null && shot.isFile()) {
+                        a.chats.add("assistant", "image", shot.getAbsolutePath(), who);
+                    }
+                    bm.recycle();
+                    a.keepAnswer(who, line);
+                    return;
+                }
                 ai.ibiko.render.field.Shape picture = ai.ibiko.render.field.Raster.image(bm,
                         ai.ibiko.render.field.ParticleDisplay.SKIN_POINTS, 2f);
                 bm.recycle();
                 if (picture == null || picture.count < 80) {
-                    a.play(LocalTurn.speakAs(a.stage.agent(), "I fetched a photograph of "
+                    a.play(LocalTurn.speakAs(who, "I fetched a photograph of "
                             + ai.ibiko.llm.DrawPrompt.article(subject)
                             + ", but it didn't decode into something I can show. I didn't invent a model."),
                             null);
@@ -135,13 +150,10 @@ final class PhotoLookup {
                 }
                 a.currentSolid = null;
                 a.stage.showPhotograph(picture, subject);
-                if (a.chatPane != null && shot != null && shot.isFile()) {
+                if (shot != null && shot.isFile()) {
                     a.chatPane.image(shot.getAbsolutePath());
                 }
-                String line = "Here's a photograph of " + ai.ibiko.llm.DrawPrompt.article(subject)
-                        + (count > 1 ? ". I found " + count + " and this is one of them." : ".")
-                        + " It is a real picture, not a measured 3D model.";
-                a.play(LocalTurn.speakAs(a.stage.agent(), line), null);
+                a.play(LocalTurn.speakAs(who, line), null);
             });
         });
         }

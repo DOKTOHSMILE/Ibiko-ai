@@ -226,6 +226,51 @@ public final class LocalModel {
         }
     }
 
+    /** Models this provider offers, so a question can be passed to similar ones ({@link ModelRing}). */
+    private volatile List<String> bench = new ArrayList<String>();
+
+    public void bench(List<String> models) {
+        bench = models == null ? new ArrayList<String>() : new ArrayList<String>(models);
+    }
+
+    /** The selected model, then up to two of a similar size from {@link #bench}. */
+    public List<String> ring() {
+        String selected = "";
+        List<Slot> now = chain;
+        if (!now.isEmpty() && now.get(0).brain != null && now.get(0).brain.model != null) {
+            selected = now.get(0).brain.model;
+        }
+        return ModelRing.choose(selected, bench);
+    }
+
+    /**
+     * One named model on the first API, not the fast/strong switch. Null when no API is on or the call failed.
+     * Used by {@link RoundThink}, which asks several models one after another.
+     */
+    public String askNamed(String model, String system, String prompt, int maxTokens) {
+        if (!remoteOn() || model == null || model.trim().isEmpty()) {
+            return null;
+        }
+        Slot sl;
+        synchronized (this) {
+            if (chain.isEmpty()) {
+                return null;
+            }
+            sl = chain.get(0);
+        }
+        RemoteBrain r = sl.brain.withModel(model.trim());
+        r.effortFor(TaskSize.Tier.STRONG);
+        List<String[]> turns = new ArrayList<String[]>();
+        turns.add(new String[] {"user", prompt == null ? "" : prompt});
+        final int ticket = epoch.get();
+        parkNative();
+        String answer = withTimeout(null, wrapped -> r.chat(system, turns, maxTokens, 0.4f, wrapped), true);
+        if (ticket != epoch.get()) {
+            return null;
+        }
+        return answer == null ? null : answer.trim();
+    }
+
     /** The first API in the order, or null. */
     public RemoteBrain remote() {
         List<Slot> c = chain;
@@ -608,7 +653,7 @@ public final class LocalModel {
         // learned examples are read only for real work, where they help more than the seconds they cost
         String learned = l == null || quick(question, maxTokens) ? "" : l.examplesFor(question, 1, 700);
         if (!learned.isEmpty()) {
-            step("Recalled similar answers I learned before");
+            step("Recalled how a similar request was decided");
             asked = learned + "\n\n" + (context == null ? "" : context + "\n\n") + "The user says: " + question;
         }
         final int ticket = epoch.get();
@@ -886,6 +931,10 @@ public final class LocalModel {
             (sl.restUntil <= now ? ready : resting).add(sl);
         }
         ready.addAll(resting);
+        // the everyday setting is 160 tokens, for the phone's own model. An API given that stops mid-sentence
+        // (Think 1 and a side answer go through here, not only the main reply). A 24-token check stays short.
+        // The ceiling is only a ceiling: a short answer still ends when it is finished.
+        final int room = maxTokens >= 64 && maxTokens < REMOTE_REPLY_MIN ? REMOTE_REPLY_MIN : maxTokens;
         String firstFailure = null, failedName = null;
         // each provider: its fast model first for a simple request (when it has one), then its strong model
         List<Object[]> tries = new ArrayList<Object[]>();
@@ -904,13 +953,13 @@ public final class LocalModel {
             // a quick message trims the chat only on a small window; a big model reads it all (and from its cache)
             final boolean brief = tier == TaskSize.Tier.FAST && sl.window > 0 && sl.window < 32_000;
             r.effortFor(tier);
-            final List<String[]> fitted = PromptFit.remoteTurns(turns, sl.window, maxTokens, brief);
+            final List<String[]> fitted = PromptFit.remoteTurns(turns, sl.window, room, brief);
             // no "Asking <provider>" step: it repeated between every real step (the model shows in the header)
             final int ticket = epoch.get();
             final int[] pieces = {0};
             final long began = System.currentTimeMillis();
             problem = null;
-            String answer = withTimeout(counting(sink, pieces), wrapped -> r.chat(system, fitted, maxTokens, temperature, wrapped),
+            String answer = withTimeout(counting(sink, pieces), wrapped -> r.chat(system, fitted, room, temperature, wrapped),
                     true);
             boolean timedOut = problem != null && problem.startsWith("the reply");
             if (ticket != epoch.get() && !timedOut) {
@@ -950,8 +999,9 @@ public final class LocalModel {
     }
 
     /**
-     * Where Ibiko keeps what the API models answer, to learn from (null: not learning). When the phone's own model
-     * answers, the closest past answers are given to it as examples.
+     * Where Ibiko keeps what both models answer, online and on the device, including why the decision went that way
+     * (null: not learning). When the phone's own model answers, the closest past decision is given to it as the
+     * logic to follow, not as words to copy.
      */
     public volatile ai.ibiko.learn.LearningLog learning;
 
@@ -1029,6 +1079,13 @@ public final class LocalModel {
         }
         usage.record(new UsageLog.Call("On this device: " + spec.weights, localWindow(), UsageLog.estimate(system), conversation,
                 UsageLog.estimate(message), Math.max(pieces, 1), false, now - began, now));
+        ai.ibiko.learn.LearningLog l = learning;
+        if (l != null) {
+            // the device's own answer is a lesson too, so a later turn can see where it and an API model disagreed
+            java.util.List<String[]> kept = new java.util.ArrayList<String[]>(turns);
+            kept.add(new String[]{"user", message == null ? "" : message});
+            l.record(system, kept, answer, "offline (" + spec.weights + ")", "LOCAL", now);
+        }
         noteSpeed(pieces, now - began);
     }
 

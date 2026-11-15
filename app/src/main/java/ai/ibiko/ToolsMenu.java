@@ -106,7 +106,7 @@ final class ToolsMenu {
             line.addView(new android.view.View(a), gap); // the last row keeps its column width
         }
         sheet[0] = ai.ibiko.chat.ui.BottomSheet.showView(a, "Tools", box);
-        sheet[0].setOnDismissListener(d -> a.repaintThink()); // Deep thinking here and the Think pill are one switch
+        sheet[0].setOnDismissListener(d -> a.repaintThink()); // Deep thinking here and the Think button are one choice
         modeSheet[0] = sheet[0];
     }
 
@@ -195,6 +195,12 @@ final class ToolsMenu {
         }
         final Runnable paint = () -> {
             boolean on = tools.isOn(t);
+            if (t == ai.ibiko.suit.ChatTools.Tool.DEEP) {
+                int level = tools.think();
+                about.setText(level == 2 ? "Think 2: several models, then one answer"
+                        : level == 1 ? "Think 1: plan, check and revise first (slower)"
+                        : "Ordinary. Turn on for Think 1. Think 2 is on the Think button.");
+            }
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
             bg.setCornerRadius(a.dp(18));
             bg.setColor(a.getColor(on ? R.color.card_on : R.color.card));
@@ -209,18 +215,22 @@ final class ToolsMenu {
             icon.setColorFilter(a.getColor(on ? R.color.accent : R.color.icon));
             paintToggle(sw, on);
             card.setContentDescription(t.title);
-            card.setStateDescription(on ? "On" : "Off");
+            card.setStateDescription(t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() == 2 ? "Think 2" : on ? "On" : "Off");
         };
         paint.run();
         final Runnable flip = () -> {
             if (t == ai.ibiko.suit.ChatTools.Tool.GITHUB && reposLoading) {
                 return; // a quick second tap while GitHub is still loading changes nothing
             }
+            if (t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() == 2) {
+                return; // Think 2 stays until the Think button changes it
+            }
             boolean on = !tools.isOn(t);
             tools.set(t, on);
             android.content.SharedPreferences.Editor e = a.prefs.edit().putString(a.toolsKey(persona), tools.write());
             if (t == ai.ibiko.suit.ChatTools.Tool.DEEP) {
-                e.putBoolean(MainActivity.THINK_ON, on); // the same switch as the Think pill
+                e.putInt(MainActivity.THINK_LEVEL, tools.think()); // the same choice as the Think button
+                e.putBoolean(MainActivity.THINK_ON, tools.think() == 1);
             }
             e.apply();
             paint.run();

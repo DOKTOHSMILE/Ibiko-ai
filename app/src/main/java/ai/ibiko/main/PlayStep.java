@@ -190,13 +190,11 @@ public final class PlayStep {
         host.clearStreaming();
     }
 
-    /** End whatever is on show: the token bump leaves every queued step of the old walk inert. */
+    /** End the walk. A queued step of the old walk sees the new token and does nothing. Other work on the screen stays. */
     public void stopPlay() {
         playId++;
         afterPlay = null;
         host.clearStreaming();
-        android.os.Handler handler = host.handler();
-        handler.removeCallbacksAndMessages(null);
         ai.ibiko.voice.TalkBridge talk = host.talk();
         if (talk != null) {
             talk.stop();

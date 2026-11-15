@@ -27,7 +27,7 @@ public final class ChatTools {
         SHARE("Share and copy", "Through your apps, after your yes", FunctionCode.AC),
         SOCIAL("Social accounts", "Trends, posts, comments, schedules", FunctionCode.SO),
         WORKERS("Workers", "On for every task: the work is split into parts that run at once", null),
-        DEEP("Deep thinking", "Plan, check and revise first (slower)", null);
+        DEEP("Deep thinking", "Think 1: plan, check and revise first (slower). Think 2 is on the Think button.", null);
 
         public final String title, about;
         /** The function the tool opens, or null when it isn't a single code (GitHub, deep thinking). */
@@ -56,6 +56,8 @@ public final class ChatTools {
     private final String persona;
     private final Set<Tool> on = EnumSet.noneOf(Tool.class);
     private final Set<String> repos = new LinkedHashSet<String>();
+    /** 0 ordinary (one answer), 1 Think 1 (plan, check, revise), 2 Think 2 (several models, one answer). */
+    private int think;
 
     private ChatTools(String persona) {
         this.persona = persona;
@@ -73,6 +75,9 @@ public final class ChatTools {
     }
 
     public boolean isOn(Tool t) {
+        if (t == Tool.DEEP) {
+            return think == 1; // the tools card is Think 1 only; Think 2 is the Think button
+        }
         return t == Tool.WORKERS || on.contains(t);
     }
 
@@ -80,6 +85,14 @@ public final class ChatTools {
     public void set(Tool t, boolean enabled) {
         if (t == Tool.WORKERS && !enabled) {
             return; // workers stay on for every task
+        }
+        if (t == Tool.DEEP) {
+            if (enabled) {
+                think(1);
+            } else if (think == 1) {
+                think(0); // off clears Think 1 only; Think 2 stays until the Think button changes it
+            }
+            return;
         }
         if (enabled && offered(persona).contains(t)) {
             on.add(t);
@@ -109,7 +122,32 @@ public final class ChatTools {
     }
 
     public boolean deep() {
-        return on.contains(Tool.DEEP);
+        return think == 1;
+    }
+
+    /** Think 2: several API models on one question, then one answer. */
+    public boolean round() {
+        return think == 2;
+    }
+
+    /** 0 ordinary, 1 Think 1, 2 Think 2. */
+    public int think() {
+        return think;
+    }
+
+    /** The words on the Think button. */
+    public String thinkLabel() {
+        return think == 2 ? "Think 2" : think == 1 ? "Think 1" : "Ordinary";
+    }
+
+    /** Sets the thinking level. Think 1 is also the Deep thinking tool; the other levels turn that tool off. */
+    public void think(int level) {
+        think = level >= 2 ? 2 : level == 1 ? 1 : 0;
+        if (think == 1 && offered(persona).contains(Tool.DEEP)) {
+            on.add(Tool.DEEP);
+        } else {
+            on.remove(Tool.DEEP);
+        }
     }
 
     /** The codes this page's brain is told about: the suit's controls and the tools that are on. */
@@ -152,13 +190,13 @@ public final class ChatTools {
                 + ". Work only on them: do not list, clone, read or change any other repository unless the pilot names it.";
     }
 
-    /** Kept as one line: "on:WEB,FILES;repos:me/app,me/lib". */
+    /** Kept as one line: "on:WEB,FILES;repos:me/app,me/lib;think:1". */
     public String write() {
         List<String> names = new ArrayList<String>();
         for (Tool t : on) {
             names.add(t.name());
         }
-        return "on:" + String.join(",", names) + ";repos:" + String.join(",", repos);
+        return "on:" + String.join(",", names) + ";repos:" + String.join(",", repos) + (think == 0 ? "" : ";think:" + think);
     }
 
     /** Reads {@link #write}; a missing or broken line gives the persona's defaults. */
@@ -184,6 +222,12 @@ public final class ChatTools {
                     r.add(n);
                 }
                 c.setRepos(r);
+            } else if (part.startsWith("think:")) {
+                try {
+                    c.think(Integer.parseInt(part.substring(6).trim()));
+                } catch (NumberFormatException ignored) {
+                    // an older line: the Deep thinking tool, if it was on, already set Think 1
+                }
             }
         }
         return c;

@@ -164,10 +164,15 @@ public final class NeuralVoice {
 
     /** Whether this sentence's sound is made and kept (in memory, or on the device for a week). */
     public boolean has(String text, int speaker, float speed) {
+        return has(owner, text, speaker, speed);
+    }
+
+    /** As {@link #has(String, int, float)} for one message, without changing which message is being made now. */
+    public boolean has(String messageOwner, String text, int speaker, float speed) {
         String key = madeKey(text, speaker, speed);
         SpeechCache c = said();
-        if (owner != null) {
-            return c != null && c.has(owner, key); // this message's own kept voice
+        if (messageOwner != null) {
+            return c != null && c.has(messageOwner, key); // this message's own kept voice
         }
         synchronized (made) {
             if (made.containsKey(key)) {
