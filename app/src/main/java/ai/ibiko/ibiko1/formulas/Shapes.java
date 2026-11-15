@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  * S2  value          a proper noun, a quoted phrase, a number or date, or a noun phrase after a known verb
  * S3  shape          up to 2 words left + {V} + up to 2 words right; at least 2 real words in all;
  *                    never from a question or a negative sentence
- * S4  caps           200 shapes, 4000 pattern characters in all
+ * S4  caps           800 shapes, 16000 pattern characters in all
  * S5  promote        seen >= 6, hit/seen >= 0.5, rejected/seen < 0.4
  * S6  prune          seen >= 20 and hit/seen < 0.25; or unused 30 days once 60 days old
  * </pre>
@@ -26,7 +26,7 @@ public final class Shapes {
     private Shapes() {
     }
 
-    public static final int MOST = 200, CHARS = 4000, SIDE = 2;
+    public static final int MOST = 800, CHARS = 16000, SIDE = 2;
     public static final long DAY = 24L * 60 * 60 * 1000;
 
     /** One shape: the relation it reads, the words before and after the value, and its record. */
@@ -133,7 +133,7 @@ public final class Shapes {
         return new Rule(relation, left.toLowerCase(Locale.US), right.toLowerCase(Locale.US), now);
     }
 
-    /** S4: the rules kept, best first, within 200 rules and 4000 pattern characters. */
+    /** S4: the rules kept, best first, within 800 rules and 16000 pattern characters. */
     public static List<Rule> capped(List<Rule> rules) {
         List<Rule> sorted = new ArrayList<Rule>(rules);
         sorted.sort((a, b) -> a.promoted() != b.promoted() ? (a.promoted() ? -1 : 1) : Integer.compare(b.hit, a.hit) != 0

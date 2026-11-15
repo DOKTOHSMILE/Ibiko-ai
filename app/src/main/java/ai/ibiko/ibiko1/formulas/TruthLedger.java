@@ -22,11 +22,11 @@ import java.util.Map;
  *                          has since faded ("checked before")
  *                 warn     the known mistakes and the checked truths about a request go to every brain with it,
  *                          the mistakes first
- *                 forget   at most 3,000 kept; the least recently seen goes first
+ *                 forget   at most 12,000 kept; the least recently seen goes first
  * </pre>
  */
 public final class TruthLedger implements Truth.Witness {
-    static final int MOST = 3000;
+    public static final int MOST = 12000;
 
     /** One sentence judged: its verdict, what decided it, the correction (FALSE), how often, where, first and last seen. */
     public static final class Entry {

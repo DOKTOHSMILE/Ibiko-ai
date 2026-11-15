@@ -291,18 +291,23 @@ final class BrainGate {
         return "tools:" + group + ":group";
     }
 
-    /** The suit's codes this page's brain is told about: only the tools switched on, and the suit's own controls. */
     /**
-     * The instructions for a reply: in full for an API model; short for the device's own model, which reads every
-     * token of them before its first word (the full set is about 2,000 tokens; a small model reads them slowly and
-     * cannot use them). The warm-up and the reply use the same text, so what was read ahead is kept.
+     * The instructions for a reply. An API model gets the suit's list. The phone's own model gets the how-to for
+     * every function this chat allows, so it knows when to write the code and what Ibiko does next. The warm-up
+     * and the reply use the same text.
      */
     String systemFor(String agent, boolean acts) {
         String today = new java.text.SimpleDateFormat("EEEE d MMMM yyyy", java.util.Locale.UK).format(new java.util.Date());
         if (a.model != null && !a.model.remoteOn()) {
             java.util.Set<ai.ibiko.suit.FunctionCode> allowed = a.chatTools(agent).allowedCodes();
-            return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today)
-                    + (acts ? ai.ibiko.suit.FunctionCode.lean(a.connectorTools(), allowed) : "");
+            String how = "";
+            if (acts) {
+                how = ai.ibiko.suit.FunctionCode.knowHow(a.connectorTools(), allowed);
+                if (allowed.contains(ai.ibiko.suit.FunctionCode.SI)) {
+                    how += ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE;
+                }
+            }
+            return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today) + how;
         }
         return ai.ibiko.llm.PersonaPrompt.system(agent, a.brain.userName(), today, a.selfSheet()) + (acts ? suitCodes(agent) : "");
     }

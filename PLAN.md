@@ -1,3 +1,9 @@
+# The phone's own model can run every function, and Ibiko 1 keeps more (0.99.149)
+
+- [x] The phone's own model is told, for every function this chat allows, when to write the code, the exact line, and what Ibiko does next. The short list is still there for the size check. A code the chat has turned off is not included. A greeting is still not a plan, a share, or a yes.
+- [x] Ibiko 1's stores hold four times as much: 20,000 confirmed answers, 80,000 facts, 1,600 methods, 12,000 truth-ledger lines, and 800 sentence shapes (16,000 pattern characters).
+- [ ] On the phone: with the phone's own model, ask it to search, to make a file, and to say the time. Each should run. "Hello" should stay a greeting.
+
 # The plan stops re-reading and uses what it already opened (0.99.148)
 
 - [x] A file, a folder listing, a search or a page is remembered the moment it is read. The next time, it is not opened again. The answer says it is cached and names the next unticked step.

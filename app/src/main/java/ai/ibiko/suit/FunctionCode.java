@@ -300,10 +300,9 @@ public enum FunctionCode {
     }
 
     /**
-     * What the brain is told about the suit. {@code tools}: the connector tools on for this chat ("- name <arg>:
-     * what it does" a line), or empty. {@code allowed}: the codes this chat may use (null for all).
+     * The short list of codes, kept for a size check. The phone's own model reads {@link #knowHow}, which says
+     * when to write each code, the line to write, and what Ibiko does next.
      */
-    /** As {@link #instructions(String, java.util.Set)} in as few words as possible, for a small model on the device. */
     public static String lean(String tools, java.util.Set<FunctionCode> allowed) {
         StringBuilder b = new StringBuilder("\n\nWhen the user clearly wants one of these done, write its code alone on the first"
                 + " line, then one short sentence; otherwise just answer:");
@@ -316,6 +315,31 @@ public enum FunctionCode {
         }
         if (tools != null && !tools.trim().isEmpty()) {
             b.append(" Tools for ").append(TL.code()).append(":").append(tools);
+        }
+        return b.toString();
+    }
+
+    /**
+     * The how-to for every function this chat may use: when to write the code, the exact line, and what Ibiko
+     * does next. The phone's own model reads this so it can run the arsenal. A code that is off for the chat is
+     * left out. {@link #lean} stays the short list.
+     */
+    public static String knowHow(String tools, java.util.Set<FunctionCode> allowed) {
+        StringBuilder b = new StringBuilder("\n\nYou can run every function this chat allows. When the user wants one done,"
+                + " write its code alone on the first line, then one short sentence. Otherwise just answer, with no code."
+                + " Do not say the function already ran. A shell command, a post and a share wait for the user's yes.\n");
+        for (FunctionCode c : values()) {
+            if (allowed != null && !allowed.contains(c) || c == TL && (tools == null || tools.trim().isEmpty())) {
+                continue;
+            }
+            b.append("- ").append(c.code());
+            if (!c.args.isEmpty()) {
+                b.append(' ').append(c.args);
+            }
+            b.append(" — ").append(use(c)).append('\n');
+        }
+        if (tools != null && !tools.trim().isEmpty()) {
+            b.append("Tools for ").append(TL.code()).append(":").append(tools).append('\n');
         }
         return b.toString();
     }
