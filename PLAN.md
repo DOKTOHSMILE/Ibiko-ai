@@ -1,3 +1,10 @@
+# It decides what you asked before it acts (0.99.150)
+
+- [x] "Can you fix the bug" is a request, not a question. "How do I clone this" stays an explanation, so it is not run as a command. "Don't post this" is not a post.
+- [x] The reading names the function: a real photo, a picture to make, a file to read, a directory to make, a button to add, two steps joined by "and" or "then". A code for a different function is dropped. A greeting is still not plan mode. A look-up is still allowed.
+- [x] That decision is the first line the model reads, and it is kept when the rest of the notes are cut to fit the phone's model. Ibiko 1 sees the same line.
+- [ ] On the phone: ask the phone's own model to read a file, to make a directory, and "how do I clone a repo". The first two should act. The third should explain.
+
 # The phone's own model can run every function, and Ibiko 1 keeps more (0.99.149)
 
 - [x] The phone's own model is told, for every function this chat allows, when to write the code, the exact line, and what Ibiko does next. The short list is still there for the size check. A code the chat has turned off is not included. A greeting is still not a plan, a share, or a yes.

@@ -140,6 +140,16 @@ public final class Critical {
                     "This asks about the future. Give a forecast, not a fact: what it rests on, the likely range, and the"
                             + " main way it could turn out differently."));
         }
+        if (constrained(q)) {
+            found.add(new Finding("K13", "You already named a limit. The answer has to fit inside it, not around it.",
+                    "The asker stated a constraint (money, time, a must, or a must-not). Treat it as a hard limit:"
+                            + " an option that breaks it loses, even if it looks better on other measures."));
+        }
+        if (kind == Kind.JUDGEMENT && q.matches(".*\\b(quit|resign|buy|sell|delete|marry|move|permanent|irreversible)\\b.*")) {
+            found.add(new Finding("K14", "One of these choices is hard to undo. That counts, especially if you are unsure.",
+                    "At least one option is costly to reverse. Prefer the reversible option unless a stated constraint"
+                            + " makes the permanent one clearly better, and say what would make the undo-cost worth paying."));
+        }
         return new Reading(kind, premise, found);
     }
 
@@ -166,6 +176,10 @@ public final class Critical {
         }
         if (s.matches("^(what|who|when|where|which|how many|how much|is|are|does|do|did|was|were)\\b.*")) {
             return Kind.FACT;
+        }
+        if (s.matches(".*\\b(torn between|stuck between|help me decide|help me choose|can'?t decide|cannot decide"
+                + "|whether (i|we|to))\\b.*")) {
+            return Kind.JUDGEMENT;
         }
         return Kind.OTHER;
     }
@@ -251,20 +265,33 @@ public final class Critical {
      * own options, instead of an invented verdict.
      */
     public static String deliberate(String request) {
-        String q = request == null ? "" : request.trim().replaceAll("[?.!]+$", "");
-        List<String> options = options(q);
+        Verdict v = decide(request);
         StringBuilder b = new StringBuilder("I can't judge that from facts alone, so here is how to decide it soundly:\n");
+        b.append("This is a ").append(v.domain).append(" choice. ");
+        if (v.constraints.isEmpty()) {
+            b.append("You didn't give a limit, so I won't pretend one.\n");
+        } else {
+            b.append("Limits you already set: ").append(String.join("; ", v.constraints)).append(".\n");
+        }
         b.append("1. Name what matters most to you (cost, time, safety, quality, what it's for); the answer follows from that.\n");
-        if (options.size() >= 2) {
-            for (String o : options) {
+        if (v.options.size() >= 2) {
+            for (String o : v.options) {
                 b.append("- ").append(cap(o)).append(": what would make it the right choice? What would make it the wrong one?\n");
             }
             b.append("2. Check whether both, neither or a third option fits better: the choice may not be only these.\n");
         } else {
-            b.append("2. List the real options, including doing nothing.\n");
+            b.append("2. Check whether both, neither or a third option fits better: list the real options, including doing nothing.\n");
         }
         b.append("3. Give the best case for the option you lean against; if it wins, change your mind.\n");
-        b.append("4. Decide what result would show the choice was wrong, and check it after.\n");
+        if (v.lean == null) {
+            b.append("Lean: none. ").append(v.because).append(" Confidence ").append(v.confidence)
+                    .append("/100, because a missing fact is not a tie I get to break.\n");
+        } else {
+            b.append("Lean: ").append(v.lean).append(". ").append(v.because).append(" Confidence ").append(v.confidence)
+                    .append("/100, and only from what you said, not from the world.\n");
+        }
+        b.append("4. Decide what result would show the choice was wrong, and check it after. What would flip it: ")
+                .append(v.flip).append("\n");
         b.append("Tell me what matters most and I'll weigh it with you, or pick a model in the brain menu for a fuller opinion.");
         return b.toString();
     }
@@ -272,27 +299,280 @@ public final class Critical {
     /** A decision for the asker to make: options to choose between, or "should I …", "is it worth …". */
     public static boolean decision(String request) {
         String q = request == null ? "" : request.trim().replaceAll("[?.!]+$", "");
+        String s = q.toLowerCase(Locale.US).replace('’', '\'');
+        if (s.matches(".*\\b(help me (decide|choose)|torn between|stuck between|can'?t decide|cannot decide)\\b.*")) {
+            return true;
+        }
         return kind(q) == Kind.JUDGEMENT && (options(q).size() >= 2
-                || q.toLowerCase(Locale.US).matches("^(should (i|we)|is it worth|would it be (better|wise)|am i better off)\b.*"));
+                || s.matches("^(should (i|we)|is it worth|would it be (better|wise)|am i better off)\\b.*"));
     }
 
-    /** The options a question offers ("Lagos or Abuja", "rent, buy or wait"). */
+    /** The options a question offers ("Lagos or Abuja", "rent, buy or wait", "between staying and leaving"). */
     static List<String> options(String q) {
         List<String> out = new ArrayList<String>();
-        Matcher m = Pattern.compile("(?i)(?:between |^(?:should i |is it better to |which is better[,:]? |what is better[,:]? )?)"
-                + "([\\w' -]{2,40}?)(?:,\\s*([\\w' -]{2,40}?))?,?\\s+or\\s+([\\w' -]{2,40})$").matcher(q);
-        if (m.find()) {
+        String raw = q == null ? "" : q.trim().replaceAll("[?.!]+$", "");
+        Matcher between = Pattern.compile("(?i)\\bbetween\\s+([\\w' -]{2,40}?)\\s+and\\s+([\\w' -]{2,40})").matcher(raw);
+        if (between.find()) {
+            addOption(out, between.group(1));
+            addOption(out, between.group(2));
+            return out;
+        }
+        Matcher listed = Pattern.compile("(?i)(?:between |^(?:should i |is it better to |which is better[,:]? |what is better[,:]? )?)"
+                + "([\\w' -]{2,40}?)(?:,\\s*([\\w' -]{2,40}?))?,?\\s+or\\s+([\\w' -]{2,40})$").matcher(raw);
+        if (listed.find()) {
             for (int i = 1; i <= 3; i++) {
-                String o = m.group(i);
-                if (o != null) {
-                    o = o.replaceAll("(?i)^(should i|is it better to|which is better|what is better|is|to|the|a|an)\\s+", "").trim();
-                    if (!o.isEmpty()) {
-                        out.add(o);
-                    }
+                addOption(out, listed.group(i));
+            }
+            if (out.size() >= 2) {
+                return out;
+            }
+            out.clear();
+        }
+        Matcher pair = Pattern.compile("(?i)\\b([a-z][\\w']{1,24})\\s+or\\s+([a-z][\\w']{1,24})\\b").matcher(raw);
+        if (pair.find()) {
+            addOption(out, pair.group(1));
+            addOption(out, pair.group(2));
+        }
+        return out;
+    }
+
+    private static void addOption(List<String> out, String o) {
+        if (o == null) {
+            return;
+        }
+        o = o.replaceAll("(?i)^(should i|is it better to|which is better|what is better|is|to|the|a|an)\\s+", "").trim();
+        o = o.replaceAll("(?i)^(should i|is it better to|which is better|what is better|is|to|the|a|an)\\s+", "").trim();
+        if (o.isEmpty() || o.matches("(?i)or|and|not|than|versus|vs")) {
+            return;
+        }
+        out.add(o);
+    }
+
+    /**
+     * A decision, weighed only from what the asker said. No outside fact is invented: a city, a language or a job is
+     * not declared the winner unless their own words separate the options. {@code lean} is null when they don't.
+     */
+    public static final class Verdict {
+        public final String domain;
+        public final List<String> options;
+        public final List<String> constraints;
+        /** The option their words support, or null when nothing they said separates the options. */
+        public final String lean;
+        public final String because;
+        /** The one change that would make the lean wrong, or the one fact that would create a lean. */
+        public final String flip;
+        /** 0-100. Never high: this is their words, not the world. */
+        public final int confidence;
+
+        Verdict(String domain, List<String> options, List<String> constraints, String lean, String because, String flip,
+                int confidence) {
+            this.domain = domain;
+            this.options = options;
+            this.constraints = constraints;
+            this.lean = lean;
+            this.because = because;
+            this.flip = flip;
+            this.confidence = confidence;
+        }
+    }
+
+    /**
+     * K7, K10, K13, K14. Scores each option against the limits and the uncertainty the asker actually stated.
+     * A hard limit (can't afford) outranks a soft preference. A short stay or "I'm not sure" pushes toward
+     * the option that can be undone. If the scores do not separate, there is no lean.
+     */
+    public static Verdict decide(String request) {
+        String q = request == null ? "" : request.trim();
+        String s = q.toLowerCase(Locale.US).replace('’', '\'');
+        List<String> options = options(q);
+        String domain = domain(s, options);
+        List<String> limits = limits(s);
+        boolean unsure = s.matches(".*\\b(not sure|unsure|undecided|i don'?t know|i do not know|torn|stuck)\\b.*");
+        boolean shortStay = s.matches(".*\\b(in a year|in a month|few months|might leave|temporary|short term"
+                + "|not for long|a year or|only (a|one) year|for now)\\b.*");
+        boolean tightMoney = s.matches(".*\\b(can'?t afford|cannot afford|small deposit|no deposit|no savings"
+                + "|tight budget|little money|can'?t pay|cannot pay)\\b.*");
+        String rather = rather(s);
+
+        int n = options.size();
+        int[] score = new int[n];
+        List<String> reasons = new ArrayList<String>();
+        for (int i = 0; i < n; i++) {
+            String o = options.get(i).toLowerCase(Locale.US);
+            boolean hard = false;
+            if (tightMoney && costly(o)) {
+                score[i] -= 4;
+                hard = true;
+                reasons.add(cap(options.get(i)) + " loses: you said the money isn't there");
+            }
+            if (shortStay && sticky(o)) {
+                score[i] -= 3;
+                reasons.add(cap(options.get(i)) + " loses: you said the time is short, and this one is hard to undo");
+            }
+            if (shortStay && reversible(o)) {
+                score[i] += 2;
+                reasons.add(cap(options.get(i)) + " fits a short stay: you can leave it");
+            }
+            if (unsure && sticky(o) && !hard) {
+                score[i] -= 2;
+                reasons.add(cap(options.get(i)) + " loses while you are unsure, because it is hard to undo");
+            }
+            if (unsure && reversible(o)) {
+                score[i] += 1;
+            }
+            if (rather != null && o.contains(rather)) {
+                score[i] += hard ? 0 : 2;
+                if (!hard) {
+                    reasons.add("You said you lean toward " + options.get(i));
                 }
             }
         }
+        String lean = null;
+        int confidence = 20;
+        String because = "Nothing you said separates "
+                + (n >= 2 ? options.get(0) + " from " + options.get(n - 1) : "the options") + ".";
+        String flip = decisive(domain);
+        if (n >= 2) {
+            int best = 0;
+            for (int i = 1; i < n; i++) {
+                if (score[i] > score[best]) {
+                    best = i;
+                }
+            }
+            int secondScore = Integer.MIN_VALUE;
+            for (int i = 0; i < n; i++) {
+                if (i != best && score[i] > secondScore) {
+                    secondScore = score[i];
+                }
+            }
+            int margin = score[best] - secondScore;
+            boolean blocked = false;
+            for (int i = 0; i < n; i++) {
+                if (score[i] <= -4) {
+                    blocked = true;
+                }
+            }
+            if (margin >= 2 && (score[best] > 0 || (blocked && score[best] >= 0))) {
+                lean = options.get(best);
+                confidence = Math.min(78, 40 + margin * 8);
+                because = joinReasons(reasons, options.get(best));
+                flip = flipOf(lean, shortStay, tightMoney, unsure);
+            }
+        }
+        return new Verdict(domain, options, limits, lean, because, flip, confidence);
+    }
+
+    private static boolean constrained(String q) {
+        return q.matches(".*\\b(can'?t afford|cannot afford|only have|budget|must not|as long as|i have to|i need to"
+                + "|small deposit|no savings)\\b.*");
+    }
+
+    private static String domain(String s, List<String> options) {
+        String blob = s + " " + String.join(" ", options).toLowerCase(Locale.US);
+        if (blob.matches(".*\\b(rent|renting|mortgage|landlord|apartment|house|flat|deposit)\\b.*")) {
+            return "housing";
+        }
+        if (blob.matches(".*\\b(quit|resign|salary|job|career|boss)\\b.*")) {
+            return "work";
+        }
+        if (blob.matches(".*\\b(python|java|javascript|typescript|language|programming)\\b.*")) {
+            return "learning";
+        }
+        if (blob.matches(".*\\b(city|relocate|lagos|abuja|london|accra|nairobi)\\b.*")) {
+            return "place";
+        }
+        return "general";
+    }
+
+    /** Clauses that limit the choice, in the asker's words. The question itself is not a limit. */
+    private static List<String> limits(String s) {
+        List<String> out = new ArrayList<String>();
+        for (String part : s.split("[.;]\\s*|\\s+\\band\\b\\s+")) {
+            String p = part.trim();
+            if (p.length() < 8 || p.length() > 90) {
+                continue;
+            }
+            if (p.matches(".*\\b(can'?t|cannot|only|budget|deposit|afford|must|might|prefer|already|kids|children|family|savings)\\b.*")
+                    && !p.matches("^(should|which|what|is it|would|do you).*")) {
+                out.add(p);
+            }
+            if (out.size() == 4) {
+                break;
+            }
+        }
         return out;
+    }
+
+    /** "I prefer X" / "I'd rather X", lowercased, or null. */
+    private static String rather(String s) {
+        Matcher m = Pattern.compile("\\b(?:i prefer|i'?d rather|i would rather|leaning toward|leaning towards)\\s+([a-z][\\w']{1,24})").matcher(s);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static boolean costly(String option) {
+        return option.matches(".*\\b(buy|buying|purchase|own|mortgage)\\b.*");
+    }
+
+    private static boolean sticky(String option) {
+        return option.matches(".*\\b(buy|buying|quit|quitting|resign|leave|leaving|sell|selling|delete|marry|move|moving|commit)\\b.*");
+    }
+
+    private static boolean reversible(String option) {
+        return option.matches(".*\\b(rent|renting|stay|staying|wait|waiting|keep|keeping|pause|learn|learning)\\b.*");
+    }
+
+    private static String decisive(String domain) {
+        if ("housing".equals(domain)) {
+            return "how many years you will actually stay, and whether the deposit is money you can lock up.";
+        }
+        if ("work".equals(domain)) {
+            return "whether you can live without the pay, and whether leaving can be undone.";
+        }
+        if ("learning".equals(domain)) {
+            return "what you will build with it in the next month.";
+        }
+        if ("place".equals(domain)) {
+            return "whether you are choosing for work, for cost, or for the people you need to be near.";
+        }
+        return "which single measure matters most: cost, time, or how hard it is to undo.";
+    }
+
+    private static String flipOf(String lean, boolean shortStay, boolean tightMoney, boolean unsure) {
+        if (tightMoney || shortStay) {
+            return "a longer stay and money you can afford to lock up would flip this away from " + lean + ".";
+        }
+        if (unsure) {
+            return "being sure, with a reason the other option is worth the undo-cost, would flip it.";
+        }
+        return "the other option winning on the one measure you actually care about.";
+    }
+
+    private static String joinReasons(List<String> reasons, String lean) {
+        String needle = lean.toLowerCase(Locale.US);
+        StringBuilder b = new StringBuilder();
+        int n = 0;
+        for (String r : reasons) {
+            if (!r.toLowerCase(Locale.US).contains(needle)) {
+                continue;
+            }
+            if (n++ == 3) {
+                break;
+            }
+            b.append(b.length() == 0 ? "" : " ").append(r).append(r.endsWith(".") ? "" : ".");
+        }
+        if (b.length() == 0) {
+            int extra = 0;
+            for (String r : reasons) {
+                if (extra++ == 3) {
+                    break;
+                }
+                b.append(b.length() == 0 ? "" : " ").append(r).append(r.endsWith(".") ? "" : ".");
+            }
+        }
+        if (b.length() == 0) {
+            return cap(lean) + " is the one your words support.";
+        }
+        return b.toString();
     }
 
     private static String cap(String s) {

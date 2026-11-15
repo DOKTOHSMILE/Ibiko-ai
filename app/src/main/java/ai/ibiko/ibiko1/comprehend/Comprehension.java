@@ -25,6 +25,8 @@ public final class Comprehension {
     /** One step asked for. */
     public static final class Operation {
         public String action, target, parent, position, direction;
+        /** This step is the one they said not to do ("don't delete the file, rename it"). */
+        public boolean negated;
         public final Map<String, String> attributes = new LinkedHashMap<String, String>();
         /** True when ConceptNet knows the target as a part of the parent, false when not, null when nothing to check. */
         public Boolean partKnown;
@@ -41,6 +43,10 @@ public final class Comprehension {
         public final Map<String, String> senses = new LinkedHashMap<String, String>();
         /** Why to ask before acting; null when the meaning is clear enough. */
         public String clarify;
+        /** Why they want it, a limit they set, a condition, or a thing they want but did not order. */
+        public String goal, constraint, condition, desire;
+        /** How settled the reading is, from 0 to 1. A missing "it" is low. */
+        public double confidence = 0.8;
 
         public Operation first() {
             return operations.isEmpty() ? null : operations.get(0);
@@ -77,6 +83,9 @@ public final class Comprehension {
                 if (o.partKnown != null) {
                     b.append(",\"part_known\":").append(o.partKnown);
                 }
+                if (o.negated) {
+                    b.append(",\"negated\":true");
+                }
                 b.append('}');
             }
             b.append(']');
@@ -87,6 +96,19 @@ public final class Comprehension {
             if (clarify != null) {
                 b.append(",\"clarify\":").append(q(clarify));
             }
+            if (goal != null) {
+                b.append(",\"goal\":").append(q(goal));
+            }
+            if (constraint != null) {
+                b.append(",\"constraint\":").append(q(constraint));
+            }
+            if (condition != null) {
+                b.append(",\"condition\":").append(q(condition));
+            }
+            if (desire != null) {
+                b.append(",\"desire\":").append(q(desire));
+            }
+            b.append(",\"confidence\":").append(String.format(Locale.US, "%.2f", confidence));
             return b.append('}').toString();
         }
 
@@ -113,6 +135,24 @@ public final class Comprehension {
                 if (o.parent != null) {
                     b.append(" of ").append(o.parent);
                 }
+                if (o.negated) {
+                    b.append(" (do not)");
+                }
+            }
+            if (condition != null) {
+                b.append("; if ").append(condition);
+            }
+            if (goal != null) {
+                b.append("; goal: ").append(goal);
+            }
+            if (constraint != null) {
+                b.append("; constraint: ").append(constraint);
+            }
+            if (desire != null) {
+                b.append("; wants: ").append(desire);
+            }
+            if (confidence < 0.5) {
+                b.append("; low confidence");
             }
             for (Map.Entry<String, String> r : references.entrySet()) {
                 b.append("; \"").append(r.getKey()).append("\" = ").append(r.getValue());
@@ -170,6 +210,8 @@ public final class Comprehension {
     private static final Pattern PRONOUN = Pattern.compile("^(it|its|it's|this|that|them|they|their|these|those)$");
     private static final Pattern QUESTION = Pattern.compile("^(what|who|whom|whose|which|where|when|why|how|is|are|was|were|do|does|did|can|could|"
             + "will|would|should|shall|may|might|has|have|had)\\b");
+    private static final Pattern MATERIAL = Pattern.compile("^(wood|wooden|metal|steel|iron|glass|plastic|leather|cloth|fabric|rubber|paper|stone|concrete)$");
+    private static final Pattern QTY = Pattern.compile("^(one|two|three|four|five|six|seven|eight|nine|ten|both|several|many|\\d+)$");
     private static final Pattern FEELING = Pattern.compile("^(i am|i'm|im|i feel|i felt|i was|we are|i love|i hate|i like|thank|thanks|hello|hi|hey|good morning|good evening|good night)\\b");
 
     private final Dictionary dictionary;
@@ -213,25 +255,34 @@ public final class Comprehension {
         Meaning m = new Meaning();
         String raw = message == null ? "" : message.trim();
         String t = normal(raw);
-        m.negated = t.matches("(?s).*\\b(do not|don't|dont|never|no need to|stop)\\b.*") && !t.matches("^stop\\b.*");
-        String body = t.replaceFirst("^(please |can you |could you |would you |will you |kindly |i want you to |i need you to |"
-                + "help me |let's |lets |do not |don't |dont |never )+", "");
-        // the steps: clauses joined by "and", "then", commas, each starting with an action
+        // politeness only. "don't" stays on its own clause, so a later step can still be wanted.
+        String body = t.replaceFirst("^(?:(?:please|can you|could you|would you|will you|kindly|i want you to|i need you to|help me|let's|lets)\\s+)+", "");
+        frame(t, m);
+        Matcher cond = Pattern.compile("^(?:if|when|once)\\s+(.+?)\\s*,?\\s*(?:then\\s+)?((?:(?:do not|don't|dont|never)\\s+)?(?:"
+                + allVerbs() + ")\\b.*)$").matcher(body);
+        if (cond.find()) {
+            m.condition = cond.group(1).trim();
+            body = cond.group(2).trim();
+        }
         List<String> clauses = new ArrayList<String>();
-        for (String c : body.split("\\s*(?:,\\s*(?:and\\s+)?(?:then\\s+)?|\\band then\\b|\\bthen\\b|;|\\band\\b(?=\\s+(?:" + allVerbs() + ")\\b))\\s*")) {
+        for (String c : body.split("\\s*(?:,\\s*(?:and\\s+)?(?:then\\s+)?|\\band then\\b|\\bthen\\b|;|\\band\\b(?=\\s+(?:"
+                + allVerbs() + ")\\b)|\\bbut\\b(?=\\s+(?:not\\s+|do not\\s+|don't\\s+|dont\\s+|never\\s+|" + allVerbs() + ")\\b))\\s*")) {
             if (!c.trim().isEmpty()) {
                 clauses.add(c.trim());
             }
         }
         Intent first = null;
         for (String c : clauses) {
-            Object[] act = action(c);
+            boolean clauseNo = c.matches("^(?:(?:do not|don't|dont|never|no)\\s+)+.*");
+            String said = c.replaceFirst("^(?:(?:do not|don't|dont|never|no)\\s+)+", "");
+            Object[] act = action(said);
             if (act == null) {
                 continue;
             }
             Operation o = new Operation();
+            o.negated = clauseNo;
             o.action = (String) act[0];
-            String rest = (String) act[2];
+            String rest = stripTail((String) act[2], m);
             if ("resize".equals(o.action) || rest.matches("(?s).*\\b(bigger|larger|smaller|wider|taller|shorter)\\b.*")) {
                 o.action = "resize";
                 o.direction = rest.matches("(?s).*\\b(smaller|shorter|narrower|thinner|shrink|reduce|decrease|down|out)\\b.*")
@@ -243,19 +294,45 @@ public final class Comprehension {
             if ("resize".equals(o.action)) {
                 i = Intent.MODIFICATION;
             }
+            if (o.negated && m.operations.size() == 1) {
+                // a refusal is still that kind of act, marked negated
+            }
             if (first == null) {
                 first = i;
             } else if (i != first && m.secondary == null) {
                 m.secondary = i;
             }
         }
+        boolean anyPos = false;
+        boolean anyNeg = false;
+        for (Operation o : m.operations) {
+            if (o.negated) {
+                anyNeg = true;
+            } else {
+                anyPos = true;
+            }
+        }
+        if (!m.operations.isEmpty()) {
+            m.negated = anyNeg && !anyPos;
+        } else {
+            m.negated = t.matches("(?s).*\\b(do not|don't|dont|never|no need to|stop)\\b.*") && !t.matches("^stop\\b.*");
+        }
         if (first != null) {
             m.intent = first;
+        } else if (pointing(t, m)) {
+            // "the red one" / "the other one" continues the last thing
         } else if (raw.endsWith("?") || QUESTION.matcher(t).find()) {
-            m.intent = t.matches("^(why|how)\\b.*") ? Intent.EXPLANATION : Intent.QUESTION;
+            m.intent = t.matches("^(why|how)\\b.*") || t.matches(".*\\b(what if|what would happen|how (?:do|can|to|should))\\b.*")
+                    ? Intent.EXPLANATION : Intent.QUESTION;
+            if (t.matches("^(what|who|when|where|which|is|are|do|does|did|can|could)\\b.*") && !t.matches(".*\\b(why|how|what if)\\b.*")) {
+                m.intent = Intent.QUESTION;
+            }
             question(t, m);
         } else if (t.matches(".*\\d\\s*[-+*/x×÷%^]\\s*\\d.*") || t.matches(".*\\b\\d+(\\.\\d+)?%\\s*of\\b.*")) {
             m.intent = Intent.CALCULATION;
+        } else if (t.matches(".*\\bhow (?:do|can|to|should)\\b.*") || t.matches("^(?:tell me|show me) (?!about\\b).+")) {
+            m.intent = Intent.EXPLANATION;
+            question(t, m);
         } else if (FEELING.matcher(t).find()) {
             m.intent = Intent.CONVERSATION;
             statement(t, m);
@@ -263,8 +340,111 @@ public final class Comprehension {
             m.intent = Intent.CONVERSATION;
             statement(t, m);
         }
+        if (m.operations.isEmpty() && m.desire == null) {
+            Matcher want = Pattern.compile("^(?:i want|i need|i wish|i would like|i'd like)\\s+(?:a |an |the |some )?(.{2,80})$").matcher(t);
+            if (want.find() && !want.group(1).matches("(?s).*\\b(?:" + allVerbs() + ")\\b.*")) {
+                m.desire = want.group(1).trim();
+            }
+        }
+        if (m.clarify != null) {
+            m.confidence = 0.4;
+        } else if (m.operations.isEmpty() && m.intent == Intent.CONVERSATION && m.desire == null) {
+            m.confidence = 0.62;
+        } else if (m.secondary != null) {
+            m.confidence = 0.78;
+        } else {
+            m.confidence = 0.86;
+        }
         senses(raw, m);
         return m;
+    }
+
+    /** Goal, limit, and wish, taken from the whole message before the steps are split. */
+    private static void frame(String t, Meaning m) {
+        Matcher goal = Pattern.compile("\\b(?:so that|so i can|in order to)\\s+([^.,;]{3,80})").matcher(t);
+        if (goal.find()) {
+            m.goal = goal.group(1).trim();
+        }
+        Matcher limit = Pattern.compile("\\b(?:without|but not|except|unless|must not)\\s+([^.]{3,60})").matcher(t);
+        if (limit.find()) {
+            String bit = limit.group(1).trim();
+            if (!bit.matches("^(?:do not|don't|dont|never)\\b.*")) {
+                m.constraint = bit;
+            }
+        }
+    }
+
+    /** Drops a purpose or a limit off the end of a step so it is not read as part of the object. */
+    private static String stripTail(String rest, Meaning m) {
+        if (rest == null) {
+            return "";
+        }
+        Matcher goal = Pattern.compile("\\b(?:so that|so i can|in order to)\\s+(.{3,80})$").matcher(rest);
+        if (goal.find()) {
+            if (m.goal == null) {
+                m.goal = goal.group(1).trim();
+            }
+            rest = rest.substring(0, goal.start()).trim();
+        }
+        Matcher limit = Pattern.compile("\\b(?:without|except|unless|must not)\\s+(.{3,60})$").matcher(rest);
+        if (limit.find()) {
+            if (m.constraint == null) {
+                m.constraint = limit.group(1).trim();
+            }
+            rest = rest.substring(0, limit.start()).trim();
+        }
+        return rest;
+    }
+
+    /** "the red one" changes the last thing; "the other one" is the previous thing, not the newest. */
+    private boolean pointing(String t, Meaning m) {
+        if (t.matches("^(?:the|that) other one$")) {
+            Operation o = new Operation();
+            o.action = "change";
+            String ref = secondThing();
+            m.references.put("the other one", ref == null ? "unknown" : ref);
+            o.target = ref == null ? "one" : ref;
+            if (ref == null) {
+                m.clarify = "which other one was meant";
+            }
+            m.operations.add(o);
+            m.intent = Intent.MODIFICATION;
+            return true;
+        }
+        Matcher one = Pattern.compile("^(?:the|that|this)\\s+(\\w+)\\s+one$").matcher(t);
+        if (!one.find()) {
+            return false;
+        }
+        String attr = one.group(1);
+        Operation o = new Operation();
+        o.action = "change";
+        if (COLOUR.matcher(attr).matches()) {
+            o.attributes.put("colour", attr);
+        } else if (SIZE.matcher(attr).matches()) {
+            o.attributes.put("size", attr);
+        } else if (MATERIAL.matcher(attr).matches()) {
+            o.attributes.put("material", attr);
+        } else {
+            return false;
+        }
+        String ref = lastThing();
+        m.references.put("one", ref == null ? "unknown" : ref);
+        o.target = ref == null ? "one" : ref;
+        if (ref == null) {
+            m.clarify = "which one was meant";
+        }
+        m.operations.add(o);
+        m.intent = Intent.MODIFICATION;
+        return true;
+    }
+
+    private String secondThing() {
+        if (recent.size() < 2) {
+            return null;
+        }
+        java.util.Iterator<Object[]> it = recent.iterator();
+        it.next();
+        return (String) it.next()[0];
     }
 
     private static String normal(String s) {
@@ -349,6 +529,10 @@ public final class Comprehension {
                 }
             } else if (SIDE.matcher(x).matches()) {
                 o.position = x;
+            } else if (QTY.matcher(x).matches()) {
+                o.attributes.put("quantity", x);
+            } else if (MATERIAL.matcher(x).matches() && !COLOUR.matcher(x).matches()) {
+                o.attributes.put("material", x);
             } else if (head == null && !x.matches("again|now|please|too|also|more|less|up|down|a bit|bit|slightly|much")) {
                 head = x;
             } else if (head != null && !x.matches("again|now|please")) {
@@ -461,12 +645,38 @@ public final class Comprehension {
             return;
         }
         recent.removeIf(r -> r[0].equals(thing));
-        recent.addFirst(new Object[] {thing, turn});
+        recent.addFirst(new Object[] {thing, turn, Boolean.valueOf(plural(thing))});
     }
 
-    /** What a pronoun points to: the newest thing in the conversation (a part's whole for "its" when it was the last). */
+    private static boolean plural(String w) {
+        if (w.matches(".*(people|children|men|women|teeth|feet|mice)$")) {
+            return true;
+        }
+        if (w.matches(".*(ss|us|is|ness|ous|ics)$")) {
+            return false;
+        }
+        return w.matches(".{3,}(?:s|es)$") && !w.matches("this|bus|gas|plus|series|species|news|lens");
+    }
+
+    /** What a pronoun points to. "them" prefers a plural thing; "it" and "its" prefer a singular one. */
     private String resolve(String pronoun) {
-        return recent.isEmpty() ? null : (String) recent.peekFirst()[0];
+        if (recent.isEmpty()) {
+            return null;
+        }
+        if (pronoun != null && pronoun.matches("they|them|their|these|those")) {
+            for (Object[] r : recent) {
+                if (Boolean.TRUE.equals(r[2])) {
+                    return (String) r[0];
+                }
+            }
+        } else if (pronoun != null && pronoun.matches("it|its|it's|this|that")) {
+            for (Object[] r : recent) {
+                if (r.length > 2 && !Boolean.TRUE.equals(r[2])) {
+                    return (String) r[0];
+                }
+            }
+        }
+        return (String) recent.peekFirst()[0];
     }
 
     /** For each noun with more than one meaning, the one this sentence uses. */

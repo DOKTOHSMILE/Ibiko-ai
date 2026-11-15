@@ -178,12 +178,11 @@ final class LocalAsk {
                     + act.pilotProfile().brief() // what the pilot said about themselves, for every brain
                     + (pageTools.brief().isEmpty() ? "" : "\n" + pageTools.brief());
             if (!act.model.remoteOn() && act.model.quick(english, 160) && gathered.length() > act.QUICK_CONTEXT_CHARS) {
-                // an everyday message goes the speed test's way: little to read before the first word
-                gathered = gathered.substring(0, act.QUICK_CONTEXT_CHARS);
+                gathered = ai.ibiko.suit.Comprehension.keepDecision(gathered, act.QUICK_CONTEXT_CHARS);
             } else if (!act.model.remoteOn() && gathered.length() > act.DEVICE_CONTEXT_CHARS) {
-                // the device's model reads all of it before its first word: what is said about this question first
-                // (taught facts, the reference, the situation), the rest cut
-                gathered = gathered.substring(0, act.DEVICE_CONTEXT_CHARS);
+                // the device's model reads all of it before its first word: the decision stays, then what is
+                // said about this question (taught facts, the reference, the situation)
+                gathered = ai.ibiko.suit.Comprehension.keepDecision(gathered, act.DEVICE_CONTEXT_CHARS);
             }
             final String context = gathered;
             final ai.ibiko.llm.ActionTags tags = new ai.ibiko.llm.ActionTags();

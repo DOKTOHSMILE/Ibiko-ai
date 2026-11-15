@@ -295,7 +295,13 @@ public final class Ibiko1 {
         } catch (RuntimeException e) {
             // no reading: the rest stands
         }
-        return ai.ibiko.ibiko1.formulas.Truth.brief(claims) + checkedBefore + meaning;
+        String decision = "";
+        try {
+            decision = ai.ibiko.suit.Comprehension.of(request).decisionLine() + " ";
+        } catch (RuntimeException e) {
+            // the reading failed: the facts still stand
+        }
+        return decision + ai.ibiko.ibiko1.formulas.Truth.brief(claims) + checkedBefore + meaning;
     }
 
     /** G8: the witnesses a sentence is asked of, most trusted first (the built-in reference, then facts held firmly). */

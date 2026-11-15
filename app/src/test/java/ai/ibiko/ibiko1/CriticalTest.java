@@ -57,5 +57,22 @@ public class CriticalTest {
         assertTrue(d, d.contains("Lagos") && d.contains("Abuja"));
         assertTrue(d.contains("both, neither or a third option"));
         assertTrue(d.contains("best case for the option you lean against"));
+        assertTrue("no invented winner", d.contains("Lean: none"));
+    }
+
+    @Test
+    public void aChoiceIsWeighedFromWhatWasSaidNotFromATemplate() {
+        assertTrue(Critical.decision("I'm torn between staying and leaving"));
+        assertFalse(Critical.decision("What is the best way to boil an egg"));
+        Critical.Verdict open = Critical.decide("Which is better, Lagos or Abuja?");
+        assertEquals("place", open.domain);
+        assertEquals(null, open.lean);
+        Critical.Verdict housed = Critical.decide("Should I rent or buy a house? I might leave in a year and I have a small deposit.");
+        assertEquals("rent", housed.lean);
+        assertTrue(housed.because, housed.because.toLowerCase().contains("money") || housed.because.toLowerCase().contains("short"));
+        assertTrue(housed.confidence >= 40 && housed.confidence <= 78);
+        Critical.Verdict broke = Critical.decide("I prefer to buy, but I can't afford the deposit. Should I rent or buy a house?");
+        assertEquals("rent", broke.lean);
+        assertTrue(broke.because.toLowerCase(), broke.because.toLowerCase().contains("money"));
     }
 }
