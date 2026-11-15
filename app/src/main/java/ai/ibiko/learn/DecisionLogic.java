@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import ai.ibiko.brain.MiniJson;
 import ai.ibiko.ibiko1.formulas.Critical;
@@ -150,12 +152,35 @@ public final class DecisionLogic {
         return o;
     }
 
-    /** True when {@code reply} states the lean this logic already settled, so it is safer to show than a reply that fights it. */
+    /** True when {@code reply} states the lean, and does not only name it in order to reject it. */
     public boolean agrees(String reply) {
-        if (lean == null || lean.isEmpty() || reply == null) {
+        return states(lean, reply);
+    }
+
+    /**
+     * True when {@code text} takes {@code lean}'s side. "Don't rent" and "can't afford to rent" do not. Naming the
+     * option once, without a rejection in front of it, does.
+     */
+    public static boolean states(String lean, String text) {
+        if (lean == null || lean.trim().isEmpty() || text == null) {
             return false;
         }
-        return reply.toLowerCase(Locale.US).contains(lean.toLowerCase(Locale.US));
+        String needle = lean.toLowerCase(Locale.US).trim();
+        String low = text.toLowerCase(Locale.US);
+        Matcher m = Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(needle) + "(?![\\p{L}\\p{N}])").matcher(low);
+        while (m.find()) {
+            String before = low.substring(Math.max(0, m.start() - 48), m.start());
+            if (before.matches(".*(?:\\b(?:do not|don't|dont|never|not|no|avoid|against|without|stop)"
+                    + "|\\b(?:instead of|rather than|can'?t afford(?: to)?|cannot afford(?: to)?))\\s+(?:\\w+\\s+){0,3}$")) {
+                continue;
+            }
+            String after = low.substring(m.end(), Math.min(low.length(), m.end() + 32));
+            if (after.matches("(?s)^\\s+is\\s+(?:not|worse|bad|wrong|a mistake)\\b.*")) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     private static String judgementLesson(Critical.Verdict v, String why) {
@@ -178,7 +203,7 @@ public final class DecisionLogic {
             b.append(v.because == null ? "Nothing they said separates the options. " : clip(v.because, 180)).append(" Do not pick a side. ");
         }
         if (why != null && !why.isEmpty()) {
-            boolean agrees = v.lean != null && why.toLowerCase(Locale.US).contains(v.lean.toLowerCase(Locale.US));
+            boolean agrees = states(v.lean, why);
             if (agrees) {
                 b.append("The model's reason matches that. ");
             } else {

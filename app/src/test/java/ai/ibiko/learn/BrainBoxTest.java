@@ -1,6 +1,7 @@
 package ai.ibiko.learn;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -77,5 +78,11 @@ public class BrainBoxTest {
         good.learnTalk(q, "Rent, because you can't afford the deposit and you might leave.");
         String back = good.recallTalk(q);
         assertTrue(back, back != null && back.contains("Rent"));
+        BrainBox negated = new BrainBox(file());
+        negated.learnTalk(q, "Don't rent. Buy, because owning is always better.");
+        assertNull("naming rent in order to reject it is not agreement", negated.recallTalk(q));
+        assertFalse(DecisionLogic.states("rent", "Don't rent. Buy, because owning is always better."));
+        assertFalse(DecisionLogic.states("rent", "You can't afford to rent, so buy."));
+        assertTrue(DecisionLogic.states("rent", "Rent, because you can't afford the deposit and you might leave."));
     }
 }

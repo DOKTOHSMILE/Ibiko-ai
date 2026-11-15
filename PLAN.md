@@ -1,4 +1,11 @@
+# A rejection is not treated as agreement (0.99.153)
+
+- [x] "Don't rent" and "you can't afford to rent" were read as agreeing with rent, because the word was in the sentence. A rejection in front of the option no longer counts as taking that side.
+- [x] A short choice ("should I rent or buy") was a quick message, so the phone's model never saw how a similar choice was decided. A judgement now recalls that logic even when the message is short. A greeting still does not.
+- [ ] On the phone: ask the rent-or-buy question on the phone's own model after an API once said "don't rent, buy". The answer should follow the limits, not the rejection.
+
 # A stored answer that fights the limits is not repeated (0.99.152)
+
 
 - [x] With no model, a remembered reply was spoken even when it picked a side the person's own limits reject. That reply is no longer given back. A reply that states the lean still is. A fact such as a capital is unchanged.
 - [x] With no model and no usable memory, a judgement is answered by the decision itself (the limits, the lean, what would flip it), not by silence.

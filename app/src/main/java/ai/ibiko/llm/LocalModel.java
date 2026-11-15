@@ -649,9 +649,10 @@ public final class LocalModel {
         final int room = PromptFit.localReplyTokens(localWindow(), maxTokens, false);
         asked = fit(asked, PromptFit.localPromptChars(localWindow(), room, system == null ? 0 : system.length()));
         ai.ibiko.learn.LearningLog l = learning;
-        // an everyday message goes the speed test's way: the persona (already read), the chat, the question; the
-        // learned examples are read only for real work, where they help more than the seconds they cost
-        String learned = l == null || quick(question, maxTokens) ? "" : l.examplesFor(question, 1, 700);
+        // an everyday message goes the speed test's way: the persona, the chat, the question. A judgement still
+        // recalls how a similar choice was decided, even when the message is short: that is the case the words alone get wrong.
+        boolean judgement = ai.ibiko.suit.Comprehension.of(question).judgement;
+        String learned = l == null || (quick(question, maxTokens) && !judgement) ? "" : l.examplesFor(question, 1, 700);
         if (!learned.isEmpty()) {
             step("Recalled how a similar request was decided");
             asked = learned + "\n\n" + (context == null ? "" : context + "\n\n") + "The user says: " + question;
