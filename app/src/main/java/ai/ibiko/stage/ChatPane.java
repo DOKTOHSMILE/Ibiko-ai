@@ -223,11 +223,75 @@ public final class ChatPane extends LinearLayout {
         return child == null ? 0 : child.getBottom() - (scroll.getScrollY() + scroll.getHeight());
     }
 
+    /** A redraw is already running: another one waits, so two cannot clear the list at once and leave it blank. */
+    private boolean drawing, drawAgain;
+    private int drawTries;
+
     public void show() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            post(this::show); // a redraw off the screen's thread does not stick until the app is opened again
+            return;
+        }
+        if (drawing) {
+            drawAgain = true;
+            return;
+        }
+        drawing = true;
+        try {
+            showNow();
+            drawTries = 0;
+        } catch (RuntimeException failed) {
+            if (thread.getChildCount() == 0) {
+                thread.addView(plain("Drawing the chat again."));
+                setVisibility(VISIBLE);
+            }
+            drawAgain = drawTries++ < 2;
+        } finally {
+            drawing = false;
+            if (drawAgain) {
+                drawAgain = false;
+                post(this::show);
+            } else {
+                post(this::settleChat);
+            }
+        }
+    }
+
+    /**
+     * After a rebuild the list can be scrolled past its own end, which draws as an empty conversation until the
+     * next time the window is laid out (leaving the app and coming back). This pulls it back onto the messages.
+     */
+    private void settleChat() {
+        View child = scroll.getChildCount() == 0 ? null : scroll.getChildAt(0);
+        if (child == null) {
+            return;
+        }
+        int bottom = Math.max(0, child.getBottom() - scroll.getHeight());
+        if (scroll.getScrollY() > bottom || (stickToBottom && !userMoved)) {
+            followingNow = true;
+            scroll.scrollTo(0, bottom);
+            followingNow = false;
+        }
+        if (thread.getChildCount() > 0) {
+            setVisibility(VISIBLE);
+        }
+        invalidate();
+        scroll.invalidate();
+    }
+
+    private void showNow() {
         fillSections();
+        ChatBook.Section cur = book == null ? null : book.current();
+        if (cur == null) {
+            return;
+        }
+        // a copy: a message saved while this draws must not throw and leave the list empty
+        final java.util.ArrayList<ChatBook.Message> msgs;
+        synchronized (book) {
+            msgs = new java.util.ArrayList<ChatBook.Message>(cur.messages);
+        }
         thread.removeAllViews();
         openActions = null;
-        ChatBook.Section cur = book.current();
         StringBuilder reply = new StringBuilder(); // the whole of the assistant's turn, for its Copy and Listen
         int parts = 0; // how many parts of the turn have their own Listen
         lastPartBar = null;
@@ -236,24 +300,24 @@ public final class ChatPane extends LinearLayout {
             windowChat = cur.id; // another chat: it opens at its latest messages again
             extraShown = 0;
         }
-        final int from = firstShown(cur.messages, WINDOW + extraShown);
+        final int from = firstShown(msgs, WINDOW + extraShown);
         if (from > 0) {
             thread.addView(earlier(from));
         }
-        final int[] foldTo = folds(cur.messages, from, working());
+        final int[] foldTo = folds(msgs, from, working());
         turnParts.clear();
         turnBars.clear();
         openGroup = null;
         int lastAsk = -1;
-        for (int k = cur.messages.size() - 1; k >= 0 && lastAsk < 0; k--) {
-            if ("user".equals(cur.messages.get(k).role)) {
+        for (int k = msgs.size() - 1; k >= 0 && lastAsk < 0; k--) {
+            if ("user".equals(msgs.get(k).role)) {
                 lastAsk = k;
             }
         }
         turnOwner = null;
-        for (int i = from; i < cur.messages.size(); i++) {
+        for (int i = from; i < msgs.size(); i++) {
             latestTurn = i > lastAsk;
-            ChatBook.Message m = cur.messages.get(i);
+            ChatBook.Message m = msgs.get(i);
             if ("user".equals(m.role)) {
                 turnOwner = null;
             } else if (turnOwner == null && m.id != null
@@ -264,12 +328,12 @@ public final class ChatPane extends LinearLayout {
             if (foldTo[i] >= 0) {
                 // a finished turn, and the one still working: its steps are one row. The answer after them still shows.
                 boolean live = working();
-                for (int k = foldTo[i] + 1; live && k < cur.messages.size(); k++) {
-                    if ("user".equals(cur.messages.get(k).role)) {
+                for (int k = foldTo[i] + 1; live && k < msgs.size(); k++) {
+                    if ("user".equals(msgs.get(k).role)) {
                         live = false;
                     }
                 }
-                thread.addView(processRow(cur.messages, i, foldTo[i], live));
+                thread.addView(processRow(msgs, i, foldTo[i], live));
                 i = foldTo[i];
                 continue;
             }
@@ -280,12 +344,12 @@ public final class ChatPane extends LinearLayout {
                 android.widget.LinearLayout.LayoutParams colLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
                 col.setLayoutParams(colLp);
                 int j = i;
-                while (j < cur.messages.size() && attachment(cur.messages.get(j))) {
-                    col.addView(bubble(cur.messages.get(j)));
+                while (j < msgs.size() && attachment(msgs.get(j))) {
+                    col.addView(bubble(msgs.get(j)));
                     j++;
                 }
-                if (j < cur.messages.size()) {
-                    ChatBook.Message words = cur.messages.get(j);
+                if (j < msgs.size()) {
+                    ChatBook.Message words = msgs.get(j);
                     if ("user".equals(words.role) && "text".equals(words.kind) && words.body != null && !words.body.trim().isEmpty()) {
                         View text = bubble(words);
                         col.addView(text);
@@ -352,7 +416,7 @@ public final class ChatPane extends LinearLayout {
                         + "\n" + m.body + "\n```" : m.body);
             }
             listenAs = m.persona;
-            ChatBook.Message after = i == cur.messages.size() - 1 ? null : cur.messages.get(i + 1);
+            ChatBook.Message after = i == msgs.size() - 1 ? null : msgs.get(i + 1);
             // a turn ends at the user's next message, and where another persona starts speaking: each one's words
             // get their own Copy and Listen, read in their own voice
             boolean lastOfTurn = after == null || "user".equals(after.role)
@@ -369,7 +433,7 @@ public final class ChatPane extends LinearLayout {
                 }
                 View bar;
                 // at the end: Copy for the whole reply at once, and Listen to all of it, as icons
-                boolean lastReply = i == cur.messages.size() - 1;
+                boolean lastReply = i == msgs.size() - 1;
                 if (rateAnswer != null && lastReply && reply.toString().contains(rateAnswer)) {
                     // Ibiko asks whether its answer was right: check and cancel beside Copy and Listen
                     bar = actions(reply.toString(), reply.toString(), rateQuestion, rateAnswer);
@@ -412,7 +476,7 @@ public final class ChatPane extends LinearLayout {
                 thread.addView(makingCard(e.getValue().substring(cur.id.length() + 1)));
             }
         }
-        boolean noMessages = cur.messages.isEmpty() && !working() && liveText == null && making.isEmpty();
+        boolean noMessages = msgs.isEmpty() && !working() && liveText == null && making.isEmpty();
         View empty = ((Activity) getContext()).findViewById(R.id.emptyChatHint);
         if (empty != null) {
             empty.setVisibility(noMessages ? VISIBLE : GONE);
@@ -1401,13 +1465,12 @@ public final class ChatPane extends LinearLayout {
      * A new message is about to join a reply that is still on screen. The words already written are saved first,
      * so that message sits under the running reply instead of above it.
      */
-    /** Live text this long is real writing (a report, an essay), not a passing note: it is kept, never wiped. */
-    public static final int KEEP_LIVE = 400;
+    /** A sentence already on screen is kept when the next step starts. A status line ("I'll read the files") is not. */
+    public static final int KEEP_LIVE = 1;
 
     /**
-     * A step of the work ended and the next one starts: real writing on the live line is kept in the chat as a message
-     * (it used to be wiped, so a report being written vanished when the next step began); a short passing note is
-     * cleared as before.
+     * A step of the work ended and the next one starts. A sentence already written is kept in the chat, so it can
+     * still be read while the engine goes on. A status line ("I'll read the files") is cleared, as before.
      */
     public void stepEnded() {
         if (ai.ibiko.chat.LiveKeep.keep(liveText, KEEP_LIVE)) {

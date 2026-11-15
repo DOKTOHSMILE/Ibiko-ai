@@ -85,6 +85,10 @@ public class SquadTest {
         assertTrue(Org.lead().contains("UCIX") && Org.lead().contains("ROLX"));
         assertTrue(Org.UCUX.brief().contains("opens the wrong screen"));
         assertEquals(Org.UCIX, Org.of("interface"));
+        assertEquals(Org.UCIX, Org.of("layout"));
+        assertEquals(Org.QATX, Org.of("tester"));
+        assertEquals(Org.CORX, Org.of("code"));
+        assertEquals(Org.DATX, Org.of("database"));
     }
 
     @Test

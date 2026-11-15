@@ -13,5 +13,7 @@ public class LiveKeepTest {
         assertFalse(LiveKeep.keep(status, 80));
         assertFalse(LiveKeep.keep("Alright, I am continuing now.", 10));
         assertTrue(LiveKeep.keep("The download bar is on the chat screen, under the header, and the tests pass.", 40));
+        assertTrue(LiveKeep.keep("Nairobi.", 1));
+        assertFalse(LiveKeep.keep("Reading the files now.", 1));
     }
 }

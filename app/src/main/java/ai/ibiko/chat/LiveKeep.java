@@ -3,6 +3,7 @@ package ai.ibiko.chat;
 /**
  * Whether the words on the live line are a reply to keep when the next step starts. A status line
  * ("I'll fix those paths", "Alright, I am continuing now") is not the reply: it stays with the steps.
+ * Anything else that was written stays in the chat, so it can still be read while the next step runs.
  * Pure Java.
  */
 public final class LiveKeep {

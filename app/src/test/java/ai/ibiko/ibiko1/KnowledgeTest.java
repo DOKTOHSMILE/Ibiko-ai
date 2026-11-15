@@ -45,6 +45,17 @@ public class KnowledgeTest {
     }
 
     @Test
+    public void aSentenceThatMentionsTheDetailsIsFound() {
+        Knowledge k = new Knowledge(null);
+        k.confirm("What did I tell you about the house?", "I might leave Onitsha in a year and the rent is high. The deposit is already paid.");
+        assertNull(k.recall("When do I leave Onitsha?"));
+        String s = k.mention("When do I leave Onitsha?");
+        assertNotNull(s);
+        assertTrue(s, s.contains("Onitsha") && s.contains("year"));
+        assertFalse(s.contains("deposit"));
+    }
+
+    @Test
     public void questionsAreReadForWhatTheyWant() {
         assertEquals(Knowledge.Kind.WHO, Knowledge.kind("Who invented the telephone?"));
         assertEquals(Knowledge.Kind.WHEN, Knowledge.kind("What year did the war end?"));

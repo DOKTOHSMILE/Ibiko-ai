@@ -1,4 +1,19 @@
+# How a stage is finished
+
+- A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
+- A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
+
+# The chat stays, the voice is kept per paragraph, workers read at once (0.99.154)
+
+- [x] The conversation went blank in the middle and only came back after leaving the app and opening it. A redraw that failed, or one made off the screen's thread, or a list scrolled past its own end, left that empty middle. It is drawn again on the screen's thread, and the list is pulled back onto the messages.
+- [x] A reply that arrived while a task was running vanished when the task changed, unless it was very long. A real sentence now stays in the chat so it can be read while the engine keeps going. A status line ("I'll read the files") still does not.
+- [x] Making a sentence's sound started again from the first word whenever something else needed the voice, so the file for that paragraph was slow and often never saved. It now continues from the piece already made, and the finished sound is kept under that paragraph.
+- [x] Only a worker whose name matched a role exactly was started. Layout, tester, code, database and the other ordinary names now start the right agent. Each worker has readers under it that open the files its part is about, several at once, and hand those lines up.
+- [x] Ibiko 1, given a question, takes its content words and finds a stored sentence that mentions those same details, instead of only a whole answer saved under a matching question.
+- [ ] On the phone: talk until a reply is on screen, leave the app and come back only if it went blank (it should not). Ask a choice, let a task keep running, and the reply should still be there to read. Listen on one paragraph: its sound should be ready sooner and stay on that paragraph.
+
 # A rejection is not treated as agreement (0.99.153)
+
 
 - [x] "Don't rent" and "you can't afford to rent" were read as agreeing with rent, because the word was in the sentence. A rejection in front of the option no longer counts as taking that side.
 - [x] A short choice ("should I rent or buy") was a quick message, so the phone's model never saw how a similar choice was decided. A judgement now recalls that logic even when the message is short. A greeting still does not.

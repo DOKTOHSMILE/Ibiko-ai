@@ -74,13 +74,46 @@ public enum Org {
                 return o;
             }
         }
+        String low = n.toLowerCase(Locale.US);
+        if (low.equals("ui") || low.equals("layout") || low.equals("screen") || low.equals("xml")) {
+            return UCIX;
+        }
+        if (low.equals("ux") || low.equals("experience") || low.equals("button")) {
+            return UCUX;
+        }
+        if (low.equals("engine") || low.equals("code") || low.equals("logic") || low.equals("backend")) {
+            return CORX;
+        }
+        if (low.equals("data") || low.equals("database") || low.equals("storage")) {
+            return DATX;
+        }
+        if (low.equals("test") || low.equals("tester") || low.equals("qa") || low.equals("tests")) {
+            return QATX;
+        }
+        if (low.equals("security") || low.equals("sec")) {
+            return SECX;
+        }
+        if (low.equals("review") || low.equals("reviewer")) {
+            return REVX;
+        }
+        if (low.equals("research") || low.equals("researcher")) {
+            return RSRX;
+        }
+        if (low.equals("writer") || low.equals("docs") || low.equals("doc")) {
+            return DOCX;
+        }
+        if (low.equals("release") || low.equals("ship")) {
+            return RELX;
+        }
         return null;
     }
 
     /** What a specialist is told about itself, before its part. */
     public String brief() {
         return "You are " + name() + ", the " + title + " agent: " + name() + " " + charter
-                + " Stay on your own kind of work; what belongs to another agent goes in your report for the coordinator.";
+                + " Readers under you open the files of your part at once before you start; use those lines and do not"
+                + " read the same file again. Stay on your own kind of work; what belongs to another agent goes in your"
+                + " report for the coordinator.";
     }
 
     /** What the lead is told: its two roles, the roster, and how to hand work out. */

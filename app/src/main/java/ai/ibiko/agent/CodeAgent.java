@@ -363,12 +363,18 @@ public final class CodeAgent {
             w.deadline = parentDeadline > 0 ? Math.min(parentDeadline, until) : until; // a hand never outlasts its agent
             try {
                 AgentBoard.step(row, "Working on its part (" + mine.minutes + " min)");
+                Readers.Read heard = Readers.excerpts(kept != null ? kept : folder, part, Math.max(2, brain.readers()));
+                if (heard.files > 0) {
+                    host.step(who + " started " + heard.files + " readers");
+                    AgentBoard.step(row, "Readers opened " + heard.files + " files at once");
+                }
                 String report = w.run(Squad.brief(number, plan.size(), part, whole)
                         + (lookOnly ? "\n\nThis part changes nothing yet (the plan isn't checked, or this run only reads): look,"
                                 + " research, run checks and report what you found. Do not re-read a file another part already read." : "")
                         + (kept == null ? "" : "\n\nYour folder: " + show(workspace.toPath().relativize(kept.toPath()).toString())
                                 + ". Read and write only inside it.")
-                        + "\nYour time: " + mine.minutes + " minutes. Work on your part only; when the time is nearly up, stop and report.", "");
+                        + "\nYour time: " + mine.minutes + " minutes. Work on your part only; when the time is nearly up, stop and report."
+                        + heard.text, "");
                 synchronized (changed) {
                     for (String f : w.changed()) {
                         if (!changed.contains(f)) {

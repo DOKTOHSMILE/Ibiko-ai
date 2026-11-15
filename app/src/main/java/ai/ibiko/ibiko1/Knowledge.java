@@ -269,6 +269,47 @@ public final class Knowledge {
         return top >= CLOSE ? best : null;
     }
 
+    /**
+     * A sentence already stored that mentions the details of this question. The question's content words are taken,
+     * and the stored sentences that contain those same words are compared. The closest one is returned. Not a whole
+     * saved answer: the sentence that actually names the detail.
+     */
+    public synchronized String mention(String question) {
+        List<String> want = meaning(question);
+        if (want.size() < 2) {
+            return null;
+        }
+        String best = null;
+        double top = 0;
+        for (Fact f : facts) {
+            if (!f.right || f.answer == null) {
+                continue;
+            }
+            for (String sentence : (f.question + "\n" + f.answer).split("(?<=[.!?])\\s+|\\n+")) {
+                String s = sentence.trim();
+                if (s.length() < 12) {
+                    continue;
+                }
+                List<String> have = meaning(s);
+                int shared = 0;
+                for (String w : want) {
+                    if (have.contains(w)) {
+                        shared++;
+                    }
+                }
+                if (shared < 2) {
+                    continue;
+                }
+                double score = similarity(want, have);
+                if (score > top) {
+                    top = score;
+                    best = s;
+                }
+            }
+        }
+        return top >= 0.45 ? best : null;
+    }
+
     /** True when the pilot said this answer was wrong for a question with this intent. */
     public synchronized boolean rejected(String question, String answer) {
         List<String> m = meaning(question);

@@ -33,6 +33,9 @@ public final class NeuralVoice {
         Runnable after;
         /** The message ("<chat>/<message>") whose voice this is: its sound is kept under that id. Null: none. */
         String owner;
+        /** How many pieces of this sentence are already made, so a pause does not make them again. */
+        int fromPart;
+        java.util.List<float[]> carried;
 
         Item(Events events, String id, String text, int speaker, float speed, float volume, int epoch) {
             this.events = events;
@@ -517,19 +520,25 @@ public final class NeuralVoice {
             kept.put(it.owner, known, already);
             return;
         }
-        java.util.List<float[]> pieces = new java.util.ArrayList<float[]>();
+        java.util.List<float[]> pieces = it.carried != null ? it.carried : new java.util.ArrayList<float[]>();
         int n = 0;
+        for (float[] had : pieces) {
+            n += had.length;
+        }
+        java.util.List<String> bits = parts(it.text);
         try {
-            for (String part : parts(it.text)) {
-                com.k2fsa.sherpa.onnx.GeneratedAudio a = tts.generate(part, it.speaker, Math.max(0.5f, Math.min(2f, it.speed)));
+            for (int i = it.fromPart; i < bits.size(); i++) {
+                com.k2fsa.sherpa.onnx.GeneratedAudio a = tts.generate(bits.get(i), it.speaker, Math.max(0.5f, Math.min(2f, it.speed)));
                 float[] got = a == null ? null : a.getSamples();
                 if (got != null && got.length > 0) {
                     pieces.add(clean(got));
                     n += got.length;
                 }
+                it.fromPart = i + 1;
+                it.carried = pieces;
                 Item next = queue.peek();
                 if (next != null && next.epoch >= 0) {
-                    queue.offer(it); // something to say now comes first; this sentence is made again right after
+                    queue.offer(it); // something to say now comes first; this sentence continues where it stopped
                     return;
                 }
             }

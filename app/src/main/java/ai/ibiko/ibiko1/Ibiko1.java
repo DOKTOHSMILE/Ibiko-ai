@@ -510,6 +510,13 @@ public final class Ibiko1 {
                     });
             return;
         }
+        final String mentioned = knowledge().mention(t);
+        if (mentioned != null && !knowledge().rejected(t, mentioned)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question", "Taking the words in it", "Finding a sentence that mentions the same details"),
+                    () -> saysPlain(who, mentioned));
+            return;
+        }
         // data in the message (a list of numbers, a table): analysed with the data formula (formulas/Analyst), exactly
         if (ai.ibiko.ibiko1.formulas.Analyst.hasData(t)) {
             final java.util.List<ai.ibiko.ibiko1.formulas.Analyst.Profile> data = ai.ibiko.ibiko1.formulas.Analyst.read(t);
