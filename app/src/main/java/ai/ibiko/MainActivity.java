@@ -1245,6 +1245,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
         prefs = getSharedPreferences("ibiko", MODE_PRIVATE);
         restoreStaged();
+        loadHeld();
         if (!prefs.getBoolean("chat_spaces_adopted", false)) {
             // once: files from before each chat had its own folder go to the chat open now (repositories into repos/)
             final java.io.File here = chatSpace();
@@ -1478,6 +1479,61 @@ public final class MainActivity extends AppCompatActivity implements StageListen
             // the reply is in the chat even if the notice could not be posted
         }
         ai.ibiko.main.LiveWork.refresh(this);
+    }
+
+    /** The open screen asks a message that was waiting on a screen that has closed. */
+    public void askWaiting() {
+        loadHeld();
+        handler.post(releaseHeld);
+        handler.post(releaseUnseenSteer);
+    }
+
+    private static String plainHeld(String s) {
+        return s == null ? "" : s.replace('\u0001', ' ').replace('\u0002', ' ');
+    }
+
+    /** Writes the messages that are waiting for another chat, so a new screen can still ask them. */
+    void parkHeld() {
+        if (prefs == null) {
+            return;
+        }
+        StringBuilder b = new StringBuilder();
+        for (String[] h : heldChat) {
+            if (h == null || h.length < 2 || h[0] == null || h[1] == null || h[1].isEmpty()) {
+                continue;
+            }
+            if (b.length() > 0) {
+                b.append('\u0002');
+            }
+            b.append(plainHeld(h[0])).append('\u0001').append(plainHeld(h[1]));
+        }
+        prefs.edit().putString("held_q", b.toString()).commit();
+    }
+
+    /** Reads those messages back. Does nothing when this screen already has some. */
+    void loadHeld() {
+        if (prefs == null || !heldChat.isEmpty()) {
+            return;
+        }
+        String raw = prefs.getString("held_q", "");
+        if (raw == null || raw.isEmpty()) {
+            return;
+        }
+        for (String item : raw.split("\u0002", -1)) {
+            int cut = item.indexOf('\u0001');
+            if (cut <= 0 || cut >= item.length() - 1) {
+                continue;
+            }
+            heldChat.add(new String[] { item.substring(0, cut), item.substring(cut + 1) });
+        }
+        if (!heldChat.isEmpty()) {
+            handler.post(releaseHeld);
+        }
+    }
+
+    private boolean jobElsewhere() {
+        MainActivity owner = ai.ibiko.main.LiveWork.owner();
+        return owner != null && owner != this;
     }
 
     /** A comment or post that was drafted while the screen was gone, so "yes" still reaches it after Ibiko is opened again. */
@@ -2488,10 +2544,24 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     final Runnable releaseHeld = new Runnable() {
         @Override
         public void run() {
-            if (isFinishing() || heldChat.isEmpty() || chats == null || chats.current() == null) {
+            MainActivity open = ai.ibiko.main.LiveWork.shown();
+            if (open != null && open != MainActivity.this) {
+                ai.ibiko.main.LiveWork.askWaiting(MainActivity.this);
                 return;
             }
-            if (modelGoing()) {
+            loadHeld();
+            if (heldChat.isEmpty() || chats == null) {
+                return;
+            }
+            if (isFinishing()) {
+                parkHeld();
+                ai.ibiko.main.LiveWork.askWaiting(MainActivity.this);
+                return;
+            }
+            if (chats.current() == null) {
+                return;
+            }
+            if (modelGoing() || jobElsewhere()) {
                 handler.postDelayed(this, 400);
                 return;
             }
@@ -2507,6 +2577,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
                 return;
             }
             heldChat.remove(match);
+            parkHeld();
             answer(match[1], true);
         }
     };
@@ -2517,10 +2588,38 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     final Runnable releaseUnseenSteer = new Runnable() {
         @Override
         public void run() {
-            if (isFinishing() || !steer.pending()) {
+            MainActivity open = ai.ibiko.main.LiveWork.shown();
+            if (open != null && open != MainActivity.this) {
+                if (!busy() && steer.pending() && prefs != null) {
+                    String more = steer.drain();
+                    if (more != null && !more.isEmpty()) {
+                        prefs.edit().putString("steer_q", more).commit();
+                    }
+                }
+                ai.ibiko.main.LiveWork.askWaiting(MainActivity.this);
                 return;
             }
-            if (busy()) {
+            if (prefs != null && !steer.pending()) {
+                String waiting = prefs.getString("steer_q", "");
+                if (waiting != null && !waiting.isEmpty()) {
+                    prefs.edit().remove("steer_q").commit();
+                    steer.add(waiting);
+                }
+            }
+            if (!steer.pending()) {
+                return;
+            }
+            if (isFinishing()) {
+                if (!busy() && prefs != null) {
+                    String more = steer.drain();
+                    if (more != null && !more.isEmpty()) {
+                        prefs.edit().putString("steer_q", more).commit();
+                    }
+                }
+                ai.ibiko.main.LiveWork.askWaiting(MainActivity.this);
+                return;
+            }
+            if (busy() || jobElsewhere()) {
                 handler.postDelayed(this, 500);
                 return;
             }

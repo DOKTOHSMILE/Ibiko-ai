@@ -47,6 +47,10 @@ public final class LiveWork {
         return owner;
     }
 
+    public static MainActivity shown() {
+        return shown;
+    }
+
     /** The open screen, when it is not the one that just finished, redraws the chat. */
     public static void refresh(MainActivity from) {
         MainActivity now = shown;
@@ -54,6 +58,15 @@ public final class LiveWork {
             return;
         }
         now.redrawChat();
+    }
+
+    /** The open screen should ask anything that was waiting on a screen that has closed. */
+    public static void askWaiting(MainActivity from) {
+        MainActivity now = shown;
+        if (now == null || now == from) {
+            return;
+        }
+        now.askWaiting();
     }
 
     /**

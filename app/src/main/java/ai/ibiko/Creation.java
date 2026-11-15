@@ -93,10 +93,31 @@ final class Creation {
             }
             final ai.ibiko.create.CreationDirector.Outcome o = made;
             a.handler.post(() -> {
-                if (a.alive(id) && !a.isFinishing()) {
-                    a.endThink();
-                    applyCreation(o);
+                if (!a.alive(id) && !a.isFinishing()) {
+                    return;
                 }
+                if (o == null) {
+                    a.endThink();
+                    return;
+                }
+                if (a.isFinishing() || a.stage == null) {
+                    StringBuilder kept = new StringBuilder();
+                    if (o.lines != null) {
+                        for (String l : o.lines) {
+                            if (l != null && !l.trim().isEmpty()) {
+                                if (kept.length() > 0) {
+                                    kept.append("\n\n");
+                                }
+                                kept.append(l.trim());
+                            }
+                        }
+                    }
+                    a.endThink();
+                    a.keepAnswer(a.stage == null ? "ibiko" : a.stage.agent(), kept.toString());
+                    return;
+                }
+                a.endThink();
+                applyCreation(o);
             });
         });
         return true;

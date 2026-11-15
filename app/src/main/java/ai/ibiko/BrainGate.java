@@ -218,16 +218,25 @@ final class BrainGate {
                         a.hub.worker.execute(() -> {
                             boolean ok = a.model.load(ai.ibiko.chat.Tuning.modelThreads(a.prefs));
                             a.handler.post(() -> {
-                                if (a.isFinishing()) {
-                                    return;
-                                }
                                 if (ok && a.model.ready()) {
+                                    if (a.isFinishing()) {
+                                        if (a.chats != null && a.chats.current() != null) {
+                                            a.heldChat.add(new String[] { a.pageKey(), waiting });
+                                            a.parkHeld();
+                                            ai.ibiko.main.LiveWork.askWaiting(a);
+                                        }
+                                        return;
+                                    }
                                     a.resending = true; // already in the chat: asked again now the model is up
                                     try {
                                         answer(waiting, false);
                                     } finally {
                                         a.resending = false;
                                     }
+                                } else if (a.isFinishing() || a.chatPane == null) {
+                                    a.keepAnswer(a.stage == null ? "ibiko" : a.stage.agent(), a.model.spec.weights
+                                            + " couldn't start: " + (a.model.problem() == null ? "not enough memory" : a.model.problem())
+                                            + ". Choose a smaller model or an API in the model menu.");
                                 } else {
                                     a.play(LocalTurn.speakAs(a.stage.agent(), a.model.spec.weights + " couldn't start: "
                                             + (a.model.problem() == null ? "not enough memory" : a.model.problem())
@@ -368,6 +377,7 @@ final class BrainGate {
             }
             if (a.chats != null && a.chats.current() != null) {
                 a.heldChat.add(new String[] { a.pageKey(), text });
+                a.parkHeld();
             }
             // said on this page and kept there, not a notice that fades: the message is waiting, not lost
             String busyWith = a.runAgent == null ? "Another chat" : a.labelOf(a.runAgent);

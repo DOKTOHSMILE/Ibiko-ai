@@ -1,3 +1,10 @@
+# A message that was waiting is still asked (0.99.147)
+
+- [x] A message sent in a chat that was not the one running is kept. Closing the screen no longer drops it. The next screen asks it when the job ends.
+- [x] A note the running job never read is kept the same way, and asked as its own turn once the job is finished.
+- [x] A social answer, a photograph, and a finished design are written into the chat if the screen closes before they can be shown. A message that was waiting for the on-device model to start is still asked.
+- [ ] On the phone: start a job, switch chats and send a message, leave Ibiko, come back. When the job ends, that message should be asked.
+
 # A side answer is kept when the screen is gone (0.99.146)
 
 - [x] A message sent while a job is running is still answered if you leave before it finishes. The answer is written into the chat, and the open screen is told.

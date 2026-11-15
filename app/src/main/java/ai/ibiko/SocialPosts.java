@@ -146,11 +146,15 @@ final class SocialPosts {
                     : act.model.reply(system, question, "Result of " + capability + ":\n" + r.text, 900, piece -> act.modelPiece(id, piece));
             final String folded = answer;
             act.handler.post(() -> {
-                if (!act.alive(id) || act.isFinishing()) {
+                if (!act.alive(id) && !act.isFinishing()) {
                     return;
                 }
                 act.endThink();
                 String text = folded == null || folded.trim().isEmpty() ? r.text : ai.ibiko.llm.ActionTags.strip(folded).trim();
+                if (act.isFinishing() || act.chatPane == null) {
+                    act.keepAnswer(agent, text);
+                    return;
+                }
                 act.play(LocalTurn.speakAs(agent, text), null);
             });
         });
