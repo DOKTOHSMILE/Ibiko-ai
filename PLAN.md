@@ -3,6 +3,11 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# A paragraph's sound is made faster (0.99.158)
+
+- [x] Making a paragraph's sound ahead used the same small pieces as live speech, so a long sentence needed several model calls before the file could be kept. Ahead now uses larger pieces, so a normal paragraph is one call. The voice uses up to six threads when the phone has them.
+- [ ] On the phone: ask a question with a few sentences. Listen should light sooner, and the sound should stay on each paragraph.
+
 # A paragraph's sound stays on the device (0.99.157)
 
 - [x] A sentence's sound was written to a temporary file, then renamed. On Android that rename fails when the file already exists, and the temporary file was deleted, so the sound never stayed. The old file is removed first, and if the rename is still refused the bytes are copied, so the file is kept under that paragraph.

@@ -354,7 +354,7 @@ public final class NeuralVoice {
             File d = VoicePacks.folder(filesDir, p);
             String data = new File(d, "espeak-ng-data").getPath(), tokens = new File(d, "tokens.txt").getPath();
             String model = new File(d, p.model).getPath();
-            int threads = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() - 1));
+            int threads = Math.max(1, Math.min(6, Runtime.getRuntime().availableProcessors() - 1));
             try {
                 com.k2fsa.sherpa.onnx.OfflineTtsModelConfig.Builder m = com.k2fsa.sherpa.onnx.OfflineTtsModelConfig.builder()
                         .setNumThreads(threads).setProvider("cpu").setDebug(false);
@@ -471,24 +471,31 @@ public final class NeuralVoice {
     private final java.util.concurrent.LinkedBlockingQueue<Clip> ready2play = new java.util.concurrent.LinkedBlockingQueue<Clip>(3);
     private Thread player;
 
-    /** Most letters the model is given at once: longer sentences are made in parts (long input made it unstable). */
+    /** Most letters the model is given at once for live speech: longer sentences are made in parts (long input made it unstable). */
     static final int MOST_LETTERS = 220;
 
-    /** A long sentence in parts at its commas, semicolons or spaces, each at most {@link #MOST_LETTERS}. */
+    /** Ahead (to keep under a paragraph, not to play now): a larger piece is faster, because each call has its own setup. */
+    static final int AHEAD_LETTERS = 480;
+
+    /** A long sentence in parts at its commas, semicolons or spaces, each at most {@code most}. */
     static java.util.List<String> parts(String text) {
+        return parts(text, MOST_LETTERS);
+    }
+
+    static java.util.List<String> parts(String text, int most) {
         java.util.List<String> out = new java.util.ArrayList<String>();
         String t = text == null ? "" : text.trim();
-        while (t.length() > MOST_LETTERS) {
+        while (t.length() > most) {
             int cut = -1;
             for (String mark : new String[] {"; ", ", ", ": ", " - ", " "}) {
-                int at = t.lastIndexOf(mark, MOST_LETTERS);
-                if (at > MOST_LETTERS / 3) {
+                int at = t.lastIndexOf(mark, most);
+                if (at > most / 3) {
                     cut = at + mark.length() - 1;
                     break;
                 }
             }
             if (cut < 0) {
-                cut = MOST_LETTERS;
+                cut = most;
             }
             out.add(t.substring(0, cut + 1).trim());
             t = t.substring(cut + 1).trim();
@@ -525,7 +532,7 @@ public final class NeuralVoice {
         for (float[] had : pieces) {
             n += had.length;
         }
-        java.util.List<String> bits = parts(it.text);
+        java.util.List<String> bits = parts(it.text, AHEAD_LETTERS);
         try {
             for (int i = it.fromPart; i < bits.size(); i++) {
                 com.k2fsa.sherpa.onnx.GeneratedAudio a = tts.generate(bits.get(i), it.speaker, Math.max(0.5f, Math.min(2f, it.speed)));
