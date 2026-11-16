@@ -98,6 +98,7 @@ final class ChatChrome {
         if (a.chats != null) {
             a.chats.fresh(StageView.OBI);
         }
+        a.setThink(0, false); // the chat the app opens on is a new section, so thinking starts at Ordinary
         a.selectPersona(StageView.OBI);
         a.bindComposer();
         a.refreshSend();

@@ -1352,6 +1352,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
                 chats == null || chats.current() == null ? "chat"
                         : chats.current().group != null ? chats.current().group : chats.current().id,
                 source, asked, reply);
+        model.lessonRoot = getFilesDir();
         model.usage.restore(prefs.getString("usage_today", null), System.currentTimeMillis());
         hub.addListener(onDownload);
         reportModel();

@@ -623,6 +623,13 @@ public final class LocalModel {
 
     private synchronized String replyNow(String system, String question, String context, int maxTokens, NativeLlm.Sink sink) {
         String asked = context == null ? question : context + "\n\nThe user says: " + question;
+        boolean judgement = ai.ibiko.suit.Comprehension.of(question).judgement;
+        String across = quick(question, maxTokens) && !judgement || lessonRoot == null ? ""
+                : ai.ibiko.learn.Central.recall(lessonRoot, question);
+        if (!across.isEmpty()) {
+            step("Recalled a lesson from across chats");
+            asked = across + "\n\n" + asked;
+        }
         if (remoteOn()) {
             List<String[]> turns = new ArrayList<String[]>(history);
             turns.add(new String[]{"user", asked});
@@ -651,11 +658,13 @@ public final class LocalModel {
         ai.ibiko.learn.LearningLog l = learning;
         // an everyday message goes the speed test's way: the persona, the chat, the question. A judgement still
         // recalls how a similar choice was decided, even when the message is short: that is the case the words alone get wrong.
-        boolean judgement = ai.ibiko.suit.Comprehension.of(question).judgement;
         String learned = l == null || (quick(question, maxTokens) && !judgement) ? "" : l.examplesFor(question, 1, 700);
         if (!learned.isEmpty()) {
             step("Recalled how a similar request was decided");
             asked = learned + "\n\n" + (context == null ? "" : context + "\n\n") + "The user says: " + question;
+        }
+        if (!across.isEmpty() && !asked.startsWith(across)) {
+            asked = across + "\n\n" + asked;
         }
         final int ticket = epoch.get();
         raisePriority();
@@ -1013,6 +1022,9 @@ public final class LocalModel {
     public volatile Lesson onLesson;
 
     public volatile ai.ibiko.learn.LearningLog learning;
+
+    /** The app's files folder. Only the central store is read from it, never another chat's files. */
+    public volatile java.io.File lessonRoot;
 
     /** Told each step of an answer as it happens ("Asking OpenAI (gpt-5-mini), the fast model"); may be null. */
     public volatile java.util.function.Consumer<String> onStep;

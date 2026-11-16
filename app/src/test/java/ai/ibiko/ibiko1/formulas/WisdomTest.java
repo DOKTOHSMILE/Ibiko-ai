@@ -22,6 +22,8 @@ public class WisdomTest {
         assertTrue(w.implies.toLowerCase().contains("limit"));
         assertTrue(w.apply.contains("not from repeating"));
         assertTrue(w.brief().contains("Wisdom 3.0"));
+        assertTrue(w.brief().contains("Think 1"));
+        assertTrue(w.brief().contains("Think 2"));
     }
 
     @Test

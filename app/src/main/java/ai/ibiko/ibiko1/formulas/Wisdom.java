@@ -36,7 +36,10 @@ public final class Wisdom {
                 b.append("Known: ").append(known).append('\n');
             }
             b.append("Implies: ").append(implies).append('\n');
-            b.append("Apply: ").append(apply);
+            b.append("Apply: ").append(apply).append('\n');
+            b.append("Reason: Ordinary would state it in one line. Think 1 would plan it, check it, then revise."
+                    + " Think 2 would compare and keep one answer. Wisdom does those three on the implication above,"
+                    + " then answers. A limit stays a limit. A possibility is not treated as settled.");
             return b.toString();
         }
     }

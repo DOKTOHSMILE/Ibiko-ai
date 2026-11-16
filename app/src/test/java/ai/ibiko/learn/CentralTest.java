@@ -38,5 +38,9 @@ public class CentralTest {
         assertTrue(all.contains("chat-b") && all.contains("Abuja"));
         assertTrue(new File(a, ChatSpace.MEMORY + "/learned.txt").isFile());
         assertTrue(!Files.readAllLines(new File(a, ChatSpace.MEMORY + "/learned.txt").toPath()).toString().contains("Abuja"));
+        String rent = Central.recall(files, "Should I rent if I can't afford the deposit?");
+        assertTrue(rent, rent.contains("Implies:") && rent.contains("deposit") && !rent.contains("Abuja"));
+        assertTrue(!rent.contains("chat-a"));
+        assertTrue(Central.recall(files, "Draw a blue circle").isEmpty());
     }
 }

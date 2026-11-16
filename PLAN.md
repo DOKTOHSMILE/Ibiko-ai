@@ -3,7 +3,15 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# A lesson from any chat is used, and a new open starts Ordinary (0.99.156)
+
+- [x] The central store is read on the next answer, online or on the phone, when the question shares the content words of an earlier one. What is handed over is what that lesson implies, not the other chat's files and not its name.
+- [x] Wisdom 3.0's brief now states the three lower reasons in one line: Ordinary states it, Think 1 checks it, Think 2 compares it, and Wisdom does those three on the implication.
+- [x] Opening the app starts a new chat, so the Think button is put back to Ordinary there too, not only when New chat is tapped.
+- [ ] On the phone: ask something in one chat, ask the same kind of question in another, and the step should say it recalled a lesson from across chats. A fresh open should show Ordinary.
+
 # Wisdom 3.0, and chats that cannot read each other (0.99.155)
+
 
 - [x] Wisdom is the application of knowledge and understanding. Understanding reads what a sentence implies (a limit, a possibility, a case), not only its words. Wisdom applies the stored sentences that mention the question, by those implications, and does not copy the words.
 - [x] The Think button is Ordinary, Think 1, Think 2, or Wisdom 3.0. Wisdom 3.0 puts that brief in front of the answer, then uses Think 2 when an API is on, otherwise Think 1, otherwise one direct answer.

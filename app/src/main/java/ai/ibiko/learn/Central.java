@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import ai.ibiko.ibiko1.Knowledge;
+import ai.ibiko.ibiko1.formulas.Understanding;
 import ai.ibiko.main.ChatSpace;
 
 /**
@@ -57,6 +59,53 @@ public final class Central {
             // the store is missing a read: the chats still have their own copies
         }
         return out;
+    }
+
+    /**
+     * One lesson from any chat that shares this question's content words, as what it implies, not as words to copy
+     * and not as that chat's files. Empty when nothing stored is about this question. This is the cross-chat read.
+     */
+    public static String recall(File filesDir, String question) {
+        List<String> want = Knowledge.meaning(question);
+        if (filesDir == null || want.isEmpty()) {
+            return "";
+        }
+        String asked = null, reply = null, source = null;
+        int best = 0;
+        for (String line : lessons(filesDir)) {
+            String[] p = line.split("\t", 4);
+            if (p.length < 4) {
+                continue;
+            }
+            List<String> have = Knowledge.meaning(p[2] + " " + p[3]);
+            int n = 0;
+            for (String w : want) {
+                if (have.contains(w)) {
+                    n++;
+                }
+            }
+            int need = Math.min(want.size(), Math.max(1, have.size()));
+            int min = need >= 3 ? 2 : 1;
+            if (n >= min && n > best) {
+                best = n;
+                source = p[1];
+                asked = p[2];
+                reply = p[3];
+            }
+        }
+        if (asked == null) {
+            return "";
+        }
+        Understanding.Implication u = Understanding.of(asked + ". " + reply);
+        return "Across chats, a similar request was decided. Follow the logic, not the wording, and not that chat's files.\n"
+                + "Asked: " + clip(asked, 180) + "\n"
+                + "Implies: " + u.follows + "\n"
+                + "Said (" + clip(source, 40) + "): " + clip(reply, 180);
+    }
+
+    private static String clip(String s, int max) {
+        String t = clip(s);
+        return t.length() > max ? t.substring(0, max) : t;
     }
 
     private static String clip(String s) {
