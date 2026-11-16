@@ -2413,6 +2413,10 @@ public final class CodeAgent {
         if (!f.getPath().equals(root) && !f.getPath().startsWith(root + File.separator)) {
             throw new IOException("that path is outside the workspace");
         }
+        File other = ai.ibiko.main.ChatSpace.otherChat(workspace, f);
+        if (other != null) {
+            throw new IOException("that file belongs to another chat; this chat cannot open it");
+        }
         if (!f.getPath().equals(root)) {
             String why = othersRecord(f.getPath().substring(root.length() + 1), ownBlueprint, ownRecord, this::isClone);
             if (why != null) {

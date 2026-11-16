@@ -204,6 +204,11 @@ final class LocalAsk {
                 // said about this question (taught facts, the reference, the situation)
                 gathered = ai.ibiko.suit.Comprehension.keepDecision(gathered, act.DEVICE_CONTEXT_CHARS);
             }
+            if (pageTools.wisdom()) {
+                ai.ibiko.ibiko1.formulas.Wisdom.Applied applied = ai.ibiko.ibiko1.formulas.Wisdom.of(english,
+                        act.ibiko1().knownLines(english));
+                gathered = applied.brief() + "\n" + gathered;
+            }
             final String context = gathered;
             final ai.ibiko.llm.ActionTags tags = new ai.ibiko.llm.ActionTags();
             final boolean ivieVoice = "ivie".equals(agent);
@@ -274,6 +279,42 @@ final class LocalAsk {
                 return act.alive(id);
             };
             String raw = null;
+            if (pageTools.wisdom() && act.alive(id)) {
+                // Wisdom 3.0 uses the other levels: several models when an API is on (Think 2), otherwise plan,
+                // check and revise (Think 1), and a single answer if those do not finish. The brief already says
+                // what is known and what it implies.
+                act.handler.post(() -> {
+                    if (act.alive(id)) {
+                        act.activity("Wisdom 3.0: applying what is known and what it implies");
+                    }
+                });
+                if (act.model.remoteOn() && ai.ibiko.llm.RoundThink.worth(english)) {
+                    raw = ai.ibiko.llm.RoundThink.run((model, sys, prompt) -> act.model.askNamed(model, sys, prompt, Math.max(length, 800)),
+                            act.model.ring(), english, context, system, line -> act.handler.post(() -> {
+                                if (act.alive(id)) {
+                                    act.activity(line);
+                                }
+                            }), () -> !act.alive(id));
+                    if (raw != null) {
+                        sink.onText(raw);
+                    }
+                }
+                if (raw == null && act.alive(id)) {
+                    raw = ai.ibiko.suit.DeepThink.think((sys, prompt) -> act.model.task(sys, prompt, length, null), system,
+                            context + "\n\nThe user says: " + english, 2,
+                            (pass, result) -> act.handler.post(() -> {
+                                if (act.alive(id)) {
+                                    act.activity(pass);
+                                }
+                            }), () -> !act.alive(id));
+                    if (raw != null) {
+                        sink.onText(raw);
+                    }
+                }
+                if (raw == null && act.alive(id)) {
+                    raw = act.model.reply(system, english, context, length, sink);
+                }
+            } else {
             // Think 2 is chosen on the button: several API models, then one answer. A greeting stays one call.
             // A coding job on Ibiko never reaches here (the agent takes it). The old skip for "file" or a long
             // question was why Think 2 did nothing.
@@ -322,6 +363,7 @@ final class LocalAsk {
                 }
             } else if (raw == null && act.alive(id)) {
                 raw = act.model.reply(system, english, context, length, sink);
+            }
             }
             raw = foldSteer(id, system, english, context, length, raw, sink);
             tags.flush();

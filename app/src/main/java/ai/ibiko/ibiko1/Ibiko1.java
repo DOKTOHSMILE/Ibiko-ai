@@ -932,6 +932,20 @@ public final class Ibiko1 {
         }
     }
 
+    /** Sentences already stored that mention this question, for Wisdom 3.0. The whole saved answer, then the one sentence. */
+    public java.util.List<String> knownLines(String question) {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        Knowledge.Fact known = knowledge().recall(question);
+        if (known != null && known.answer != null && !known.answer.trim().isEmpty()) {
+            out.add(known.answer.trim());
+        }
+        String mentioned = knowledge().mention(question);
+        if (mentioned != null && !out.contains(mentioned)) {
+            out.add(mentioned);
+        }
+        return out;
+    }
+
     /** How the request was read by critical reasoning ({@code formulas/Critical}); set as each message comes in. */
     private volatile ai.ibiko.ibiko1.formulas.Critical.Reading critical;
 

@@ -57,9 +57,10 @@ public final class ProotCommand {
             c.add("-b");
             c.add(work.getAbsolutePath() + ":/work");
             File coding = new File(work.getParentFile(), "ibiko");
-            if (coding.isDirectory()) {
+            File mount = ai.ibiko.main.ChatSpace.visible(coding.isDirectory() ? coding : work);
+            if (mount != null && mount.isDirectory()) {
                 c.add("-b");
-                c.add(coding.getAbsolutePath() + ":/workspace");
+                c.add(mount.getAbsolutePath() + ":/workspace");
             }
         }
         if (new File("/storage").isDirectory()) {
@@ -137,16 +138,9 @@ public final class ProotCommand {
      * one, so a chat's commands see only its own files; otherwise {@code files/ibiko}.
      */
     static File workspaceRoot(File dir) {
-        File chat = ai.ibiko.main.ChatSpace.chatOf(dir);
-        if (chat != null) {
-            return chat;
-        }
-        File cur = dir;
-        while (cur != null) {
-            if ("ibiko".equals(cur.getName())) {
-                return cur;
-            }
-            cur = cur.getParentFile();
+        File seen = ai.ibiko.main.ChatSpace.visible(dir);
+        if (seen != null) {
+            return seen;
         }
         return dir == null || dir.getParentFile() == null ? null : new File(dir.getParentFile(), "ibiko");
     }

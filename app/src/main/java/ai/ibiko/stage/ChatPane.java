@@ -91,7 +91,9 @@ public final class ChatPane extends LinearLayout {
         default void onRate(String question, String answer, boolean right) {
         }
 
-        /** Retry tapped under a reply that stopped: the last question is asked again. */
+        /** A new chat section was opened from this pane. The thinking level goes back to Ordinary. */
+        default void onFreshChat() {
+        }
         default void onRetry() {
             onSend("retry");
         }
@@ -1982,6 +1984,7 @@ public final class ChatPane extends LinearLayout {
         fresh.setOnClickListener(v -> {
             ChatBook.Section s = book.fresh(book.current().persona);
             book.moveTo(s.id, name);
+            host.onFreshChat();
             if (sheet[0] != null) {
                 sheet[0].dismiss();
             }

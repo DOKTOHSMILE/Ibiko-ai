@@ -197,9 +197,10 @@ final class ToolsMenu {
             boolean on = tools.isOn(t);
             if (t == ai.ibiko.suit.ChatTools.Tool.DEEP) {
                 int level = tools.think();
-                about.setText(level == 2 ? "Think 2: several models, then one answer"
+                about.setText(level == 3 ? "Wisdom 3.0: what is known, what it implies, then the answer"
+                        : level == 2 ? "Think 2: several models, then one answer"
                         : level == 1 ? "Think 1: plan, check and revise first (slower)"
-                        : "Ordinary. Turn on for Think 1. Think 2 is on the Think button.");
+                        : "Ordinary. Turn on for Think 1. Think 2 and Wisdom 3.0 are on the Think button.");
             }
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
             bg.setCornerRadius(a.dp(18));
@@ -215,15 +216,15 @@ final class ToolsMenu {
             icon.setColorFilter(a.getColor(on ? R.color.accent : R.color.icon));
             paintToggle(sw, on);
             card.setContentDescription(t.title);
-            card.setStateDescription(t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() == 2 ? "Think 2" : on ? "On" : "Off");
+            card.setStateDescription(t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() >= 2 ? tools.thinkLabel() : on ? "On" : "Off");
         };
         paint.run();
         final Runnable flip = () -> {
             if (t == ai.ibiko.suit.ChatTools.Tool.GITHUB && reposLoading) {
                 return; // a quick second tap while GitHub is still loading changes nothing
             }
-            if (t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() == 2) {
-                return; // Think 2 stays until the Think button changes it
+            if (t == ai.ibiko.suit.ChatTools.Tool.DEEP && tools.think() >= 2) {
+                return; // Think 2 and Wisdom 3.0 stay until the Think button changes them
             }
             boolean on = !tools.isOn(t);
             tools.set(t, on);

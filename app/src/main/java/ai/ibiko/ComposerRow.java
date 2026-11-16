@@ -80,6 +80,7 @@ final class ComposerRow {
         }
         a.examiner.clearTopic();
         a.selectPersona(section.persona);
+        a.setThink(0, false); // a new chat starts on Ordinary, whatever the last chat was using
         a.closeDrawer();
         a.repaintThink(); // a new chat starts with its own tools
     }

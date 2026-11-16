@@ -1,6 +1,7 @@
 package ai.ibiko.main;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
  * Each chat's own folder, and nothing of another chat's: {@code files/ibiko/chats/<chat>/}. Inside it,
@@ -34,7 +35,62 @@ public final class ChatSpace {
         return d;
     }
 
-    /** The chat a folder belongs to, or null when it is not inside a chat's folder. */
+    /** True when {@code file} is {@code root} or inside it. A path that cannot be resolved is not inside. */
+    public static boolean holds(File root, File file) {
+        if (root == null || file == null) {
+            return false;
+        }
+        try {
+            String r = root.getCanonicalPath();
+            String f = file.getCanonicalPath();
+            return f.equals(r) || f.startsWith(r + File.separator);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * The other chat's folder, when {@code file} sits in a chat that is not {@code mine}. Null when the file is in
+     * this chat, or not in a chat at all. This is the hard line: a chat's machine does not open another chat's files.
+     */
+    public static File otherChat(File mine, File file) {
+        File theirs = chatOf(file);
+        if (theirs == null) {
+            return null;
+        }
+        File own = mine == null ? null : chatOf(mine);
+        if (own == null && mine != null && mine.isDirectory()) {
+            own = chatOf(new File(mine, "x"));
+        }
+        if (own != null && own.getName().equals(theirs.getName())) {
+            return null;
+        }
+        return theirs;
+    }
+
+    /**
+     * The folder a command may mount. A chat's own folder when {@code dir} is in one. Never the folder that holds
+     * every chat: that would let one machine read the others. Outside a chat, only {@code bench}, which has no chats.
+     */
+    public static File visible(File dir) {
+        File chat = chatOf(dir);
+        if (chat != null) {
+            return chat;
+        }
+        File cur = dir;
+        while (cur != null) {
+            if ("ibiko".equals(cur.getName())) {
+                if (new File(cur, CHATS).isDirectory()) {
+                    File bench = new File(cur, "bench");
+                    bench.mkdirs();
+                    return bench;
+                }
+                return cur;
+            }
+            cur = cur.getParentFile();
+        }
+        return null;
+    }
     public static File chatOf(File dir) {
         File cur = dir;
         while (cur != null && cur.getParentFile() != null) {

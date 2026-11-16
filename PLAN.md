@@ -3,7 +3,16 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# Wisdom 3.0, and chats that cannot read each other (0.99.155)
+
+- [x] Wisdom is the application of knowledge and understanding. Understanding reads what a sentence implies (a limit, a possibility, a case), not only its words. Wisdom applies the stored sentences that mention the question, by those implications, and does not copy the words.
+- [x] The Think button is Ordinary, Think 1, Think 2, or Wisdom 3.0. Wisdom 3.0 puts that brief in front of the answer, then uses Think 2 when an API is on, otherwise Think 1, otherwise one direct answer.
+- [x] A new chat starts on Ordinary.
+- [x] Each chat already had its own folder. Another chat's files are refused, and the shared machine no longer mounts the folder that holds every chat. Only the central store keeps a lesson from every chat, from API answers and from the model on the phone. A chat does not receive another chat's lesson in its own file.
+- [ ] On the phone: set Wisdom 3.0, ask the rent question after telling it the deposit and the year, and the answer should follow the limit. Open a new chat and the button should say Ordinary. A file saved in one chat should not appear in another's workspace.
+
 # The chat stays, the voice is kept per paragraph, workers read at once (0.99.154)
+
 
 - [x] The conversation went blank in the middle and only came back after leaving the app and opening it. A redraw that failed, or one made off the screen's thread, or a list scrolled past its own end, left that empty middle. It is drawn again on the screen's thread, and the list is pulled back onto the messages.
 - [x] A reply that arrived while a task was running vanished when the task changed, unless it was very long. A real sentence now stays in the chat so it can be read while the engine keeps going. A status line ("I'll read the files") still does not.

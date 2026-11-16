@@ -976,6 +976,7 @@ public final class LocalModel {
                 if (l != null) {
                     l.record(system, turns, answer, sl.name + " (" + r.model + ")", tier.name(), System.currentTimeMillis());
                 }
+                lesson(sl.name, lastAsked(turns), answer);
                 return answer;
             }
             String why = timedOut ? problem : r.problem() == null ? "it sent nothing back" : r.problem();
@@ -1004,6 +1005,13 @@ public final class LocalModel {
      * (null: not learning). When the phone's own model answers, the closest past decision is given to it as the
      * logic to follow, not as words to copy.
      */
+    /** A lesson from an answer, online or on the device. The central store is the only cross-chat reader. */
+    public interface Lesson {
+        void learned(String source, String asked, String reply);
+    }
+
+    public volatile Lesson onLesson;
+
     public volatile ai.ibiko.learn.LearningLog learning;
 
     /** Told each step of an answer as it happens ("Asking OpenAI (gpt-5-mini), the fast model"); may be null. */
@@ -1087,7 +1095,33 @@ public final class LocalModel {
             kept.add(new String[]{"user", message == null ? "" : message});
             l.record(system, kept, answer, "offline (" + spec.weights + ")", "LOCAL", now);
         }
+        lesson("offline", message, answer);
         noteSpeed(pieces, now - began);
+    }
+
+    private void lesson(String source, String asked, String reply) {
+        Lesson hear = onLesson;
+        if (hear == null || reply == null || reply.trim().isEmpty()) {
+            return;
+        }
+        try {
+            hear.learned(source, asked, reply);
+        } catch (RuntimeException ignored) {
+            // the answer is already said; a lesson that could not be filed does not change it
+        }
+    }
+
+    private static String lastAsked(java.util.List<String[]> turns) {
+        if (turns == null) {
+            return "";
+        }
+        for (int i = turns.size() - 1; i >= 0; i--) {
+            String[] t = turns.get(i);
+            if (t != null && t.length > 1 && "user".equals(t[0]) && t[1] != null) {
+                return t[1];
+            }
+        }
+        return "";
     }
 
     /** Keeps the speed of a local reply (pieces written a second) for {@link #slowAdvice}; short replies don't count. */
