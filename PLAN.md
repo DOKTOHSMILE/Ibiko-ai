@@ -3,7 +3,14 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# A paragraph's sound stays on the device (0.99.157)
+
+- [x] A sentence's sound was written to a temporary file, then renamed. On Android that rename fails when the file already exists, and the temporary file was deleted, so the sound never stayed. The old file is removed first, and if the rename is still refused the bytes are copied, so the file is kept under that paragraph.
+- [x] If a piece fails after the rest of the sentence was already made, the sound is still kept. A piece that is still being made is left on the queue and continued later, as before.
+- [ ] On the phone: ask a question, wait for the reply, tap Listen. The sound should be ready and stay on that paragraph after you leave and come back.
+
 # A lesson from any chat is used, and a new open starts Ordinary (0.99.156)
+
 
 - [x] The central store is read on the next answer, online or on the phone, when the question shares the content words of an earlier one. What is handed over is what that lesson implies, not the other chat's files and not its name.
 - [x] Wisdom 3.0's brief now states the three lower reasons in one line: Ordinary states it, Think 1 checks it, Think 2 compares it, and Wisdom does those three on the implication.

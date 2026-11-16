@@ -543,6 +543,12 @@ public final class NeuralVoice {
                 }
             }
         } catch (RuntimeException e) {
+            // a piece failed: if earlier pieces already made the whole sentence, still keep them
+            if (pieces.isEmpty() || it.fromPart < bits.size()) {
+                return;
+            }
+        }
+        if (pieces.isEmpty()) {
             return;
         }
         float[] all = new float[n];

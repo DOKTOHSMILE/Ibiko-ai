@@ -142,6 +142,10 @@ public final class SpeechCache {
     /**
      * Keeps a sentence's sound under its message, numbered after the ones already there (the order they are said);
      * then clears what is too old and, past the size limit, the oldest.
+     * <p>
+     * Written to a temporary file first, then renamed. On Android {@code renameTo} fails when the target already
+     * exists, so the old file is removed first and a byte copy is used if the rename still fails. The temporary file
+     * is kept until the real one is in place, so a crash mid-write does not leave a half file that is later played.
      */
     public void put(String owner, String key, float[] samples) {
         if (samples == null || samples.length == 0) {
@@ -165,14 +169,40 @@ public final class SpeechCache {
             for (float v : samples) {
                 out.writeFloat(v);
             }
+            out.flush();
         } catch (IOException e) {
             tmp.delete();
             return;
         }
+        if (f.exists() && !f.delete()) {
+            // the old file is locked or the device refused: leave the new one beside it under a unique name
+            f = new File(folder, System.currentTimeMillis() + "-" + f.getName());
+        }
         if (!tmp.renameTo(f)) {
+            if (!copy(tmp, f)) {
+                tmp.delete();
+                return;
+            }
             tmp.delete();
         }
         prune();
+    }
+
+    /** Copies the bytes when a rename is refused, so the sound is still kept. */
+    private static boolean copy(File from, File to) {
+        try (java.io.InputStream in = new java.io.BufferedInputStream(new java.io.FileInputStream(from));
+                java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(to))) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+            out.flush();
+            return true;
+        } catch (IOException e) {
+            to.delete();
+            return false;
+        }
     }
 
     /** One message's kept sentences, in the order they are said. */
