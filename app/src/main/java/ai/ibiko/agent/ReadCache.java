@@ -18,7 +18,7 @@ import java.util.Map;
  * memory, so it does not start the reading over.
  */
 final class ReadCache {
-    private static final int MOST = 80;
+    private static final int MOST = 200;
     private static final int EXCERPT = 700;
 
     private static final class Item {
@@ -52,8 +52,8 @@ final class ReadCache {
         it.times++;
         save();
         String step = next == null || next.isEmpty() ? "the next unticked step" : clip(next, 90);
-        if (it.times >= 3) {
-            return "Cached. This was already read twice and it has not changed. Do not read it again. Move on to " + step + ".";
+        if (it.times >= 2) {
+            return "Cached. This was already read and it has not changed. Do not read it again. Write the fix now. Move on to " + step + ".";
         }
         return "Cached. This was already read and it has not changed. Do not read it again. Use what is below and move on to "
                 + step + ".\n" + it.body;

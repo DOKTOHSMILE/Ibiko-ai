@@ -3,6 +3,12 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# It writes the fix instead of reading for hours (0.99.159)
+
+- [x] After the survey wrote its map, the agent was still allowed several more reads and look-only workers, so it circled on the same files and never wrote the fix. A second read of a file that has not changed is now refused, and any further read or look-only worker after the map is told to write PLAN.md and then edit. The process of every tool is written to PROCESS.md so a later run sees what was already done.
+- [x] The step budget is 40 (was 15), and the survey may open 40 files (was 24), so it has room to write, test and push after the map.
+- [ ] On the phone: give Ibiko a real coding task. After the survey, the next step should write or edit, not read the same file again. PROCESS.md should list the tools that ran.
+
 # A paragraph's sound is made faster (0.99.158)
 
 - [x] Making a paragraph's sound ahead used the same small pieces as live speech, so a long sentence needed several model calls before the file could be kept. Ahead now uses larger pieces, so a normal paragraph is one call. The voice uses up to six threads when the phone has them.

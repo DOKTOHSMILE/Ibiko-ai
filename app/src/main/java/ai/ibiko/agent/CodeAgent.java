@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  */
 public final class CodeAgent {
     /** The default number of steps; Settings › Advanced changes it ({@link #steps}). */
-    public static final int MAX_STEPS = 15;
+    public static final int MAX_STEPS = 40;
     private int maxSteps = MAX_STEPS;
     private String persona = "Ibiko";
     private boolean readOnly;
@@ -1035,6 +1035,7 @@ public final class CodeAgent {
                     }
                 }
                 work.append("\n").append(call.raw).append("\n<result>\n").append(clipResult(result, back(call))).append("\n</result>\n");
+                recordProcess(call.name, call.a("path"), result);
                 saved();
                 continue;
             }
@@ -1669,6 +1670,29 @@ public final class CodeAgent {
     /** Reads allowed after that map, before further reading is refused. */
     private int looksAfterSurvey;
 
+    /** One line in the process record, so a later run sees what was already done and does not start the reading over. */
+    private void recordProcess(String tool, String path, String result) {
+        if (ownBlueprint == null || tool == null) {
+            return;
+        }
+        String line = tool + (path == null || path.isEmpty() ? "" : " " + path)
+                + " → " + (result == null ? "" : result.replace('\n', ' ').trim());
+        if (line.length() > 180) {
+            line = line.substring(0, 180);
+        }
+        File f = new File(workspace, ownBlueprint + "/PROCESS.md");
+        try {
+            File dir = f.getParentFile();
+            if (dir != null) {
+                dir.mkdirs();
+            }
+            Files.write(f.toPath(), (line + "\n").getBytes(StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (IOException ignored) {
+            // the work log still has the step
+        }
+    }
+
     /** A real task gets a blueprint; one carried on picks up its PLAN.md where it was. */
     private void startBlueprint(String task, StringBuilder work) {
         blueprintNudges = 0;
@@ -1751,6 +1775,8 @@ public final class CodeAgent {
         if (!building && Survey.enough(keep, asked)) {
             surveyDone = true;
             work.append("\n").append(Blueprint.BUILD_NOW).append('\n');
+            work.append("Process so far: the survey wrote the map. Files already read are cached. Do not read them again."
+                    + " Next action: write PLAN.md, then edit the files the steps name, then test, then push.\n");
         }
     }
 

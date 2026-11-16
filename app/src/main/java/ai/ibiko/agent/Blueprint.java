@@ -74,16 +74,16 @@ public final class Blueprint {
 
     /** Told once the repository has been surveyed, so the next reply writes the plan and builds instead of reading again. */
     public static final String BUILD_NOW = "The repository is already surveyed. Do not read it again and do not start readers."
-            + " Write PLAN.md now, exactly in this shape, then build step 1 (other files can be written as soon as this plan"
-            + " is saved):\n"
+            + " Your next tool call must be write_file of PLAN.md (or edit_file of an existing plan), exactly in this shape,"
+            + " then build step 1 (other files can be written as soon as this plan is saved):\n"
             + "# Blueprint: <the task>\n## Goal\n<what done looks like>\n## Steps\n"
             + "- [ ] 1. <one change> (files: path; check: how you prove it)\n"
-            + "Reads are cached. A second read of the same file is not done. Build the next unticked step.\n";
+            + "Reads are cached. A second read of the same file is refused. After the plan is saved, edit the files the"
+            + " steps name, run the tests, and push. Do not survey again.\n";
 
     /**
      * After the survey, more reading is the loop that never builds. Null when this call may run. Otherwise the words
-     * to hand back: write the plan and build. A few reads are still allowed. Another audit, and any worker started
-     * only to look, is not.
+     * to hand back: write the plan and build. No further reads are allowed. A worker started only to look is not.
      */
     public static String afterSurvey(boolean surveyed, Phase phase, String tool, int looksSoFar) {
         if (!surveyed || tool == null) {
@@ -98,7 +98,8 @@ public final class Blueprint {
         if (!looking) {
             return null;
         }
-        if (!workers && looksSoFar < 3) {
+        // one last read is enough to open the file the plan will name; anything more is the circle
+        if (!workers && looksSoFar < 1) {
             return null;
         }
         return BUILD_NOW;

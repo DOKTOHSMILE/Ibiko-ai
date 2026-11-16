@@ -32,7 +32,7 @@ public final class Survey {
     }
 
     /** The most files a survey sends to a model, and the most model calls one survey makes. The rest of the tree is listed, not read. */
-    static final int MOST_FILES = 24, MOST_CALLS = 32, PIECE_LINES = 400;
+    static final int MOST_FILES = 40, MOST_CALLS = 48, PIECE_LINES = 400;
     static final long FILE_BYTES = 400_000;
 
     static final String SYSTEM = "You are one of several readers surveying a codebase before a change is planned. Read"
