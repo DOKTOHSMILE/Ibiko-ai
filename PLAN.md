@@ -3,6 +3,12 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# A plan is seeded so the first edit is allowed (0.99.161)
+
+- [x] After the survey the agent still could not edit any file until PLAN.md had a goal and steps, and the model often never wrote that plan. When the map is ready and no plan exists, a minimal PLAN.md is written and the phase is set to BUILD, so the next tool call can edit the files the survey named.
+- [x] Workers may edit once the map is written (0.99.160). PROCESS.md is loaded on continue. Interrupted speech keeps the pieces already made.
+- [ ] On the phone: give Ibiko a coding task. After the survey, PLAN.md should appear and a worker should edit a file without more reading.
+
 # The agent can edit, and ten more fixes (0.99.160)
 
 - [x] After the survey, workers were created read-only until the plan phase said BUILD, so they could look but not edit the code. Once the map is written they may edit. A worker gets 12 steps (was 8).

@@ -1774,9 +1774,24 @@ public final class CodeAgent {
         }
         if (!building && Survey.enough(keep, asked)) {
             surveyDone = true;
+            // the survey is done and there is still no plan: write a minimal one so the first edit is allowed
+            if (Blueprint.required(blueprint.plan()).isEmpty() == false) {
+                File planFile = new File(root, "PLAN.md");
+                try {
+                    if (!planFile.isFile()) {
+                        Files.write(planFile.toPath(), Blueprint.seed(asked).getBytes(StandardCharsets.UTF_8));
+                        blueprint.resume("PLAN.md", Blueprint.seed(asked));
+                    }
+                } catch (IOException ignored) {
+                    // the model can still write the plan itself
+                }
+            }
+            if (blueprint.startBuilding()) {
+                host.step(blueprint.announce() == null ? "Building" : blueprint.announce());
+            }
             work.append("\n").append(Blueprint.BUILD_NOW).append('\n');
-            work.append("Process so far: the survey wrote the map. Files already read are cached. Do not read them again."
-                    + " Next action: write PLAN.md, then edit the files the steps name, then test, then push.\n");
+            work.append("Process so far: the survey wrote the map. A minimal plan is in PLAN.md. Files already read are"
+                    + " cached. Do not read them again. Next action: edit the files the steps name, then test, then push.\n");
         }
     }
 

@@ -195,6 +195,11 @@ public final class Blueprint {
         return planPath;
     }
 
+    /** The plan as it stands, for a check that building may start. */
+    public String plan() {
+        return plan;
+    }
+
     /** The plan as Ibiko holds it (its phase line as it now stands). */
     public String text() {
         return plan;
@@ -277,8 +282,17 @@ public final class Blueprint {
 
     private boolean adviceGiven;
 
-    /** Building starts: the plan's phase line says BUILD (added when there is none). */
-    private void build() {
+    /** A minimal plan that is enough to start building. Used when the survey is done and no plan has been written yet. */
+    public static String seed(String task) {
+        String goal = task == null || task.trim().isEmpty() ? "the change the user asked for" : clip(task.trim(), 120);
+        return "# Blueprint: " + goal + "\n## Goal\n" + goal + "\n## Steps\n"
+                + "- [ ] 1. Make the change the survey found (files: the files named in the map; check: the change is in the file and the tests pass)\n"
+                + "Phase: BUILD\n";
+    }
+
+    private static String clip(String s, int n) {
+        return s.length() <= n ? s : s.substring(0, n) + "…";
+    }
         if (PHASE.matcher(plan).find()) {
             plan = plan.replaceAll("(?im)^(\\s*Phase:\\s*)(UNDERSTAND|PLAN|CHECK)\\b", "$1BUILD");
         } else {
