@@ -61,7 +61,7 @@ final class ThinkBar {
      * the files and the Linux shell; Media pictures, video, sound and files to attach; Explore the social accounts,
      * the connectors and scheduled posts; More the rest of the app.
      */
-    /** The Think button: a tap opens Ordinary, Think 1, Think 2, or Wisdom 3.0. Lit when it is not Ordinary. */
+    /** The Think button: a tap opens Ordinary, Think 1 or Think 2. Lit when it is not Ordinary. */
     void bindThink() {
         final android.widget.TextView think = a.findViewById(R.id.btn_think);
         if (think == null) {
@@ -91,7 +91,6 @@ final class ThinkBar {
             menu.getMenu().add(0, 0, 0, "Ordinary");
             menu.getMenu().add(0, 1, 1, "Think 1");
             menu.getMenu().add(0, 2, 2, "Think 2");
-            menu.getMenu().add(0, 3, 3, "Wisdom 3.0");
             menu.getMenu().setGroupCheckable(0, true, true);
             android.view.MenuItem current = menu.getMenu().findItem(now);
             if (current != null) {

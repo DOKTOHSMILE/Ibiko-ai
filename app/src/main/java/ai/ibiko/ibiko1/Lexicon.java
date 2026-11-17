@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * Ibiko 1's own dictionary: words it met while being used, each with its part of speech and meaning, learned from
  * Wiktionary in a learning session. It answers "what does X mean" and "define X", and tells the {@link
- * Grammar} formulas which words are verbs. Kept in a file on the device.
+ * ai.ibiko.ibiko1.formulas.Grammar} formulas which words are verbs. Kept in a file on the device.
  */
 public final class Lexicon {
     public static final class Word {

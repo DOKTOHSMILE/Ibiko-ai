@@ -251,6 +251,7 @@ public final class CodeAgent {
     public CodeAgent as(String persona, boolean readOnly) {
         this.persona = persona == null || persona.isEmpty() ? "Ibiko" : persona;
         this.readOnly = readOnly;
+        systemPrefix = null;
         return this;
     }
 
@@ -508,6 +509,7 @@ public final class CodeAgent {
         if (on) {
             readOnly = true;
         }
+        systemPrefix = null;
         return this;
     }
 
@@ -519,7 +521,17 @@ public final class CodeAgent {
         return tongue;
     }
 
+    /** The stable system prefix. Built once per task so a provider's cached prefix survives every step. */
+    private String systemPrefix;
+
     public String system() {
+        if (systemPrefix != null) {
+            return systemPrefix;
+        }
+        return systemPrefix = buildSystem();
+    }
+
+    private String buildSystem() {
         return (role != null ? role.brief() + "\n" : depth == 0 && squad && !readOnly && !planning ? Org.lead() : "")
                 + (planning ? "You are " + persona + ", Ibiko's coding agent, working like Claude Code on the user's device. "
                 + IbikoMode.PLAN_RULES + "\n" : "") + (planning ? "" : (readOnly
@@ -610,6 +622,7 @@ public final class CodeAgent {
      */
     public CodeAgent compact(boolean on) {
         compact = on;
+        systemPrefix = null;
         return this;
     }
 
@@ -883,6 +896,7 @@ public final class CodeAgent {
     private String work(String task, String earlier) {
         this.task = task == null ? "" : task;
         outOfSteps = false;
+        compactor.reset();
         StringBuilder work = new StringBuilder();
         // a carried-on log can be tens of megabytes; trim() would copy all of it and run the phone out of memory
         String prior = WorkLog.kept(resume, budgetChars);
@@ -1208,9 +1222,23 @@ public final class CodeAgent {
         return changed.isEmpty() ? "" : "\n\nChanged: " + String.join(", ", changed);
     }
 
-    /** Drops the middle of the work log once it passes the budget, without copying the part that is left out. */
+    /**
+     * Keeps the work log inside the budget. Below the hysteresis trigger the text is left byte-for-byte alone, so a
+     * provider's cached prefix survives every step (CodeAssist's compactor). Only when it is genuinely too large are
+     * old oversized tool results elided in one pass, permanently; the task, user text and recent results stay whole.
+     */
+    private final WorkLogCompactor compactor = new WorkLogCompactor();
+
     private void fitWork() {
-        if (work == null || work.length() <= budgetChars) {
+        if (work == null) {
+            return;
+        }
+        String compacted = compactor.compact(work, budgetChars, Math.max(8000, budgetChars / 2));
+        if (compacted != null) {
+            work = new StringBuilder(compacted.length() + 256);
+            work.append(compacted);
+        }
+        if (work.length() <= budgetChars) {
             return;
         }
         String small = WorkLog.kept(work, budgetChars);

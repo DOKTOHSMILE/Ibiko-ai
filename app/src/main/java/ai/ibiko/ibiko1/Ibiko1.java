@@ -932,7 +932,7 @@ public final class Ibiko1 {
         }
     }
 
-    /** Sentences already stored that mention this question, for Wisdom 3.0. The whole saved answer, then the one sentence. */
+    /** Sentences already stored that mention this question, fed to the ibiko1 reasoning module. The whole saved answer, then the one sentence. */
     public java.util.List<String> knownLines(String question) {
         java.util.List<String> out = new java.util.ArrayList<String>();
         Knowledge.Fact known = knowledge().recall(question);

@@ -31,15 +31,13 @@ public final class Wisdom {
         /** What a Think level hands to the model before it answers. */
         public String brief() {
             StringBuilder b = new StringBuilder();
-            b.append("Wisdom 3.0: apply knowledge through what it implies. Do not copy an earlier sentence as the answer.\n");
+            b.append("ibiko1 reasoning: apply knowledge through what it implies. Do not copy an earlier sentence as the answer.\n");
             if (!known.isEmpty()) {
                 b.append("Known: ").append(known).append('\n');
             }
             b.append("Implies: ").append(implies).append('\n');
             b.append("Apply: ").append(apply).append('\n');
-            b.append("Reason: Ordinary would state it in one line. Think 1 would plan it, check it, then revise."
-                    + " Think 2 would compare and keep one answer. Wisdom does those three on the implication above,"
-                    + " then answers. A limit stays a limit. A possibility is not treated as settled.");
+            b.append("Reason: state the implication directly; a limit stays a limit, a possibility is not treated as settled.");
             return b.toString();
         }
     }
@@ -105,5 +103,10 @@ public final class Wisdom {
             }
         }
         return out;
+    }
+
+    /** The ibiko1 reasoning module's own working brief, used by every chat level. */
+    public static String brief(String question, List<String> known) {
+        return of(question, known).brief();
     }
 }

@@ -293,6 +293,9 @@ public final class Blueprint {
     private static String clip(String s, int n) {
         return s.length() <= n ? s : s.substring(0, n) + "…";
     }
+
+    /** Move the blueprint into the BUILD phase, on the line in PLAN.md. */
+    private void build() {
         if (PHASE.matcher(plan).find()) {
             plan = plan.replaceAll("(?im)^(\\s*Phase:\\s*)(UNDERSTAND|PLAN|CHECK)\\b", "$1BUILD");
         } else {
@@ -610,7 +613,4 @@ public final class Blueprint {
         }
     }
 
-    private static String clip(String s, int n) {
-        return s.length() <= n ? s : s.substring(0, n) + "…";
-    }
 }

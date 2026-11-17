@@ -27,7 +27,7 @@ public final class ChatTools {
         SHARE("Share and copy", "Through your apps, after your yes", FunctionCode.AC),
         SOCIAL("Social accounts", "Trends, posts, comments, schedules", FunctionCode.SO),
         WORKERS("Workers", "On for every task: the work is split into parts that run at once", null),
-        DEEP("Deep thinking", "Think 1: plan, check and revise first (slower). Think 2 and Wisdom 3.0 are on the Think button.", null);
+        DEEP("Deep thinking", "Think 1: plan, check and revise first (slower). Think 2 is on the Think button.", null);
 
         public final String title, about;
         /** The function the tool opens, or null when it isn't a single code (GitHub, deep thinking). */
@@ -56,7 +56,8 @@ public final class ChatTools {
     private final String persona;
     private final Set<Tool> on = EnumSet.noneOf(Tool.class);
     private final Set<String> repos = new LinkedHashSet<String>();
-    /** 0 ordinary (one answer), 1 Think 1 (plan, check, revise), 2 Think 2 (several models, one answer), 3 Wisdom 3.0. */
+    /** 0 ordinary, 1 Think 1 (plan, check, revise), 2 Think 2 (several models, one answer). Wisdom is not a level:*/
+    /** Ibiko 1 applies knowledge in every level through {@link ai.ibiko.ibiko1.formulas.Wisdom}. */
     private int think;
 
     private ChatTools(String persona) {
@@ -90,7 +91,7 @@ public final class ChatTools {
             if (enabled) {
                 think(1);
             } else if (think == 1) {
-                think(0); // off clears Think 1 only; Think 2 and Wisdom 3.0 stay until the Think button changes them
+                think(0); // off clears Think 1 only; Think 2 stays until the Think button changes it
             }
             return;
         }
@@ -130,24 +131,24 @@ public final class ChatTools {
         return think == 2;
     }
 
-    /** Wisdom 3.0: knowledge applied through what those sentences imply, using the other think levels to say it. */
+    /** Ibiko 1 applies what is known and what it implies on every level; it is no longer a separate Think level. */
     public boolean wisdom() {
-        return think == 3;
+        return true;
     }
 
-    /** 0 ordinary, 1 Think 1, 2 Think 2, 3 Wisdom 3.0. */
+    /** 0 ordinary, 1 Think 1, 2 Think 2. Wisdom runs inside Ibiko 1, not as a fourth choice. */
     public int think() {
         return think;
     }
 
     /** The words on the Think button. */
     public String thinkLabel() {
-        return think == 3 ? "Wisdom 3.0" : think == 2 ? "Think 2" : think == 1 ? "Think 1" : "Ordinary";
+        return think == 2 ? "Think 2" : think == 1 ? "Think 1" : "Ordinary";
     }
 
-    /** Sets the thinking level. Think 1 is also the Deep thinking tool; the other levels turn that tool off. */
+    /** Sets the thinking level. Think 1 is also the Deep thinking tool; the other level turns that tool off. */
     public void think(int level) {
-        think = level >= 3 ? 3 : level == 2 ? 2 : level == 1 ? 1 : 0;
+        think = level == 2 ? 2 : level == 1 ? 1 : 0;
         if (think == 1 && offered(persona).contains(Tool.DEEP)) {
             on.add(Tool.DEEP);
         } else {

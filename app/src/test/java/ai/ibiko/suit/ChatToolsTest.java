@@ -64,13 +64,12 @@ public class ChatToolsTest {
         assertEquals(1, round.think());
         assertEquals("Ordinary", ChatTools.defaults("obi").thinkLabel());
         t.think(3);
-        assertTrue(t.wisdom());
-        assertFalse(t.deep());
+        assertFalse("Wisdom is ibiko1's own reasoning, not a fourth level", t.deep());
         assertFalse(t.round());
-        assertEquals("Wisdom 3.0", t.thinkLabel());
-        ChatTools wise = ChatTools.read("ibiko", t.write());
-        assertEquals(3, wise.think());
-        wise.set(ChatTools.Tool.DEEP, false);
-        assertEquals("the card does not clear Wisdom 3.0", 3, wise.think());
+        assertEquals("Think 2", t.thinkLabel());
+        ChatTools migrated = ChatTools.read("ibiko", t.write());
+        assertEquals(2, migrated.think());
+        migrated.set(ChatTools.Tool.DEEP, false);
+        assertEquals("the card does not clear Think 2", 2, migrated.think());
     }
 }

@@ -21,9 +21,10 @@ public class WisdomTest {
         assertFalse("a sentence that shares no word of the question is not knowledge for it", w.known.contains("Bananas"));
         assertTrue(w.implies.toLowerCase().contains("limit"));
         assertTrue(w.apply.contains("not from repeating"));
-        assertTrue(w.brief().contains("Wisdom 3.0"));
-        assertTrue(w.brief().contains("Think 1"));
-        assertTrue(w.brief().contains("Think 2"));
+        assertTrue(w.brief().contains("ibiko1 reasoning"));
+        assertFalse("Wisdom is merged into ibiko1, not a separate level", w.brief().contains("Wisdom 3.0"));
+        assertTrue("the brief can be built from the reasoning module directly",
+                Wisdom.brief("Should I rent?", Arrays.asList("I can't afford the deposit.")).contains("ibiko1 reasoning"));
     }
 
     @Test

@@ -1784,17 +1784,17 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
     /** Think 1, kept so an install from before the three levels still opens on Think 1. */
     static final String THINK_ON = "think_on";
-    /** 0 ordinary, 1 Think 1, 2 Think 2, 3 Wisdom 3.0. The Think button and Tools › Deep thinking share this. */
+    /** 0 ordinary, 1 Think 1, 2 Think 2. A saved Wisdom 3.0 (3) becomes 2; it is now inside ibiko1 reasoning. */
     static final String THINK_LEVEL = "think_level";
 
-    /** Ordinary, Think 1, Think 2, or Wisdom 3.0, until a new chat puts it back to Ordinary. */
+    /** Ordinary, Think 1 or Think 2, until a new chat puts it back to Ordinary. */
     void setThink(int level) {
         setThink(level, true);
     }
 
     /** As {@link #setThink(int)}. {@code tell} false is a new chat putting the button back to Ordinary without a note. */
     void setThink(int level, boolean tell) {
-        int n = level >= 3 ? 3 : level == 2 ? 2 : level == 1 ? 1 : 0;
+        int n = level >= 2 ? 2 : level == 1 ? 1 : 0;
         String who = stage == null ? "ibiko" : stage.agent();
         ai.ibiko.suit.ChatTools tools = chatTools(who);
         tools.think(n);
@@ -1802,10 +1802,9 @@ public final class MainActivity extends AppCompatActivity implements StageListen
                 .putBoolean(THINK_ON, n == 1).apply();
         repaintThink();
         if (tell) {
-            note(n == 3 ? "Wisdom 3.0: what is known, what it implies, then the answer."
-                    : n == 2 ? "Think 2: several models think it through, then one answer."
-                            : n == 1 ? "Think 1: Ibiko plans, checks and revises before answering (slower)."
-                                    : "Ordinary: a direct answer.");
+            note(n == 2 ? "Think 2: several models think it through, then one answer."
+                    : n == 1 ? "Think 1: Ibiko plans, checks and revises before answering (slower)."
+                            : "Ordinary: a direct answer.");
         }
     }
 
