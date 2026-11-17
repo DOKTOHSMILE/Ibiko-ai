@@ -545,6 +545,16 @@ public final class NeuralVoice {
                 it.carried = pieces;
                 Item next = queue.peek();
                 if (next != null && next.epoch >= 0) {
+                    // keep what is already made, so a later run does not start the paragraph over
+                    if (!pieces.isEmpty() && kept != null) {
+                        float[] soFar = new float[n];
+                        int p = 0;
+                        for (float[] piece : pieces) {
+                            System.arraycopy(piece, 0, soFar, p, piece.length);
+                            p += piece.length;
+                        }
+                        kept.put(it.owner, known + "#part" + it.fromPart, soFar);
+                    }
                     queue.offer(it); // something to say now comes first; this sentence continues where it stopped
                     return;
                 }

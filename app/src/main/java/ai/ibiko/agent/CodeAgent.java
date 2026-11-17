@@ -287,8 +287,8 @@ public final class CodeAgent {
         }
         // before the plan is checked (or when this run only reads) workers still help, at once, on parts that change
         // nothing: surveying the code, researching on the web, running checks and tests, reading and reporting.
-        // Once the repository has been surveyed, more of those only go in circles: the lead writes the plan and builds.
-        final boolean lookOnly = readOnly || (blueprint != null && blueprint.phase() != Blueprint.Phase.BUILD
+        // Once the repository has been surveyed, the workers may edit: the map is written and the fix is next.
+        final boolean lookOnly = readOnly || (!surveyDone && blueprint != null && blueprint.phase() != Blueprint.Phase.BUILD
                 && blueprint.phase() != Blueprint.Phase.VERIFY);
         if (lookOnly && surveyDone) {
             return Blueprint.BUILD_NOW;
@@ -348,7 +348,7 @@ public final class CodeAgent {
             final String who = hands ? name() + " hand " + number : mine.role != null ? mine.role.name() : persona + " worker " + number;
             String row = AgentBoard.start(hands ? who : who + (mine.role != null ? " \u00B7 " + mine.role.title : ""), part);
             CodeAgent w = new CodeAgent(workspace, quiet, host, connectorTools, budgetChars).useGit(git)
-                    .steps(Math.max(8, maxSteps)).as(who, lookOnly).compact(compact).checkEdits(checkEdits);
+                    .steps(Math.max(12, maxSteps)).as(who, lookOnly).compact(compact).checkEdits(checkEdits);
             w.worker = true;
             w.lessons = lessons; // the same memory of fixes and the same kept docs as the lead
             w.docsCache = docsCache;

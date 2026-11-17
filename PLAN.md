@@ -3,6 +3,20 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# The agent can edit, and ten more fixes (0.99.160)
+
+- [x] After the survey, workers were created read-only until the plan phase said BUILD, so they could look but not edit the code. Once the map is written they may edit. A worker gets 12 steps (was 8).
+- [x] PROCESS.md is loaded when a task is continued, so the agent sees every tool that already ran and does not start the reading over.
+- [x] When speech for a paragraph is interrupted, the pieces already made are kept under that paragraph, so the next run does not start from the first word.
+- [x] A second read of an unchanged file is refused (0.99.159). The step budget is 40. The survey may open 40 files.
+- [x] A paragraph's sound is made in larger pieces and the file stays even when Android refuses the rename (0.99.157–158).
+- [x] The chat is redrawn on the screen's thread and pulled back onto its messages; a real sentence stays while the next step runs (0.99.154).
+- [x] Wisdom 3.0 applies what a sentence implies; a new chat and a fresh open start on Ordinary; another chat's files are refused (0.99.155–156).
+- [x] A lesson from any chat is given to the next answer as what it implies, not as that chat's files (0.99.156).
+- [x] Ibiko 1 finds a stored sentence that mentions the question's own words (0.99.154).
+- [x] A rejection in front of an option is not treated as agreement, and a short choice still recalls the logic (0.99.153).
+- [ ] On the phone: give Ibiko a coding task. After the survey, a worker should edit a file, not only read. Leave and come back: the sound of a paragraph should still be there, and the chat should not be blank.
+
 # It writes the fix instead of reading for hours (0.99.159)
 
 - [x] After the survey wrote its map, the agent was still allowed several more reads and look-only workers, so it circled on the same files and never wrote the fix. A second read of a file that has not changed is now refused, and any further read or look-only worker after the map is told to write PLAN.md and then edit. The process of every tool is written to PROCESS.md so a later run sees what was already done.

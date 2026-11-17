@@ -214,7 +214,7 @@ public final class Survey {
      */
     public static String whereItStood(File keep) {
         StringBuilder b = new StringBuilder();
-        for (String name : new String[] {"SURVEY.md", "MAP.md"}) {
+        for (String name : new String[] {"SURVEY.md", "MAP.md", "PROCESS.md"}) {
             File f = new File(keep, name);
             if (!f.isFile()) {
                 continue;
