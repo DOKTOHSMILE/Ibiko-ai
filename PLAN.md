@@ -3,6 +3,12 @@
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.
 - A box stays unticked until you confirm on the phone that it worked. Then it is ticked.
 
+# A failed command shows its error and the previous fix (0.99.162)
+
+- [x] The method that reads a failed command's error and recalls what fixed it before was written but never called, so the model only saw the raw output. After every tool call the error is read and, when the same error was fixed before, that fix is given back.
+- [x] A minimal plan is seeded after the survey so the first edit is allowed (0.99.161). Workers may edit once the map is written. PROCESS.md is loaded on continue.
+- [ ] On the phone: give Ibiko a coding task that hits a compile error. The next step should show the error and, if the same error was fixed before, the previous fix.
+
 # A plan is seeded so the first edit is allowed (0.99.161)
 
 - [x] After the survey the agent still could not edit any file until PLAN.md had a goal and steps, and the model often never wrote that plan. When the map is ready and no plan exists, a minimal PLAN.md is written and the phase is set to BUILD, so the next tool call can edit the files the survey named.

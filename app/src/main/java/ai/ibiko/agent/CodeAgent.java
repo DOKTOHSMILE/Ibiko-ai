@@ -1025,6 +1025,10 @@ public final class CodeAgent {
                             result = "Error: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
                         }
                         result = blueprintAfter(call, result);
+                        String withErrors = readErrors(call, result);
+                        if (withErrors != null) {
+                            result = withErrors;
+                        }
                     }
                 }
                 if (!modelSaid && narrate) {
