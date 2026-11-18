@@ -1,6 +1,7 @@
 package ai.ibiko.ibiko1;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import ai.ibiko.ibiko1.formulas.Truth;
@@ -15,6 +16,20 @@ import org.junit.Test;
 
 /** G9: the true and the false are both kept, recognised again, and told to the brain. */
 public class TruthLedgerTest {
+    @Test
+    public void aboutRanksRelevantJudgementsAndSuppressesIncidentalOverlap() throws Exception {
+        File f = new File(Files.createTempDirectory("ledger-rank").toFile(), "truth.tsv");
+        TruthLedger ledger = new TruthLedger(f);
+        ledger.record(Arrays.asList(
+                new Truth.Checked(Verdict.FALSE, "The capital of Nigeria is Lagos.", "The capital of Nigeria is Abuja.", "built-in"),
+                new Truth.Checked(Verdict.TRUE, "The capital of Ghana is Accra.", null, "built-in"),
+                new Truth.Checked(Verdict.TRUE, "Nigeria has a large population.", null, "built-in")), "out", 1000);
+        String context = ledger.about("What is the capital of Nigeria?", 3);
+        assertTrue(context, context.contains("The capital of Nigeria is Lagos."));
+        assertFalse("a generic overlap on capital is not enough to recall Ghana in a Nigeria question", context.contains("Ghana is Accra"));
+        assertFalse(context, context.contains("large population"));
+    }
+
     @Test
     public void bothSidesAreKeptAndRecognisedAgainAfterARestart() throws Exception {
         BuiltIn world = new BuiltIn(new FileInputStream("src/main/assets/knowledge/world_facts.tsv"));
@@ -40,7 +55,7 @@ public class TruthLedgerTest {
 
         String told = again.about("what is the capital of nigeria", 3);
         assertTrue(told, told.contains("found false (never repeat these): “Lagos is the capital of Nigeria.”, in fact: The capital of Nigeria is Abuja."));
-        assertTrue(told, told.contains("found true: “The capital of Ghana is Accra.”"));
+        assertFalse("a shared generic word must not pull an unrelated country's capital into this chat", told.contains("Ghana is Accra"));
         again.forget("Lagos is the capital of Nigeria.");
         assertEquals(0, again.counts()[1]);
     }

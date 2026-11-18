@@ -334,3 +334,48 @@ Known limits:
   - The leg ratio is 0.49, but hip minus ankle in the landmarks is 0.48.
 - Not checked: mesh self-intersection (the validator covers closed shells, indices, normals and degenerate triangles, and the tests cover symmetry, bounds and the joint hierarchy). The legacy nano-dot figure (`DotBody`) keeps its own layout.
 - Inspection views (front, 3/4, side, rear): `docs/brand/anre_obi_profile_views.png`, `docs/brand/anre_ivie_profile_views.png`.
+
+## Intelligence upgrade — dataset pipeline follow-up (2026-11-18)
+
+- Added a fail-closed dataset-use policy requiring human licence and provenance review.
+- Added streaming CSV/TSV parsing with quoted delimiters, escaped quotes and multiline fields.
+- Added a transactional lexical dataset importer that stores language, lemma, POS, definition, source and licence metadata.
+- Added bounded, provenance-bearing SQLite retrieval context and an optional `Cortex.context(...)` overload.
+- Added a relation-object index through a non-destructive SQLite schema upgrade.
+- Added unit tests for parser edge cases and policy enforcement.
+- Validation: pure-Java parser/policy classes compile with `javac` and a standalone smoke test passes. Full Gradle/Android tests could not run because Gradle 8.9 is not cached and network access to services.gradle.org is unavailable in this environment.
+
+## Intelligence upgrade — contextual intelligence follow-up (2026-11-18)
+
+- Added a bounded per-chat contextual understanding engine: intent labels, recent entity tracking, conservative coreference, English word-sense cues, temporal/spatial cue extraction, relevance/decay scoring and cross-turn opposite-polarity candidates.
+- Added conservative language hints for English, Hausa, Yoruba, Igbo and Nigerian Pidgin; weak evidence remains `undetermined`.
+- Wired the contextual evidence into `Cortex` and the local chat path. Per-chat state is saved as a compact versioned snapshot in the app-private chat memory folder; chat transcript remains authoritative.
+- Added reviewed CSV/TSV semantic triple import with licence/provenance checks and explicit human-review confirmation.
+- Java 17 compilation passed for the new pure-Java intelligence/context classes and importer classes (using Android API stubs for importer compilation). New standalone test methods passed for contextual reference, intent labelling, word-sense cues, temporal normalisation, snapshot round-trip, cross-turn contradiction candidates and language hints.
+- Full Android Gradle test suite and APK build not run: Gradle 8.9 distribution download failed because `services.gradle.org` was unreachable. Device performance and actual model quality remain unverified.
+
+## 0.99.165 — Phase 10
+
+- Wisdom evidence selection now ranks matching knowledge by symmetric lexical relevance instead of taking the first three matches in storage order.
+- Duplicate evidence lines are removed before ranking; ties preserve their prior order.
+- New unit tests cover ranking, duplicate suppression and unrelated-evidence exclusion.
+- Pure-Java compilation of `Wisdom`, `Understanding`, `Knowledge` and their direct storage/lexical dependencies passed with Java 17; standalone Wisdom smoke tests passed.
+- Full Gradle/Android build and device verification remain pending in the normal Android build environment.
+
+
+## 0.99.166 — Phase 11 integrated intelligence quality pass
+
+- Truth: normalized claim subject keys, removed unsafe substring-based agreement, and made empty/null witness inputs safe.
+- TruthLedger: relevant prior judgements rank above incidental word overlaps; false judgements remain first.
+- Wisdom: IDF-weighted Dice retrieval over existing Knowledge meanings; output contract and three-evidence bound preserved.
+- Model interpretation: ambiguous/low-transcript-confidence inputs cannot be overridden by a model reading; explicit preserve/negation constraints survive model enrichment. Destructive-operation contradiction checks cover delete/remove/erase/wipe.
+- Interpreter: conservative Hausa and Igbo cues added alongside existing Nigerian Pidgin, Yoruba and French. Translation still depends on the selected LLM.
+- Regression tests added. Full Gradle/Android build and physical-device checks remain pending; Gradle 8.9 was not available to this build environment.
+
+
+## 0.99.167 — deterministic intelligence evaluation baseline
+
+- Added a small labelled evaluation fixture for intent, POS, coreference and temporal/spatial cue extraction.
+- Probe exposed missing deletion intent, unsafe gendered-pronoun resolution without gender evidence, and missing bare-duration extraction.
+- Fixed those gaps conservatively; hypothetical “what if” deletion questions remain non-action questions.
+- Focused Java probe: 32/32 assertions pass. This is a smoke-test result, not a general accuracy claim. Full Gradle/Android build and phone/model benchmarking remain pending.

@@ -416,11 +416,12 @@ final class BrainGate {
             a.noteUser(text); // the chat keeps what was typed
             text = a.autoCorrect.typos(text); // the brain reads it with the clear typos fixed
             final String said = text;
+            final String chatContext = a.chatContextKey();
             new Thread(() -> {
                 a.pilotProfile().notice(said); // what the pilot says about themselves
                 // what the pilot asks about, with any model: learned at night if Ibiko 1 doesn't know it yet
                 a.ibiko1().noticeQuestion(said);
-                a.ibiko1().hear(said); // Ibiko 1 learns from every message: grammar, shapes, the pilot's word on its answers
+                a.ibiko1().hear(said, chatContext); // language learning is shared; reference history is chat-local
             }, "ibiko-profile").start();
         }
         if (!interpreted && a.needsInternet() && (a.connectivity == null || !a.connectivity.isOnline())) {

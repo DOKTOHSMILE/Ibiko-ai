@@ -1,6 +1,7 @@
 package ai.ibiko.suit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -57,6 +58,20 @@ public class SuitTest {
     }
 
     @Test
+    public void cortexCarriesIbiko1StructuredComprehensionAsEvidenceOnly() {
+        ai.ibiko.ibiko1.comprehend.Comprehension ucl =
+                new ai.ibiko.ibiko1.comprehend.Comprehension(null, null);
+        ai.ibiko.ibiko1.comprehend.Comprehension.Meaning meaning =
+                ucl.read("Don't delete the red file.");
+        String context = new Cortex(null).context("Don't delete the red file.", "chat-test", meaning);
+        assertTrue(context, context.contains("Ibiko 1 structured comprehension"));
+        assertTrue(context, context.contains("advisory evidence only; not an app command"));
+        assertTrue(context.toLowerCase(java.util.Locale.US).contains("negated"));
+        assertTrue(context.toLowerCase(java.util.Locale.US).contains("remove"));
+        assertTrue(context.toLowerCase(java.util.Locale.US).contains("file"));
+    }
+
+    @Test
     public void wordsNeverTriggerAFunction() {
         assertNull(FunctionCode.parse("stop"));
         assertNull(FunctionCode.parse("new chat"));
@@ -91,6 +106,28 @@ public class SuitTest {
         assertEquals("[plan, draft, critic, revise, critic]", roles.toString()); // stopped once the review found nothing
         assertTrue(steps.contains("Checked: nothing to fix"));
         assertNull(DeepThink.think(brain, "", "q", 2, null, () -> true));
+    }
+
+    @Test
+    public void wisdomEvidenceIsAvailableToEveryModelAndPreservesItsLimits() {
+        Cortex c = new Cortex(q -> null, q -> java.util.Arrays.asList(
+                "I cannot afford the deposit.", "I might move next year.", "Bananas are yellow."));
+        String brief = c.wisdomContext("Should I rent if I cannot afford the deposit?");
+        assertTrue(brief, brief.contains("ibiko1 reasoning"));
+        assertTrue(brief, brief.contains("I cannot afford the deposit."));
+        assertTrue(brief, brief.toLowerCase().contains("limit"));
+        assertTrue(brief, brief.contains("Does not establish:"));
+        assertTrue(brief, brief.contains("What could change this:"));
+        assertFalse(brief, brief.contains("Bananas"));
+    }
+
+    @Test
+    public void noModelDecisionUsesRelevantWisdomEvidenceWhenAvailable() {
+        Cortex c = new Cortex(q -> null,
+                q -> java.util.Arrays.asList("I cannot afford the deposit."));
+        String choice = c.answerAlone("Should I rent if I cannot afford the deposit?");
+        assertTrue(choice, choice != null && choice.contains("What the remembered information implies:"));
+        assertTrue(choice, choice.toLowerCase().contains("limit"));
     }
 
     @Test

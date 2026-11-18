@@ -69,9 +69,10 @@ public final class Truth {
         public final long at;
 
         public Claim(String about, String says, Source source, long at) {
-            this.about = about == null ? "" : about;
+            this.about = about == null ? "" : about.trim();
             this.says = says == null ? "" : says.trim();
-            this.source = source;
+            // A missing source is never promoted to a trusted source.
+            this.source = source == null ? Source.MODEL : source;
             this.at = at;
         }
     }
@@ -93,25 +94,34 @@ public final class Truth {
 
     /** The same claim, however it is worded or punctuated. */
     static boolean same(String a, String b) {
-        return norm(a).equals(norm(b)) || !norm(a).isEmpty() && (norm(a).contains(norm(b)) || norm(b).contains(norm(a)))
-                && Math.min(norm(a).length(), norm(b).length()) >= 4;
+        // Similarity by substring was unsafe: "Abuja" and "Abuja is not the capital" could be
+        // treated as agreement. Truth agreement requires the same normalized proposition wording.
+        return !norm(a).isEmpty() && norm(a).equals(norm(b));
     }
 
     private static String norm(String s) {
-        return (s == null ? "" : s).toLowerCase(Locale.US).replaceAll("[^\\p{L}\\p{Nd} ]", " ").replaceAll("\\s+", " ").trim();
+        return (s == null ? "" : s).toLowerCase(Locale.ROOT)
+                .replace('’', '\'')
+                .replaceAll("[^\\p{L}\\p{Nd}']+", " ")
+                .replaceAll("\\s+", " ").trim();
+    }
+
+    /** Canonical key for the subject a set of claims is about. */
+    private static String aboutKey(String s) {
+        return norm(s).replaceAll("^(the|a|an) ", "");
     }
 
     /** G1–G4, G6: what stands about each thing. */
     public static List<Settled> settle(List<Claim> claims) {
         Map<String, List<Claim>> by = new LinkedHashMap<String, List<Claim>>();
+        if (claims == null || claims.isEmpty()) return new ArrayList<Settled>();
         for (Claim c : claims) {
-            if (c == null || c.says.isEmpty()) {
-                continue;
-            }
-            List<Claim> l = by.get(c.about);
+            if (c == null || c.says.isEmpty() || aboutKey(c.about).isEmpty()) continue;
+            String key = aboutKey(c.about);
+            List<Claim> l = by.get(key);
             if (l == null) {
                 l = new ArrayList<Claim>();
-                by.put(c.about, l);
+                by.put(key, l);
             }
             l.add(c);
         }
@@ -198,10 +208,13 @@ public final class Truth {
      */
     public static List<Checked> question(String text, List<Witness> witnesses) {
         List<Checked> out = new ArrayList<Checked>();
+        if (text == null || text.trim().isEmpty()) return out;
+        List<Witness> safeWitnesses = witnesses == null ? Collections.<Witness>emptyList() : witnesses;
         for (String s : sentences(text)) {
             Checked found = Checked.unknown(s);
             if (claims(s)) {
-                for (Witness w : witnesses) {
+                for (Witness w : safeWitnesses) {
+                    if (w == null) continue;
                     Checked c;
                     try {
                         c = w.check(s);
@@ -227,8 +240,8 @@ public final class Truth {
     /** G8 in: the sentences of a pass not found FALSE. */
     public static String trueOnly(List<Checked> checked) {
         StringBuilder b = new StringBuilder();
-        for (Checked c : checked) {
-            if (c.verdict != Verdict.FALSE) {
+        for (Checked c : checked == null ? Collections.<Checked>emptyList() : checked) {
+            if (c != null && c.verdict != Verdict.FALSE) {
                 b.append(b.length() == 0 ? "" : " ").append(c.sentence);
             }
         }
@@ -238,8 +251,8 @@ public final class Truth {
     /** G8 out: what to say after a reply with FALSE sentences (each correction once, with its source); null when none. */
     public static String correction(List<Checked> checked) {
         java.util.LinkedHashSet<String> said = new java.util.LinkedHashSet<String>();
-        for (Checked c : checked) {
-            if (c.verdict == Verdict.FALSE && c.correction != null) {
+        for (Checked c : checked == null ? Collections.<Checked>emptyList() : checked) {
+            if (c != null && c.verdict == Verdict.FALSE && c.correction != null) {
                 said.add(c.correction.trim() + (c.source == null ? "" : " (" + c.source + ")"));
             }
         }

@@ -41,6 +41,23 @@ public class InterpreterTest {
     }
 
     @Test
+    public void hausaAndIgboAreRecognisedConservatively() {
+        assertEquals(Interpreter.Language.HAUSA, Interpreter.language("Sannu, yaya kake? Ina lafiya, na gode."));
+        assertEquals(Interpreter.Language.HAUSA, Interpreter.language("Don Allah, menene wannan?"));
+        assertEquals(Interpreter.Language.IGBO, Interpreter.language("Kedu? Biko, nyere m aka. Daalụ."));
+        assertEquals(Interpreter.Language.IGBO, Interpreter.language("Kedu ka ọ dị?"));
+        assertNull("a single ambiguous short token should not override English", Interpreter.language("Biko"));
+        assertNull("an isolated loan/name token in English is not enough", Interpreter.language("The biko feature is useful"));
+    }
+
+    @Test
+    public void hausaAndIgboTranslationPromptsNameTheRightLanguage() {
+        assertTrue(Interpreter.toEnglishPrompt(Interpreter.Language.HAUSA, "Sannu").contains("from Hausa"));
+        assertTrue(Interpreter.fromEnglishPrompt(Interpreter.Language.IGBO, false).contains("standard Igbo"));
+        assertTrue(Interpreter.clean("Igbo: Ndewo").equals("Ndewo"));
+    }
+
+    @Test
     public void pidginGlossaryHelpsTheModel() {
         String g = Interpreter.glossary("Wetin dey happen? Abeg no vex");
         assertTrue(g, g.contains("wetin = what"));

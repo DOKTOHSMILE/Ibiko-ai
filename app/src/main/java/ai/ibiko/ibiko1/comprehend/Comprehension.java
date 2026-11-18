@@ -114,6 +114,19 @@ public final class Comprehension {
 
         /** One short line for a brain: what the message means, so it does not have to work it out. */
         public String brief() {
+            return brief(true);
+        }
+
+        /**
+         * Structured message meaning for the shared model prompt. References and clarification are omitted here
+         * because Cortex supplies the durable, per-chat coreference result; including this parser's short-lived copy
+         * could conflict after a restart or cache eviction.
+         */
+        public String promptBrief() {
+            return brief(false);
+        }
+
+        private String brief(boolean includeReferences) {
             StringBuilder b = new StringBuilder("Understood: ").append(intent.name().toLowerCase(Locale.US));
             if (negated) {
                 b.append(" (negated: the user does NOT want this)");
@@ -154,13 +167,15 @@ public final class Comprehension {
             if (confidence < 0.5) {
                 b.append("; low confidence");
             }
-            for (Map.Entry<String, String> r : references.entrySet()) {
-                b.append("; \"").append(r.getKey()).append("\" = ").append(r.getValue());
+            if (includeReferences) {
+                for (Map.Entry<String, String> r : references.entrySet()) {
+                    b.append("; \"").append(r.getKey()).append("\" = ").append(r.getValue());
+                }
             }
             for (Map.Entry<String, String> s : senses.entrySet()) {
                 b.append("; ").append(s.getKey()).append(" here means: ").append(s.getValue());
             }
-            if (clarify != null) {
+            if (includeReferences && clarify != null) {
                 b.append("; ask first: ").append(clarify);
             }
             String t = b.append('.').toString();

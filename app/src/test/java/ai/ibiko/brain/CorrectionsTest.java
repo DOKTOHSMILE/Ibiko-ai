@@ -2,6 +2,7 @@ package ai.ibiko.brain;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -67,10 +68,10 @@ public class CorrectionsTest {
         BrainAnswer kept = brain.respond("2026", "obi");
         assertEquals("2026.", said(brain.respond("what year is the next world cup", "obi")).replaceAll(".*\\b2026", "2026"));
         assertTrue(said(kept), said(kept).contains("2026"));
-        // the language model is handed what bears on the question, and the newest corrections
+        // the language model is handed only what bears on the question: an unrelated correction is left out
         List<String> facts = brain.taughtFor("Tell me about the president of Nigeria", 6);
         assertEquals("the president of nigeria is Bola Tinubu", facts.get(0));
-        assertTrue(facts.toString(), facts.size() >= 2);
+        assertFalse(facts.toString(), facts.toString().contains("2026"));
         // personal facts keep their own memory
         brain.respond("remember that my sister is Ada", "obi");
         assertTrue(said(brain.respond("no, it's Adaeze", "obi")).contains("Adaeze"));

@@ -68,6 +68,16 @@ final class LocalAsk {
         return raw;
     }
 
+    private String conversationKey() {
+        return act.chatContextKey();
+    }
+
+    /** Restore and save the small per-chat entity/context snapshot beside that chat's private memory files. */
+    private String comprehensionContext(String message, String originalMessage, String key, java.io.File chatHome) {
+        return ai.ibiko.suit.ConversationContext.build(act.ibiko1(), act.cortex(), message,
+                originalMessage, key, chatHome);
+    }
+
     boolean askLocal(final String question, final BrainAnswer offline) {
         return askLocal(question, offline, false);
     }
@@ -92,7 +102,9 @@ final class LocalAsk {
         act.writing.add(id);
         final boolean ivie = act.stage.isIvie();
         final String agent = act.stage.agent();
-        final String worker = ai.ibiko.agent.AgentBoard.start("Ibiko \u00B7 reply", question,
+        final String contextKey = conversationKey();
+        final java.io.File contextHome = act.chatSpace(); // capture this chat's folder before background work starts
+        final String worker = ai.ibiko.agent.AgentBoard.start("Ibiko · reply", question,
                 act.brainLabel());
         act.replyWorkers.put(id, worker);
         act.stopPlay();
@@ -103,10 +115,6 @@ final class LocalAsk {
         act.walker.follow(stream);
         final String system = act.systemFor(agent, acts);
         final ai.ibiko.suit.ChatTools pageTools = act.chatTools(agent);
-        final java.util.List<String> taught;
-        synchronized (act.brain) {
-            taught = act.brain.taughtFor(question, 6);
-        }
         // the interpreter: Pidgin, Yoruba or French is read in English, and the English reply put back
         final ai.ibiko.llm.Interpreter.Language lang = act.prefs.getBoolean("interpreter", true)
                 ? ai.ibiko.llm.Interpreter.language(question)
@@ -124,7 +132,7 @@ final class LocalAsk {
             }
         }
         final String around = act.situation(ivie) + act.ibiko1().methods().hint(question)
-                + act.ibiko1().premeditate(question)
+                + act.ibiko1().premeditate(question, contextKey)
                 + (thought.said == null ? ""
                         : "\nIbiko's own view from the answers it has gathered ("
                                 + ai.ibiko.ibiko1.formulas.Probability.words(thought.sure) + "): "
@@ -206,8 +214,8 @@ final class LocalAsk {
                 }
             }
             String gathered = (docs.isEmpty() ? "" : docs + "\n")
-                    + ai.ibiko.llm.PersonaPrompt.context(taught, reference, around)
-                    + (older.isEmpty() ? "" : "\n" + older) + "\n" + act.cortex().context(english) // Ibiko's reading of the message and any exact arithmetic
+                    + ai.ibiko.llm.PersonaPrompt.context(java.util.Collections.<String>emptyList(), reference, around)
+                    + (older.isEmpty() ? "" : "\n" + older) + "\n" + comprehensionContext(english, question, contextKey, contextHome) // Ibiko's reading, UCL and durable per-chat context
                     + act.pilotProfile().brief() // what the pilot said about themselves, for every brain
                     + (pageTools.brief().isEmpty() ? "" : "\n" + pageTools.brief());
             if (!act.model.remoteOn() && act.model.quick(english, 160)
@@ -220,10 +228,15 @@ final class LocalAsk {
                 gathered = ai.ibiko.suit.Comprehension.keepDecision(gathered,
                         act.DEVICE_CONTEXT_CHARS);
             }
-            if (pageTools.wisdom()) {
-                ai.ibiko.ibiko1.formulas.Wisdom.Applied applied = ai.ibiko.ibiko1.formulas.Wisdom
-                        .of(english, act.ibiko1().knownLines(english));
-                gathered = applied.brief() + "\n" + gathered;
+            // Keep the wisdom evidence after context compression so quick/device prompts cannot trim it away.
+            // It is always part of Ibiko 1's reasoning, not a selectable Think level or an executable tool.
+            String wisdom = act.cortex().wisdomContext(english);
+            String adaptiveEvidence = act.brain.adaptiveLearningContext(english, 6);
+            if (!wisdom.isEmpty()) {
+                gathered = gathered + "\n\n" + wisdom;
+            }
+            if (!adaptiveEvidence.isEmpty()) {
+                gathered = gathered + "\n\n" + adaptiveEvidence;
             }
             final String context = gathered;
             final ai.ibiko.llm.ActionTags tags = new ai.ibiko.llm.ActionTags();

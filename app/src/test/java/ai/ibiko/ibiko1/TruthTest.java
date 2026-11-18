@@ -2,6 +2,7 @@ package ai.ibiko.ibiko1;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import ai.ibiko.ibiko1.formulas.Truth;
@@ -44,6 +45,33 @@ public class TruthTest {
                 new Claim("price", "1,500 naira", Source.SOURCE, 10), new Claim("price", "1,800 naira", Source.SOURCE, 20))).get(0);
         assertEquals("1,800 naira", s.stands.says);
         assertTrue(s.differ);
+    }
+
+    @Test
+    public void substringOverlapIsNotIndependentAgreement() {
+        Truth.Settled settled = Truth.settle(Arrays.asList(
+                new Claim("Capital:Nigeria", "Abuja", Source.BUILT_IN, 10),
+                new Claim("capital:nigeria", "Abuja is not the capital of Nigeria", Source.MODEL, 20))).get(0);
+        assertEquals("Abuja", settled.stands.says);
+        assertEquals(Sure.LIKELY, settled.sure);
+        assertEquals(1, settled.overruled.size());
+    }
+
+    @Test
+    public void nullInputsDoNotCrashTruthFoundation() {
+        assertTrue(Truth.settle(null).isEmpty());
+        assertTrue(Truth.question(null, null).isEmpty());
+        assertEquals("", Truth.trueOnly((List<Truth.Checked>) null));
+        assertNull(Truth.correction(null));
+    }
+
+    @Test
+    public void punctuationAndCaseDoNotCreateFalseDisagreement() {
+        Truth.Settled settled = Truth.settle(Arrays.asList(
+                new Claim("the capital:Nigeria", "Abuja", Source.BUILT_IN, 10),
+                new Claim("Capital:Nigeria", "ABUJA.", Source.LEARNED, 20))).get(0);
+        assertEquals(Sure.FIRM, settled.sure);
+        assertFalse(settled.differ);
     }
 
     @Test

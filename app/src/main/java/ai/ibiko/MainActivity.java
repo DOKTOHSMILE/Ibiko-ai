@@ -1880,6 +1880,15 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
     ai.ibiko.ibiko1.Ibiko1 ibiko1;
 
+    /** Stable key for this chat's short comprehension context. */
+    String chatContextKey() {
+        if (chats == null || chats.current() == null) {
+            return "default";
+        }
+        ai.ibiko.chat.ChatBook.Section section = chats.current();
+        return section.group != null ? "group:" + section.group : "chat:" + section.id;
+    }
+
     /** Ibiko 1 · 0.1, Ibiko's own model (its whole code is in the ibiko1 folder), plugged into this screen. */
     synchronized ai.ibiko.ibiko1.Ibiko1 ibiko1() {
         if (ibiko1 == null) {
