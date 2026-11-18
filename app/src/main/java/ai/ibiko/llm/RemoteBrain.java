@@ -547,6 +547,11 @@ public final class RemoteBrain {
                     if ((r.status == 400 || r.status == 422) && form < 2) {
                         continue;
                     }
+                    if (r.status == 429 || r.status == 503 || r.status == 529) {
+                        WorkerPace.SHARED.refused(System.currentTimeMillis()); // too many at once: fewer workers for a while
+                    } else if (r.status >= 200 && r.status < 300) {
+                        WorkerPace.SHARED.answered(System.currentTimeMillis());
+                    }
                     if ((r.status == 401 || r.status == 403 || r.status == 402 || r.status == 429) && !last) {
                         break; // this key is refused or out of credit: the backup key next
                     }

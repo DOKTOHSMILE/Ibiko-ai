@@ -344,6 +344,13 @@ public final class LocalModel {
         return true;
     }
 
+    /** The phone's heat now, for how many workers may run ({@link WorkerPace}); cool when it isn't read. */
+    public WorkerPace.Heat heat() {
+        java.util.function.Supplier<DeviceGuard.Decision> g = guard;
+        DeviceGuard.Decision d = g == null ? null : g.get();
+        return WorkerPace.heat(d == null ? null : d.state);
+    }
+
     /** The most threads the phone's heat allows now (two when it is cool). */
     private int threadsAllowed(int asked) {
         java.util.function.Supplier<DeviceGuard.Decision> g = guard;

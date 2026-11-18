@@ -215,7 +215,7 @@ final class WritingTurns {
                         a.activity("Wrote " + n + " of " + secs.size() + ": " + a.clip(s.replaceAll(":.*$", "")));
                     }
                     return one;
-                }, ai.ibiko.chat.Tuning.workersAtOnce(a.prefs, a.model.remoteOn()), () -> !a.alive(id));
+                }, ai.ibiko.llm.WorkerPace.SHARED.workers(a.model.remoteOn(), a.model.heat(), System.currentTimeMillis()), () -> !a.alive(id));
                 for (String one : got) {
                     if (one != null && !one.trim().isEmpty() && !one.startsWith("Error:") && !one.startsWith("Stopped before")) {
                         parts.add(one.trim());
