@@ -47,7 +47,8 @@ final class Brains {
     synchronized ai.ibiko.suit.Cortex cortex() {
         if (a.cortex == null) {
             a.cortex = new ai.ibiko.suit.Cortex(q -> brainBox().recallTalk(q),
-                    q -> a.ibiko1().knownLines(q));
+                    q -> a.ibiko1().knownLines(q))
+                    .knowledge(new ai.ibiko.intelligence.StructuredKnowledgeDatabase(a)); // imported datasets, in every brief
         }
         return a.cortex;
     }
