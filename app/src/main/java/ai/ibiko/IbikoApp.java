@@ -22,6 +22,11 @@ public final class IbikoApp extends Application {
             // no notifications: downloads still run
         }
         ai.ibiko.chat.Tuning.resetOnce(getSharedPreferences("ibiko", MODE_PRIVATE));
+        try {
+            ai.ibiko.net.NetSwitch.start(this); // a reply cut by Wi-Fi ↔ mobile data (as when the app is left) is asked again
+        } catch (RuntimeException ignored) {
+            // no network service: requests still run, only without the quick recovery
+        }
         android.content.SharedPreferences p = getSharedPreferences("ibiko", MODE_PRIVATE);
         if (!p.getBoolean("approvals_back_v1", false)) {
             // "Always run" in the old approval dialog turned asking off for good, without saying so: asking is back on
