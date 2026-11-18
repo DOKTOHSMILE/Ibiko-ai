@@ -55,22 +55,8 @@ public final class Tuning {
     public static final Knob WEB_PAGES = new Knob("adv_web_pages", "Pages read per search",
             "How many of the results are opened and read.", 3, 0, 10);
 
-    public static final Knob WORKERS = new Knob("adv_workers", "Mini agent workers at once",
-            "How many workers run side by side: agents on the parts of a job, their hands, the readers that go through the"
-                    + " code, and the writers of a long piece. With an API model they all work at once. The device's own model"
-                    + " answers one call at a time, so there two run at once (one thinks while the other runs its commands).",
-            4, 1, 16); // four: fast on a job without hitting providers' rate limits or warming the device (eight did both)
-
-    /** Workers that really run at once: the setting with an API model, two with the device's own model. */
-    public static int workersAtOnce(android.content.SharedPreferences prefs, boolean api) {
-        return workersAtOnce(WORKERS.get(prefs), api);
-    }
-
-    /** As {@link #workersAtOnce(android.content.SharedPreferences, boolean)}, from the setting's value. */
-    public static int workersAtOnce(int set, boolean api) {
-        int n = Math.max(1, set);
-        return api ? n : Math.min(2, n);
-    }
+    // How many workers run at once is no longer a fixed number: llm/WorkerPace sets it from how the provider answers
+    // and how warm the phone is (four to start, up to eight, two at least).
 
     public static final Knob CLONE_FILES = new Knob("adv_clone_files", "Most files in a clone",
             "A repository with more files than this isn't cloned onto the device (a bigger number needs more storage and time).",
@@ -136,7 +122,7 @@ public final class Tuning {
         return true;
     }
 
-    public static final Knob[] ALL = {CHAT_TOKENS, BIG_TOKENS, AGENT_STEPS, AGENT_TOKENS, PASTE_CHARS, IMAGE_SIDE, WEB_RESULTS, WEB_PAGES, WORKERS, CLONE_FILES, OFFLINE_CONTEXT, SLOW_SPEED, MODEL_THREADS, TASK_TIER, BRAIN_TIER, RUN_MODE};
+    public static final Knob[] ALL = {CHAT_TOKENS, BIG_TOKENS, AGENT_STEPS, AGENT_TOKENS, PASTE_CHARS, IMAGE_SIDE, WEB_RESULTS, WEB_PAGES, CLONE_FILES, OFFLINE_CONTEXT, SLOW_SPEED, MODEL_THREADS, TASK_TIER, BRAIN_TIER, RUN_MODE};
 
     /** The name of a model tier, or null when it isn't a tier ("3" for a count). */
     public static String tierName(android.content.SharedPreferences p, int v) {

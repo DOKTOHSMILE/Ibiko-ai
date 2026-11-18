@@ -85,22 +85,27 @@ final class AgentSession {
                         public String askQuiet(String system, String text) {
                             // a survey reader or a worker: not streamed into the chat, and it stops with the task. On an API it
                             // does not wait for the device model's lock, so the readers and workers really run at once
-                            if (!a.alive(id)) {
-                                return null;
+                            if (!a.alive(id) || !ai.ibiko.llm.WorkerPace.SHARED.enter(() -> !a.alive(id))) {
+                                return null; // waits while as many workers as allowed are calling; a drop applies at once
                             }
-                            if (a.model.remoteOn()) {
-                                String got = a.model.remoteTask(system, text, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs), stepTier);
-                                if (got != null || !a.alive(id)) {
-                                    return got;
+                            try {
+                                if (a.model.remoteOn()) {
+                                    String got = a.model.remoteTask(system, text, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs), stepTier);
+                                    if (got != null || !a.alive(id)) {
+                                        return got;
+                                    }
                                 }
+                                return a.model.task(system, text, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs), piece -> a.alive(id), stepTier);
+                            } finally {
+                                ai.ibiko.llm.WorkerPace.SHARED.exit();
                             }
-                            return a.model.task(system, text, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs), piece -> a.alive(id), stepTier);
                         }
 
                         @Override
                         public int readers() {
-                            // the Workers number (Tuning.WORKERS); the device's own model answers one call at a time
-                            return ai.ibiko.chat.Tuning.workersAtOnce(a.prefs, a.model.remoteOn());
+                            // four to start, up to eight while the provider answers smoothly, fewer on a refusal or a warm
+                            // phone; the device's own model answers one call at a time, so two at most (llm/WorkerPace)
+                            return ai.ibiko.llm.WorkerPace.SHARED.workers(a.model.remoteOn(), a.model.heat(), System.currentTimeMillis());
                         }
 
                         /**

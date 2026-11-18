@@ -207,13 +207,7 @@ public class BlueprintTest {
     }
 
     @Test
-    public void theWorkersSettingDecidesHowManyRunAtOnce() {
-        assertEquals(8, ai.ibiko.chat.Tuning.workersAtOnce(8, true));
-        assertEquals(16, ai.ibiko.chat.Tuning.workersAtOnce(16, true));
-        assertEquals("the device's own model: two at once", 2, ai.ibiko.chat.Tuning.workersAtOnce(8, false));
-        assertEquals(1, ai.ibiko.chat.Tuning.workersAtOnce(1, false));
-        assertEquals(4, ai.ibiko.chat.Tuning.WORKERS.def);
-        assertEquals(16, ai.ibiko.chat.Tuning.WORKERS.max);
-        assertEquals(8, Squad.MOST_HANDS);
+    public void aSquadHasRoomForTheMostWorkersThePaceAllows() {
+        assertEquals(ai.ibiko.llm.WorkerPace.MOST, Squad.MOST_HANDS);
     }
 }
