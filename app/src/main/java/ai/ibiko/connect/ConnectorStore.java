@@ -127,7 +127,7 @@ public final class ConnectorStore {
      * call off the main thread).
      */
     public String research(String question, int pages, int maxChars) {
-        // the user's numbers (Settings › Advanced): results listed, pages read (never more than asked for here)
+        // the numbers in Tuning: results listed, pages read (never more than asked for here)
         int results = ai.ibiko.chat.Tuning.WEB_RESULTS.get(app);
         int read = Math.min(pages, ai.ibiko.chat.Tuning.WEB_PAGES.get(app));
         return ai.ibiko.net.WebSearch.research(question, Connectors.https(), webSearch(), url -> {

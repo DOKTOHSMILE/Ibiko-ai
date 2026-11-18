@@ -32,7 +32,7 @@ public final class AttachmentReader {
         return read(c, uri, MAX_SIDE);
     }
 
-    /** As above, with the long side of a photo in pixels (Settings › Advanced). */
+    /** As above, with the long side of a photo in pixels (Tuning.IMAGE_SIDE). */
     public static ComposerAttachments.Item read(Context c, Uri uri, int side) throws IOException {
         String name = name(c, uri);
         String mime = c.getContentResolver().getType(uri);

@@ -99,7 +99,7 @@ final class AgentSession {
 
                         @Override
                         public int readers() {
-                            // the Workers setting (Settings \u203A Advanced); the device's own model answers one call at a time
+                            // the Workers number (Tuning.WORKERS); the device's own model answers one call at a time
                             return ai.ibiko.chat.Tuning.workersAtOnce(a.prefs, a.model.remoteOn());
                         }
 

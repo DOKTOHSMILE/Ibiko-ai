@@ -29,7 +29,7 @@ import ai.ibiko.brain.MiniJson;
  */
 public final class GitHubGit {
     public static final String RECORD = ".ibiko-git.json";
-    /** The most files a clone or pull takes (Settings › Advanced › Most files in a clone). */
+    /** The most files a clone or pull takes (Tuning.CLONE_FILES). */
     static final int MAX_FILES = 5000;
     private int maxFiles = MAX_FILES;
 
@@ -1181,8 +1181,7 @@ public final class GitHubGit {
                 continue;
             }
             if (out.size() >= maxFiles) {
-                throw new IOException(repo + " has more than " + maxFiles + " files, the most set for a clone"
-                        + " (Settings \u203A Advanced \u203A Most files in a clone)");
+                throw new IOException(repo + " has more than " + maxFiles + " files, the most a clone takes on the phone");
             }
             out.put(MiniJson.str(e.get("path"), ""), MiniJson.str(e.get("sha"), ""));
         }

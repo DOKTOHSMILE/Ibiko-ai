@@ -32,7 +32,7 @@ public final class LocalModel {
     public final UsageLog usage = new UsageLog();
     /** The smallest context window the phone's own brain is loaded with (tokens): the fallback when memory is short. */
     public static final int LOCAL_WINDOW = 2048;
-    /** The memory asked for (Settings › Advanced › Offline model memory) and what the loaded model really has. */
+    /** The memory asked for (Tuning.OFFLINE_CONTEXT) and what the loaded model really has. */
     private volatile int contextTokens = 8192, loadedContext;
     /** Said once after a load that had to take less memory than asked; null otherwise. */
     private volatile String memoryNote;
@@ -445,10 +445,6 @@ public final class LocalModel {
         if (smaller != null) {
             b.append("\n\u2022 a smaller size, ").append(smaller.weights).append(" (tap the model name at the top)");
         }
-        if (localWindow() > 4096) {
-            b.append("\n\u2022 less memory: Settings \u203A Advanced \u203A Offline model memory, 4,096 instead of ")
-                    .append(String.format(java.util.Locale.US, "%,d", localWindow()));
-        }
         b.append("\n\u2022 an API model for the heavy work (Settings \u203A AI providers)");
         return b.toString();
     }
@@ -514,8 +510,7 @@ public final class LocalModel {
                 want = fit.nCtx;
                 if (fit.reason.contains("free memory")) {
                     memoryNote = "There wasn't enough free memory for " + String.format(java.util.Locale.US, "%,d", was)
-                            + " tokens, so " + spec.weights + " runs with " + String.format(java.util.Locale.US, "%,d", want)
-                            + " (Settings › Advanced › Offline model memory).";
+                            + " tokens, so " + spec.weights + " runs with " + String.format(java.util.Locale.US, "%,d", want) + ".";
                 }
             }
         }
@@ -527,8 +522,7 @@ public final class LocalModel {
             handle = NativeLlm.nLoad(file.getPath(), LOCAL_WINDOW, threads);
             if (handle != 0) {
                 memoryNote = "There wasn't enough free memory for " + String.format(java.util.Locale.US, "%,d", want) + " tokens, so "
-                        + spec.weights + " runs with " + String.format(java.util.Locale.US, "%,d", LOCAL_WINDOW)
-                        + " (Settings \u203A Advanced \u203A Offline model memory).";
+                        + spec.weights + " runs with " + String.format(java.util.Locale.US, "%,d", LOCAL_WINDOW) + ".";
                 want = LOCAL_WINDOW;
             }
         }
@@ -818,7 +812,7 @@ public final class LocalModel {
         }
         if (local != null && local.contains("too long")) {
             local = "even cut down, the work is too much for " + spec.weights + "'s memory of " + String.format(java.util.Locale.US, "%,d",
-                    localWindow()) + " tokens: a bigger offline model, more memory (Settings \u203A Advanced), or an API would fit it";
+                    localWindow()) + " tokens: a bigger offline model or an API would fit it";
         }
         problem = apiProblem == null ? local
                 : apiProblem + "; the device's own model couldn't take over" + (local == null || local.isEmpty() ? "" : " (" + local + ")");

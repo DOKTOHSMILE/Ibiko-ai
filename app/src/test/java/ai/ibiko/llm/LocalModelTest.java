@@ -198,12 +198,12 @@ public class LocalModelTest {
         m.noteSpeed(60, 20_000);
         String advice = m.slowAdvice(4);
         assertTrue(advice, advice.startsWith("Qwen3 4B is running slowly on this device (2.3 tokens a second)"));
-        assertTrue(advice, advice.contains("a smaller size, Qwen3 1.7B") && advice.contains("Offline model memory, 4,096 instead of 8,192")
+        assertTrue(advice, advice.contains("a smaller size, Qwen3 1.7B") && !advice.contains("Settings \u203A Advanced")
                 && advice.contains("an API model"));
         assertEquals(null, m.slowAdvice(4)); // said once
-        m.context(4096); // the user took less memory: still slow, so it is said again, without the memory tip
+        m.context(4096); // the memory changed: still slow, so it is said again
         String again = m.slowAdvice(4);
-        assertTrue(again, again.contains("Qwen3 1.7B") && !again.contains("Offline model memory"));
+        assertTrue(again, again.contains("Qwen3 1.7B"));
         m.context(8192);
         assertEquals(null, m.slowAdvice(1)); // fast enough for a lower bar
     }

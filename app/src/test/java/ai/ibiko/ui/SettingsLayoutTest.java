@@ -34,42 +34,30 @@ public class SettingsLayoutTest {
     }
 
     @Test
-    public void sectionsAreClosedAndTheListHasNoSliders() {
+    public void sectionsAreClosedAndAdvancedIsGone() {
         ActivityController<SettingsActivity> c = Robolectric.buildActivity(SettingsActivity.class).create().start().resume().visible();
         ShadowLooper.idleMainLooper();
         View root = c.get().getWindow().getDecorView();
         java.util.ArrayList<View> found = new java.util.ArrayList<View>();
-        root.findViewsWithText(found, "Back to the defaults", View.FIND_VIEWS_WITH_TEXT);
-        assertTrue("Advanced is closed until opened", found.isEmpty());
         root.findViewsWithText(found, "Advanced", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
+        assertTrue("no Advanced section: its numbers are fixed in the app", found.isEmpty());
+        root.findViewsWithText(found, "Appearance", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
         assertFalse(found.isEmpty());
         assertEquals("the list builds no section's controls", 0, seekBars(root));
         found.get(0).performClick();
-        // the section opens on its own page, built only then
         android.content.Intent page = org.robolectric.Shadows.shadowOf(c.get()).getNextStartedActivity();
-        assertEquals("Advanced", page.getStringExtra(SettingsActivity.EXTRA_SECTION));
-        ActivityController<SettingsActivity> p = Robolectric.buildActivity(SettingsActivity.screen(page), page).create().start().resume().visible();
-        ShadowLooper.idleMainLooper();
-        View proot = p.get().getWindow().getDecorView();
-        found.clear();
-        proot.findViewsWithText(found, "Back to the defaults", View.FIND_VIEWS_WITH_TEXT);
-        assertFalse("its settings are on its page", found.isEmpty());
-        found.clear();
-        proot.findViewsWithText(found, "Change the offline model", View.FIND_VIEWS_WITH_TEXT);
-        assertTrue("only this section is built, not the others", found.isEmpty());
-        assertEquals("the numbers are rows; a slider only inside a number's own editor", 0, seekBars(proot));
-        p.pause().stop().destroy();
+        assertEquals("a section opens on its own page", "Appearance", page.getStringExtra(SettingsActivity.EXTRA_SECTION));
         c.pause().stop().destroy();
     }
 
     @Test
-    public void numbersAnAccidentalSliderMovedGoBackOnce() {
+    public void aNumberTheOldSlidersSavedHasNoEffectAndIsClearedOnce() {
         SharedPreferences p = org.robolectric.RuntimeEnvironment.getApplication().getSharedPreferences("t", 0);
-        p.edit().putInt(Tuning.CHAT_TOKENS.key, 64).apply();
+        p.edit().putInt(Tuning.CHAT_TOKENS.key, 64).putInt(Tuning.AGENT_STEPS.key, 100).apply();
+        assertEquals("a saved number is not read", Tuning.CHAT_TOKENS.def, Tuning.CHAT_TOKENS.get(p));
+        assertEquals(Tuning.AGENT_STEPS.def, Tuning.AGENT_STEPS.get(p));
         assertTrue(Tuning.resetOnce(p));
-        assertEquals(Tuning.CHAT_TOKENS.def, Tuning.CHAT_TOKENS.get(p));
-        p.edit().putInt(Tuning.CHAT_TOKENS.key, 300).apply();
-        assertFalse("only once: a value set after the reset stays", Tuning.resetOnce(p));
-        assertEquals(300, Tuning.CHAT_TOKENS.get(p));
+        assertFalse("and it is deleted", p.contains(Tuning.CHAT_TOKENS.key));
+        assertFalse("only once", Tuning.resetOnce(p));
     }
 }
