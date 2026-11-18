@@ -183,6 +183,11 @@ public final class TypoFix {
 
     /** The text with its clear typos fixed. {@code own}: the person's own words, never changed. */
     public static Result fix(String text, Dict d, Set<String> own) {
+        return fix(text, d, own, null);
+    }
+
+    /** As above, with what the person's typing taught ({@link TypingModel}): their words, the word before, past fixes. */
+    public static Result fix(String text, Dict d, Set<String> own, TypingModel you) {
         List<String[]> fixes = new ArrayList<String[]>();
         if (text == null || text.isEmpty() || leaveAlone(text)) {
             return new Result(text, fixes);
@@ -192,7 +197,7 @@ public final class TypoFix {
         int last = 0;
         while (m.find()) {
             String w = m.group();
-            String fixed = fixWord(text, m.start(), m.end(), w, d, own);
+            String fixed = fixWord(text, m.start(), m.end(), w, d, own, you);
             out.append(text, last, m.start()).append(fixed == null ? w : fixed);
             if (fixed != null) {
                 fixes.add(new String[]{w, fixed});
@@ -205,6 +210,11 @@ public final class TypoFix {
 
     /** The fix for one word, or null to leave it. */
     static String fixWord(String text, int start, int end, String w, Dict d, Set<String> own) {
+        return fixWord(text, start, end, w, d, own, null);
+    }
+
+    /** As above; {@code you} (may be null) weighs each fix by the person's own typing, as a phone keyboard does. */
+    static String fixWord(String text, int start, int end, String w, Dict d, Set<String> own, TypingModel you) {
         String low = w.toLowerCase(Locale.ROOT);
         if (low.length() <= 4 || w.contains("'") || own != null && own.contains(low)) {
             return null;
@@ -220,18 +230,24 @@ public final class TypoFix {
         if (capital && !sentenceStart(text, start) || !w.substring(1).equals(w.substring(1).toLowerCase(Locale.ROOT))) {
             return null;
         }
-        if (known(low, d)) {
-            return null;
+        if (known(low, d) || you != null && you.undone(low)) {
+            return null; // a real word, or one they undid a fix of: theirs
         }
         // the dictionary words one slip away, weighed by how common the word is and how likely the slip (two letters
         // swapped or a neighbouring key are everyday slips; any other letter much less so)
         Map<String, Double> found = new HashMap<String, Double>();
+        String prev = you == null ? null : TypingModel.wordBefore(text, start);
         for (Map.Entry<String, Double> e : edits(low).entrySet()) {
             String c = e.getKey();
             if (c.length() >= 3 && e.getValue() <= MOST_UNLIKELY && d.has(c)) {
                 int r = rankOf(d.commonness(c));
                 if (r <= COMMON) { // only a fix to an everyday word: a rare one is more likely a word the dictionary lacks
-                    found.put(c, (r + 200.0) * e.getValue());
+                    // score ≈ −log P(w | typed): the word's commonness times the slip's cost, then the person's own
+                    // signals (their words, the word before, their past verdicts) as a factor
+                    double score = (r + 200.0) * e.getValue() * (you == null ? 1 : you.factor(low, c, prev));
+                    if (!Double.isInfinite(score)) {
+                        found.put(c, score);
+                    }
                 }
             }
         }

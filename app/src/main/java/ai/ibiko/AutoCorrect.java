@@ -14,6 +14,9 @@ public final class AutoCorrect {
 
     private final MainActivity a;
     private ai.ibiko.learn.OwnWords own;
+    private ai.ibiko.learn.TypingModel you;
+    /** The fixes made in the last message, until the next one shows whether the person left them alone. */
+    private List<String[]> lastFixes;
 
     AutoCorrect(MainActivity a) {
         this.a = a;
@@ -24,6 +27,13 @@ public final class AutoCorrect {
             own = new ai.ibiko.learn.OwnWords(new File(a.getFilesDir(), "learning/own_words.tsv"));
         }
         return own;
+    }
+
+    private synchronized ai.ibiko.learn.TypingModel you() {
+        if (you == null) {
+            you = new ai.ibiko.learn.TypingModel(new File(a.getFilesDir(), "learning/typing.tsv"));
+        }
+        return you;
     }
 
     /**
@@ -39,12 +49,24 @@ public final class AutoCorrect {
             return text;
         }
         final ai.ibiko.learn.OwnWords mine = own();
-        ai.ibiko.learn.TypoFix.Result r = ai.ibiko.learn.TypoFix.fix(text, ai.ibiko.learn.TypoFix.DEVICE, mine.own());
-        new Thread(() -> mine.heard(text, ai.ibiko.learn.TypoFix.DEVICE), "ibiko-own-words").start();
+        final ai.ibiko.learn.TypingModel model = you();
+        // the fixes in the message before were left alone (not tapped): they were right, so they count for more
+        final List<String[]> before = lastFixes;
+        lastFixes = null;
+        ai.ibiko.learn.TypoFix.Result r = ai.ibiko.learn.TypoFix.fix(text, ai.ibiko.learn.TypoFix.DEVICE, mine.own(), model);
+        final String read = r.text;
+        new Thread(() -> {
+            mine.heard(text, ai.ibiko.learn.TypoFix.DEVICE);
+            if (before != null) {
+                model.keptFixes(before);
+            }
+            model.learn(read); // their words and which word follows which, as a keyboard learns
+        }, "ibiko-own-words").start();
         if (r.fixes.isEmpty()) {
             return text;
         }
         final List<String[]> fixes = r.fixes;
+        lastFixes = fixes;
         a.note(r.said() + " Tap to keep your spelling.");
         android.view.View n = a.findViewById(R.id.composer_note);
         if (n != null) {
@@ -52,6 +74,10 @@ public final class AutoCorrect {
                 for (String[] f : fixes) {
                     mine.keep(f[0]);
                 }
+                if (lastFixes == fixes) {
+                    lastFixes = null; // undone, not accepted
+                }
+                new Thread(() -> model.undid(fixes), "ibiko-typing").start(); // never this fix again
                 a.note("Kept. I won't change " + (fixes.size() == 1 ? "“" + fixes.get(0)[0] + "”" : "those words") + " again.");
             });
         }
