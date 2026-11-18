@@ -38,7 +38,7 @@ public final class DatasetFile {
         }
         boolean subject = false, predicate = false, object = false, lemma = false, language = false;
         for (String raw : header.split(java.util.regex.Pattern.quote(String.valueOf(delimiter)))) {
-            String h = raw.replace("﻿", "").replace("\"", "").trim().toLowerCase(Locale.ROOT).replace(' ', '_');
+            String h = raw.replace("\uFEFF", "").replace("\"", "").trim().toLowerCase(Locale.ROOT).replace(' ', '_');
             subject |= h.equals("subject") || h.equals("head");
             predicate |= h.equals("predicate") || h.equals("relation") || h.equals("type");
             object |= h.equals("object") || h.equals("tail") || h.equals("target");
