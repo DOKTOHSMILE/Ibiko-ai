@@ -41,6 +41,43 @@ public final class StructuredKnowledgeDatabase extends SQLiteOpenHelper {
         return getReadableDatabase().query("lexeme", new String[]{"language","lemma","pos","definition","source","licence","confidence"},
                 "language=? AND lemma=?", new String[]{language, lemma.toLowerCase(java.util.Locale.ROOT)}, null, null, "confidence DESC", "20");
     }
+    /** A word in any language: a dataset may name its languages by code ("yo") or by name ("Yoruba"). */
+    public Cursor findLexemeAnyLanguage(String lemma) {
+        return getReadableDatabase().query("lexeme", new String[]{"language","lemma","pos","definition","source","licence","confidence"},
+                "lemma=?", new String[]{lemma.toLowerCase(java.util.Locale.ROOT)}, null, null, "confidence DESC", "6");
+    }
+
+    /** {words, relations, datasets} kept now. */
+    public long[] counts() {
+        SQLiteDatabase db = getReadableDatabase();
+        return new long[]{android.database.DatabaseUtils.queryNumEntries(db, "lexeme"),
+                android.database.DatabaseUtils.queryNumEntries(db, "relation"),
+                android.database.DatabaseUtils.queryNumEntries(db, "dataset_registry")};
+    }
+
+    /** The datasets imported: "name (licence)", newest first. */
+    public java.util.List<String> datasets() {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        Cursor c = getReadableDatabase().query("dataset_registry", new String[]{"dataset", "licence"}, null, null, null, null,
+                "imported_at DESC", "50");
+        try {
+            while (c.moveToNext()) {
+                out.add(c.getString(0) + (c.getString(1) == null ? "" : " (" + c.getString(1) + ")"));
+            }
+        } finally {
+            c.close();
+        }
+        return out;
+    }
+
+    /** Removes everything imported (the person's own Ibiko 1 memory is elsewhere and stays). */
+    public void clearImported() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete("lexeme", null, null);
+        db.delete("relation", null, null);
+        db.delete("dataset_registry", null, null);
+    }
+
     /** Persist a reviewed semantic edge; heuristic candidates must not be stored as verified facts. */
     public long putReviewedSemanticEdge(String subject, String predicate, String object, String language,
             String source, String licence, double confidence, boolean humanReviewed) {

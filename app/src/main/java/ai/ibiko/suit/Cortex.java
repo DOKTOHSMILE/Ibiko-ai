@@ -21,6 +21,31 @@ public final class Cortex {
                 }
             };
 
+    /** The imported knowledge (Settings › Ibiko 1 and learning › Imported knowledge), or null: none. */
+    private volatile ai.ibiko.intelligence.StructuredKnowledgeDatabase knowledge;
+
+    /** What it retrieves from imported datasets for every message; at most this many characters of it. */
+    static final int KNOWLEDGE_CHARS = 1200;
+
+    /** Connects the imported datasets: what they say about the message's words goes to every model with it. */
+    public Cortex knowledge(ai.ibiko.intelligence.StructuredKnowledgeDatabase store) {
+        knowledge = store;
+        return this;
+    }
+
+    /** The evidence from the imported datasets for {@code message}, or "" (none imported, nothing about it, an error). */
+    String retrieved(String message) {
+        ai.ibiko.intelligence.StructuredKnowledgeDatabase store = knowledge;
+        if (store == null || message == null) {
+            return "";
+        }
+        try {
+            return ai.ibiko.intelligence.KnowledgeContextBuilder.build(store, message, null, KNOWLEDGE_CHARS);
+        } catch (RuntimeException e) {
+            return ""; // a damaged or locked store never stops a reply
+        }
+    }
+
     public Cortex(Function<String, String> learned) {
         this(learned, null);
     }
@@ -64,6 +89,10 @@ public final class Cortex {
     public synchronized String context(String message, String conversationId,
             ai.ibiko.ibiko1.comprehend.Comprehension.Meaning meaning) {
         String base = context(message, conversationId);
+        String found = retrieved(message);
+        if (!found.isEmpty()) {
+            base = base + "\n" + found;
+        }
         if (meaning == null) {
             return base;
         }
