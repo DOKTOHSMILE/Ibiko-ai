@@ -1,42 +1,30 @@
 package ai.ibiko;
 
+import ai.ibiko.brain.*;
+import ai.ibiko.net.Connectivity;
+import ai.ibiko.net.KnowledgeStore;
+import ai.ibiko.net.SyncWorker;
+import ai.ibiko.stage.StageListener;
+import ai.ibiko.stage.StageMode;
+import ai.ibiko.stage.StageView;
+import ai.ibiko.turn.LocalTurn;
+import ai.ibiko.turn.TurnLine;
+import ai.ibiko.voice.AmbientPad;
+import ai.ibiko.voice.ListenBridge;
+import ai.ibiko.voice.ListenCallback;
+import ai.ibiko.voice.TalkBridge;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.view.Window;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.view.WindowManager;
-
 import androidx.appcompat.app.AppCompatActivity;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
-import java.util.UUID;
-
-import ai.ibiko.act.Actions;
-import ai.ibiko.brain.BrainAnswer;
-import ai.ibiko.brain.LearningJournal;
-import ai.ibiko.brain.OfflineBrain;
-import ai.ibiko.brain.Onboarding;
-import ai.ibiko.brain.PendingAction;
-import ai.ibiko.stage.StageMode;
-import ai.ibiko.stage.StageListener;
-import ai.ibiko.stage.StageView;
-import ai.ibiko.net.Connectivity;
-import ai.ibiko.net.KnowledgeStore;
-import ai.ibiko.net.SyncWorker;
-import ai.ibiko.turn.LocalTurn;
-import ai.ibiko.turn.TurnLine;
-import ai.ibiko.turn.TurnRoute;
-import ai.ibiko.voice.AmbientPad;
-import ai.ibiko.voice.ListenBridge;
-import ai.ibiko.voice.ListenCallback;
-import ai.ibiko.voice.TalkBridge;
 
 /**
  * No screen UI. One persona on black; touch and hold to speak, double-tap to type. Anything that leaves the app is asked out loud first and runs only after a spoken yes.
@@ -1348,10 +1336,6 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         model.learning = ai.ibiko.chat.ui.UsageActivity.learningOn(prefs)
                 ? new ai.ibiko.learn.LearningLog(new java.io.File(getFilesDir(), "learning"))
                 : null;
-        model.onLesson = (source, asked, reply) -> ai.ibiko.learn.Central.learn(getFilesDir(),
-                chats == null || chats.current() == null ? "chat"
-                        : chats.current().group != null ? chats.current().group : chats.current().id,
-                source, asked, reply);
         model.lessonRoot = getFilesDir();
         model.usage.restore(prefs.getString("usage_today", null), System.currentTimeMillis());
         hub.addListener(onDownload);

@@ -1,14 +1,13 @@
 package ai.ibiko.learn;
 
+import ai.ibiko.ibiko1.Knowledge;
+import ai.ibiko.ibiko1.formulas.Understanding;
+import ai.ibiko.main.ChatSpace;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
-import ai.ibiko.ibiko1.Knowledge;
-import ai.ibiko.ibiko1.formulas.Understanding;
-import ai.ibiko.main.ChatSpace;
 
 /**
  * The one place that may read across chats. A chat's own machine (its files, its shell, its workers) sees only

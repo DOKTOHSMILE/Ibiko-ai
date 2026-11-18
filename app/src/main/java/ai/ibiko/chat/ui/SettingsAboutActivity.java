@@ -1,17 +1,6 @@
 package ai.ibiko.chat.ui;
 
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.ScrollView;
-import android.widget.TextView;
-import androidx.appcompat.app.AppCompatActivity;
-import ai.ibiko.llm.LocalModel;
-import ai.ibiko.llm.ModelHub;
 
 /** Settings \u203A About: its own screen and layout (activity_settings_about.xml), opened from the list of sections. */
 public class SettingsAboutActivity extends SettingsActivity {
