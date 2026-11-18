@@ -153,7 +153,7 @@ public class LaunchTest {
         ai.ibiko.stage.ChatPane pane = (ai.ibiko.stage.ChatPane) pf.get(c.get());
         pane.activityStep("Cloned me/app");
         pane.activityStep("Read app/Main.java");
-        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS); // the typewriter finishes
+        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS); // the reply is drawn
         android.view.View root = c.get().getWindow().getDecorView();
         android.view.View live = described(root, "What is happening now; tap for every step");
         assertNotNull(live);

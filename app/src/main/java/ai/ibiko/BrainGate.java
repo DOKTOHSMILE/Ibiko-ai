@@ -306,6 +306,9 @@ final class BrainGate {
                 if (allowed.contains(ai.ibiko.suit.FunctionCode.SI)) {
                     how += ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE;
                 }
+                if (allowed.contains(ai.ibiko.suit.FunctionCode.SO) || allowed.contains(ai.ibiko.suit.FunctionCode.SI)) {
+                    how += ai.ibiko.social.SocialPlaybook.SHORT; // how to move through the social codes, in a few lines
+                }
             }
             return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today) + how;
         }
@@ -316,7 +319,9 @@ final class BrainGate {
         java.util.Set<ai.ibiko.suit.FunctionCode> allowed = a.chatTools(persona).allowedCodes();
         return ai.ibiko.suit.FunctionCode.instructions(a.connectorTools(), allowed)
                 + (allowed.contains(ai.ibiko.suit.FunctionCode.SI)
-                ? ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE : "");
+                ? ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE : "")
+                + (allowed.contains(ai.ibiko.suit.FunctionCode.SO) || allowed.contains(ai.ibiko.suit.FunctionCode.SI)
+                ? ai.ibiko.social.SocialPlaybook.RULES : ""); // which social code for which request, and what to do on a failure
     }
 
     boolean modelPiece(int id, String text) {

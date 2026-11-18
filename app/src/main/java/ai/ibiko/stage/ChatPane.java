@@ -470,7 +470,7 @@ public final class ChatPane extends LinearLayout {
             thread.addView(thinkingRow);
         }
         if (liveText != null && workHere()) {
-            liveRow = liveView(liveText.substring(0, Math.max(0, Math.min(liveShown, liveText.length()))));
+            liveRow = liveView(liveText);
             thread.addView(liveRow);
         }
         for (java.util.Map.Entry<String, String> e : making.entrySet()) {
@@ -633,9 +633,7 @@ public final class ChatPane extends LinearLayout {
         workStarted = 0;
         thinkingText = null;
         liveText = null;
-        removeCallbacks(typeNext);
         typing = "";
-        typed = 0;
         show();
     }
 
@@ -663,9 +661,7 @@ public final class ChatPane extends LinearLayout {
         stepAt.clear();
         workStarted = 0;
         thinkingText = null;
-        removeCallbacks(typeNext);
         typing = "";
-        typed = 0;
         show();
     }
 
@@ -709,7 +705,7 @@ public final class ChatPane extends LinearLayout {
     }
 
     /**
-     * The live line: a pulsing dot, what is happening now typed out like a typewriter ("Reading app/Main.java"), and
+     * The live line: a pulsing dot, what is happening now ("Reading app/Main.java"), and
      * the time and step count. The steps themselves are in a bottom sheet a tap away (live while it is open), so the
      * chat keeps only this line and the reply as plain text.
      */
@@ -767,35 +763,16 @@ public final class ChatPane extends LinearLayout {
 
     private LinearLayout liveBlock;
     private TextView liveNow, liveMeta;
-    /** The words being typed and how many are shown so far. */
+    /** The words on the live line now. */
     private String typing = "";
-    private int typed;
-    private final Runnable typeNext = new Runnable() {
-        @Override
-        public void run() {
-            if (liveNow == null || typed >= typing.length()) {
-                return;
-            }
-            typed = Math.min(typing.length(), typed + Math.max(1, typing.length() / 60)); // long lines type faster
-            liveNow.setText(typing.substring(0, typed) + (typed < typing.length() ? "\u258F" : ""));
-            if (typed < typing.length()) {
-                postDelayed(this, TYPE_MS);
-            }
-        }
-    };
-    /** A character every this many milliseconds: the typewriter's pace. */
-    static final long TYPE_MS = 40; // 25 times a second reads as typing; 60 only warms the device
 
-    /** Types {@code words} into the live line, a character at a time; the same words again are left as they are. */
+    /** Puts {@code words} on the live line at once (no typing effect); the same words again are left as they are. */
     private void type(String words) {
         if (words.equals(typing)) {
             return;
         }
         typing = words;
-        typed = 0;
-        removeCallbacks(typeNext);
-        liveNow.setText("");
-        post(typeNext);
+        liveNow.setText(words);
     }
 
     private android.app.Dialog stepsSheet;
@@ -1525,9 +1502,6 @@ public final class ChatPane extends LinearLayout {
             feedVoice(null); // the last sentence of this stretch is made too
             return;
         }
-        if (liveText == null || !t.startsWith(liveText.substring(0, Math.min(liveShown, liveText.length())))) {
-            liveShown = 0; // another reply: typed from the start
-        }
         liveText = t;
         removeCallbacks(typeLive);
         post(typeLive);
@@ -1620,12 +1594,12 @@ public final class ChatPane extends LinearLayout {
     private boolean voiceStamped;
     private SentenceStream voiceCut;
 
-    /** How much of the live reply is typed out so far. */
+    /** How much of the live reply is on screen: all of it that has arrived. */
     private int liveShown;
 
     /**
-     * The fast typewriter: the live reply is typed out a few characters at a time, catching up quicker the further
-     * behind it is, so it reads as writing without ever lagging behind the model.
+     * Draws the live reply: everything the model has sent so far, at once, with no typing effect. Redraws are spaced
+     * a little so a fast model does not re-lay the text on every token, and a long report shows only its end.
      */
     private final Runnable typeLive = new Runnable() {
         @Override
@@ -1634,27 +1608,15 @@ public final class ChatPane extends LinearLayout {
             if (t == null) {
                 return;
             }
-            if (t.length() > LONG_LIVE) {
-                // a long report: no typing, and redrawn at most a few times a second, only its end (re-reading and
-                // re-formatting the whole of it every frame froze the phone after a long audit)
-                long now = android.os.SystemClock.uptimeMillis();
-                if (now - liveDrawnAt < LONG_LIVE_MS) {
-                    postDelayed(this, LONG_LIVE_MS - (now - liveDrawnAt));
-                    return;
-                }
-                liveDrawnAt = now;
-                liveShown = t.length();
-                renderLive(liveTail(t));
+            long now = android.os.SystemClock.uptimeMillis();
+            long gap = t.length() > LONG_LIVE ? LONG_LIVE_MS : LIVE_REDRAW_MS;
+            if (now - liveDrawnAt < gap) {
+                postDelayed(this, gap - (now - liveDrawnAt));
                 return;
             }
-            int behind = t.length() - liveShown;
-            if (behind > 0) {
-                liveShown = nextStop(t, liveShown);
-                renderLive(t.substring(0, liveShown));
-            }
-            if (liveShown < t.length()) {
-                postDelayed(this, LIVE_TICK_MS);
-            }
+            liveDrawnAt = now;
+            liveShown = t.length();
+            renderLive(t.length() > LONG_LIVE ? liveTail(t) : t);
         }
     };
     /** A text block holds about this many characters at most; a longer one is split at paragraphs. */
@@ -1687,7 +1649,7 @@ public final class ChatPane extends LinearLayout {
         return out;
     }
 
-    /** Above this many characters the live reply is not typed out but shown as it comes, a few times a second. */
+    /** Above this many characters the live reply is redrawn only a few times a second, and only its end. */
     static final int LONG_LIVE = 4000;
     static final long LONG_LIVE_MS = 400;
     /** While writing, a long reply shows only its last part (all of it when it is finished). */
@@ -1714,23 +1676,8 @@ public final class ChatPane extends LinearLayout {
                 + (fences % 2 == 1 ? "```\n" : "") + tail;
     }
 
-    /** At least this many characters a frame (about 500 a second at 60 frames), in whole words, as ChatGPT streams. */
-    static final int LIVE_CHARS_PER_TICK = 20; // 25 redraws a second, 20 characters each: the same 500 a second
-    static final long LIVE_TICK_MS = 40; // as above: the live reply is redrawn 25 times a second at most
-
-    /**
-     * Where the typewriter stops next: a few characters on, more the further behind it is (a third of the gap a
-     * frame), then on to the end of the word, so whole words appear and it never trails the model.
-     */
-    static int nextStop(String t, int shown) {
-        int behind = t.length() - shown;
-        int at = Math.min(t.length(), shown + Math.max(LIVE_CHARS_PER_TICK, behind / 3));
-        int limit = Math.min(t.length(), at + 16);
-        while (at < limit && !Character.isWhitespace(t.charAt(at))) {
-            at++;
-        }
-        return at;
-    }
+    /** The live reply is redrawn at most this often: 25 times a second, as fast as reading, without warming the phone. */
+    static final long LIVE_REDRAW_MS = 40;
 
     private void renderLive(String shown) {
         if (shown != null && !workHere()) {
