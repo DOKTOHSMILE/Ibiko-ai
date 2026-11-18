@@ -450,15 +450,51 @@ public final class RemoteBrain {
     /** The last reply stopped at its allowance (finish_reason "length", stop_reason "max_tokens"), not by itself. */
     private volatile boolean cutOff;
 
+    /** Whether the last stream reached the server's own end ([DONE], message_stop), not a cut connection. */
+    private volatile boolean endedClean;
+    /** How long a request cut by a network change waits for the internet to come back before asking again. */
+    static long networkWaitMs = 120_000L;
+    /** Network changes a single reply may ride through (each time carrying on from what had arrived). */
+    static final int MOST_NETWORK_RESUMES = 4;
+
     private String chatRetrying(String system, List<String[]> turns, int maxTokens, float temperature, NativeLlm.Sink sink) {
+        String sofar = "";
+        List<String[]> asking = turns;
+        int resumes = 0;
         for (int attempt = 0; ; attempt++) {
             transientFailure = false;
             final int[] got = {0};
+            final StringBuilder arrived = new StringBuilder();
             NativeLlm.Sink counted = text -> {
                 got[0]++;
+                if (text != null) {
+                    arrived.append(text);
+                }
                 return sink == null || sink.onText(text);
             };
-            String out = chatOnce(system, turns, maxTokens, temperature, counted);
+            int switchesBefore = ai.ibiko.net.NetSwitch.switches();
+            endedClean = false;
+            String out = chatOnce(system, asking, maxTokens, temperature, counted);
+            // leaving the app often moves it from Wi-Fi to mobile data: the connection on the old network was cut
+            // (net/NetSwitch). Wait for the internet, then ask again, carrying on from what had already arrived
+            if (!cancelled && !endedClean && ai.ibiko.net.NetSwitch.switches() != switchesBefore
+                    && resumes < MOST_NETWORK_RESUMES) {
+                resumes++;
+                String part = out != null ? out : arrived.toString();
+                sofar = joinContinuation(sofar, part);
+                ai.ibiko.net.NetSwitch.awaitOnline(networkWaitMs);
+                if (!sofar.isEmpty()) {
+                    asking = new ArrayList<String[]>(turns);
+                    asking.add(new String[]{"assistant", sofar});
+                    asking.add(new String[]{"user", CONTINUE});
+                }
+                attempt--; // a network change is not one of the retries for a busy server
+                continue;
+            }
+            if (!sofar.isEmpty()) {
+                // the reply rode through a network change: the part before it and the rest are one reply
+                return out == null ? (got[0] > 0 ? joinContinuation(sofar, arrived.toString()) : sofar) : joinContinuation(sofar, out);
+            }
             if (out != null || !transientFailure || got[0] > 0 || cancelled || attempt >= retryWaits.length) {
                 return out;
             }
@@ -802,6 +838,7 @@ public final class RemoteBrain {
 
     /** OpenAI events: "data: {json}" lines with choices[0].delta.content; "data: [DONE]" ends it. */
     String readOpenAi(InputStream in, NativeLlm.Sink sink) throws IOException {
+        endedClean = false;
         BufferedReader lines = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
         StringBuilder all = new StringBuilder(), plain = new StringBuilder();
         String line;
@@ -823,6 +860,7 @@ public final class RemoteBrain {
             }
             String data = t.substring(5).trim();
             if (data.equals("[DONE]")) {
+                endedClean = true;
                 break;
             }
             Map<String, Object> o = parse(data);
@@ -957,6 +995,7 @@ public final class RemoteBrain {
      * as one).
      */
     String readAnthropic(InputStream in, NativeLlm.Sink sink) throws IOException {
+        endedClean = false;
         BufferedReader lines = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
         StringBuilder all = new StringBuilder();
         String line, stop = null;
@@ -1001,6 +1040,7 @@ public final class RemoteBrain {
                 problem = "the server stopped: " + MiniJson.str(MiniJson.obj(o.get("error")).get("message"), "an error");
                 return null;
             } else if (type.equals("message_stop")) {
+                endedClean = true;
                 break;
             }
         }
@@ -1116,12 +1156,26 @@ public final class RemoteBrain {
                 c.setRequestProperty(h.getKey(), h.getValue());
             }
             c.setFixedLengthStreamingMode(body.length);
-            try (java.io.OutputStream o = c.getOutputStream()) {
-                o.write(body);
+            ai.ibiko.net.NetSwitch.track(c); // cut at once if the network changes, rather than waiting out the timeout
+            final javax.net.ssl.HttpsURLConnection open = c;
+            try {
+                try (java.io.OutputStream o = c.getOutputStream()) {
+                    o.write(body);
+                }
+                int status = c.getResponseCode();
+                InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
+                InputStream raw = in == null ? new java.io.ByteArrayInputStream(new byte[0]) : in;
+                return new Response(status, new java.io.FilterInputStream(raw) {
+                    @Override
+                    public void close() throws IOException {
+                        ai.ibiko.net.NetSwitch.done(open);
+                        super.close();
+                    }
+                });
+            } catch (IOException | RuntimeException e) {
+                ai.ibiko.net.NetSwitch.done(c);
+                throw e;
             }
-            int status = c.getResponseCode();
-            InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
-            return new Response(status, in == null ? new java.io.ByteArrayInputStream(new byte[0]) : in);
         };
     }
 }
