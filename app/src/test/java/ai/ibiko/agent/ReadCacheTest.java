@@ -6,19 +6,17 @@ import org.junit.Test;
 
 public class ReadCacheTest {
     @Test
-    public void secondReadIsCachedAndTheThirdStops() {
+    public void aSecondReadOfAnUnchangedFileIsRefused() {
         ReadCache c = new ReadCache();
         Assert.assertNull(c.again("read_file", "a.java\u00001-40", 7L, "2. write the method"));
         c.keep("read_file", "a.java\u00001-40", 7L, "class A {}");
-        String again = c.again("read_file", "a.java\u00001-40", 7L, "2. write the method");
-        Assert.assertNotNull(again);
-        Assert.assertTrue(again.startsWith("Cached."));
-        Assert.assertTrue(again.contains("class A {}"));
-        Assert.assertTrue(again.contains("2. write the method"));
         String stop = c.again("read_file", "a.java\u00001-40", 7L, "2. write the method");
-        Assert.assertTrue(stop.contains("twice"));
-        Assert.assertFalse(stop.contains("class A"));
-        Assert.assertNull(c.again("read_file", "a.java\u00001-40", 8L, ""));
+        Assert.assertNotNull(stop);
+        Assert.assertTrue(stop.startsWith("Cached."));
+        Assert.assertTrue(stop.contains("Write the fix now"));
+        Assert.assertTrue(stop.contains("2. write the method"));
+        Assert.assertFalse("not handed the file again", stop.contains("class A"));
+        Assert.assertNull("a changed file is read again", c.again("read_file", "a.java\u00001-40", 8L, ""));
     }
 
     @Test

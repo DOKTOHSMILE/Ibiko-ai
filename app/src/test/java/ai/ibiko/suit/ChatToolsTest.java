@@ -65,7 +65,7 @@ public class ChatToolsTest {
         assertEquals("Ordinary", ChatTools.defaults("obi").thinkLabel());
         t.think(3);
         assertFalse("Wisdom is ibiko1's own reasoning, not a fourth level", t.deep());
-        assertFalse(t.round());
+        assertTrue("an old Wisdom 3.0 setting is read as Think 2", t.round());
         assertEquals("Think 2", t.thinkLabel());
         ChatTools migrated = ChatTools.read("ibiko", t.write());
         assertEquals(2, migrated.think());
