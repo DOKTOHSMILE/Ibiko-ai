@@ -306,6 +306,9 @@ final class BrainGate {
                 if (allowed.contains(ai.ibiko.suit.FunctionCode.SI)) {
                     how += ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE;
                 }
+                if (allowed.contains(ai.ibiko.suit.FunctionCode.SO) || allowed.contains(ai.ibiko.suit.FunctionCode.SI)) {
+                    how += ai.ibiko.social.SocialPlaybook.SHORT; // how to move through the social codes, in a few lines
+                }
             }
             return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today) + how;
         }
@@ -316,7 +319,9 @@ final class BrainGate {
         java.util.Set<ai.ibiko.suit.FunctionCode> allowed = a.chatTools(persona).allowedCodes();
         return ai.ibiko.suit.FunctionCode.instructions(a.connectorTools(), allowed)
                 + (allowed.contains(ai.ibiko.suit.FunctionCode.SI)
-                ? ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE : "");
+                ? ai.ibiko.social.intel.SocialCapabilityRegistry.forBrain(a.socialIntel().providers()) + a.ENGAGE : "")
+                + (allowed.contains(ai.ibiko.suit.FunctionCode.SO) || allowed.contains(ai.ibiko.suit.FunctionCode.SI)
+                ? ai.ibiko.social.SocialPlaybook.RULES : ""); // which social code for which request, and what to do on a failure
     }
 
     boolean modelPiece(int id, String text) {
@@ -416,11 +421,12 @@ final class BrainGate {
             a.noteUser(text); // the chat keeps what was typed
             text = a.autoCorrect.typos(text); // the brain reads it with the clear typos fixed
             final String said = text;
+            final String chatContext = a.chatContextKey();
             new Thread(() -> {
                 a.pilotProfile().notice(said); // what the pilot says about themselves
                 // what the pilot asks about, with any model: learned at night if Ibiko 1 doesn't know it yet
                 a.ibiko1().noticeQuestion(said);
-                a.ibiko1().hear(said); // Ibiko 1 learns from every message: grammar, shapes, the pilot's word on its answers
+                a.ibiko1().hear(said, chatContext); // language learning is shared; reference history is chat-local
             }, "ibiko-profile").start();
         }
         if (!interpreted && a.needsInternet() && (a.connectivity == null || !a.connectivity.isOnline())) {

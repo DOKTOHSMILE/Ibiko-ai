@@ -148,7 +148,7 @@ public final class ChatTools {
 
     /** Sets the thinking level. Think 1 is also the Deep thinking tool; the other level turns that tool off. */
     public void think(int level) {
-        think = level == 2 ? 2 : level == 1 ? 1 : 0;
+        think = level >= 2 ? 2 : level == 1 ? 1 : 0; // an old Wisdom 3.0 (3) is read as Think 2
         if (think == 1 && offered(persona).contains(Tool.DEEP)) {
             on.add(Tool.DEEP);
         } else {

@@ -17,6 +17,12 @@ public class WorkLogCompactorTest {
         return b.append("\n</result>\n").toString();
     }
 
+    /** One pass as CodeAgent makes it: null means nothing was left out, so the log stays as it is. */
+    private static String pass(WorkLogCompactor c, String log) {
+        String out = c.compact(log, 120_000, 60_000);
+        return out == null ? log : out;
+    }
+
     @Test
     public void aSmallLogIsNotTouched() {
         String log = "Task: fix it\n" + result("a", 100);
@@ -61,18 +67,18 @@ public class WorkLogCompactorTest {
             log.append(result(String.valueOf(i), 6000));
         }
         WorkLogCompactor c = new WorkLogCompactor();
-        String first = c.compact(log.toString(), 120_000, 60_000);
+        String first = pass(c, log.toString());
         assertTrue("old result gone", !first.contains(result("0", 6000)));
         assertTrue("recent result stays", first.contains(result("23", 6000)));
         assertTrue("elision is visible", first.contains("earlier tool result left out"));
-        assertEquals("a second pass at the same size changes nothing", first, c.compact(first, 120_000, 60_000));
-        assertFalse("elision is permanent", c.compact(first, 120_000, 60_000).contains(result("0", 6000)));
+        assertEquals("a second pass at the same size changes nothing", first, pass(c, first));
+        assertFalse("elision is permanent", pass(c, first).contains(result("0", 6000)));
 
         log.append(result("24", 6000));
-        String next = c.compact(log.toString(), 120_000, 60_000);
+        String next = pass(c, log.toString());
         assertTrue("the old prefix is unchanged", next.startsWith(first.substring(0, first.indexOf("earlier tool result"))));
         assertTrue("the new result stays", next.contains(result("24", 6000)));
         c.reset();
-        assertEquals("a new task starts clean", log.toString(), c.compact(log.toString(), 120_000, 60_000));
+        assertEquals("a new task starts clean: as a compactor that never saw the old one", pass(new WorkLogCompactor(), log.toString()), pass(c, log.toString()));
     }
 }

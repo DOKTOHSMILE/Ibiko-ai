@@ -52,6 +52,7 @@ public final class OfflineBrain {
 
     private KnowledgePack pack;
     private final LearningJournal journal;
+    private final AdaptiveLearningEngine adaptiveLearning;
     private final Clock clock;
     private final TimeZone zone;
     private int turn;
@@ -79,6 +80,7 @@ public final class OfflineBrain {
     public OfflineBrain(KnowledgePack pack, LearningJournal journal, Clock clock, TimeZone zone) {
         this.pack = pack;
         this.journal = journal;
+        this.adaptiveLearning = new AdaptiveLearningEngine(journal);
         this.clock = clock;
         this.zone = zone;
     }
@@ -499,7 +501,7 @@ public final class OfflineBrain {
     }
 
     private BrainAnswer keepCorrection(String subject, String value, String speaker) {
-        if (journal.add(LearningJournal.CORRECTION, subject, value) == null) {
+        if (adaptiveLearning.recordCorrection(subject, value) == null) {
             return one(speaker, "I won't keep that. It looks like private information.", "LEARN");
         }
         lastKey = subject;
@@ -512,45 +514,21 @@ public final class OfflineBrain {
     }
 
     /**
-     * What the user taught that bears on {@code question}, as sentences for the language model: the best matches
-     * first, then the newest corrections, at most {@code max}.
+     * What the user taught that bears on {@code question}, as sentences for the language model: only matching
+     * memories, the most relevant and newest corrections first, at most {@code max}.
      */
     public synchronized List<String> taughtFor(String question, int max) {
-        Set<String> q = tokens(stripQuestion(normalize(question)));
-        List<LearningJournal.Entry> all = journal.all();
-        List<String> matched = new ArrayList<String>(), recent = new ArrayList<String>();
-        List<int[]> order = new ArrayList<int[]>(); // {overlap, index}, newest first
-        for (int i = all.size() - 1; i >= 0; i--) {
-            LearningJournal.Entry e = all.get(i);
-            if (!LearningJournal.TAUGHT_FACT.equals(e.kind) && !LearningJournal.CORRECTION.equals(e.kind)) {
-                continue;
-            }
-            Set<String> k = tokens(e.text.toLowerCase(Locale.US));
-            k.addAll(tokens(e.answer.toLowerCase(Locale.US)));
-            int overlap = 0;
-            for (String w : k) {
-                if (q.contains(w)) {
-                    overlap++;
-                }
-            }
-            order.add(new int[]{overlap, i});
-            if (LearningJournal.CORRECTION.equals(e.kind) && recent.size() < 3) {
-                recent.add(LearningJournal.sentence(e.text, e.answer));
-            }
-        }
-        order.sort((x, y) -> y[0] - x[0]); // a stable sort: newest first among equal matches
-        for (int[] o : order) {
-            String fact = LearningJournal.sentence(all.get(o[1]).text, all.get(o[1]).answer);
-            if (o[0] > 0 && matched.size() < max && !matched.contains(fact)) {
-                matched.add(fact);
-            }
-        }
-        for (String fact : recent) {
-            if (matched.size() < max && !matched.contains(fact)) {
-                matched.add(fact);
-            }
-        }
-        return matched;
+        return adaptiveLearning.sentences(question, max, clock.now());
+    }
+
+    /** A model answer can be rated for evaluation, but ratings never become factual memories. */
+    public synchronized boolean recordAnswerFeedback(String question, String answer, boolean helpful) {
+        return adaptiveLearning.recordFeedback(question, answer, helpful) != null;
+    }
+
+    /** Provenance- and confidence-labelled evidence for diagnostics or model context. */
+    public synchronized String adaptiveLearningContext(String question, int max) {
+        return adaptiveLearning.promptContext(question, max, clock.now());
     }
 
     private BrainAnswer memoryCommands(String text, String cased, String speaker) {

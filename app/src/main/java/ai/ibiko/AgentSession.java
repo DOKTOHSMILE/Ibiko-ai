@@ -99,7 +99,7 @@ final class AgentSession {
 
                         @Override
                         public int readers() {
-                            // the Workers setting (Settings \u203A Advanced); the device's own model answers one call at a time
+                            // the Workers number (Tuning.WORKERS); the device's own model answers one call at a time
                             return ai.ibiko.chat.Tuning.workersAtOnce(a.prefs, a.model.remoteOn());
                         }
 
@@ -217,8 +217,13 @@ final class AgentSession {
                         + (stands.isEmpty() ? "" : "\n\n" + stands + "\nCarry on from that point. Read only the files the next"
                                 + " pending step needs; do not start a second project or re-read what is listed as done.")
                         : task + a.ibiko1().methods().hint(task).replaceFirst("^ ", "\n\n");
-                final String ahead = a.ibiko1().premeditate(task).trim();
-                result = agent.run(asked + "\n\n" + ahead, earlier); // the agent thinks ahead too
+                final String ahead = a.ibiko1().premeditate(task, a.chatContextKey()).trim();
+                final String comprehension = ai.ibiko.suit.ConversationContext.build(a.ibiko1(), a.cortex(),
+                        task, task, a.chatContextKey(), a.chatSpace());
+                final String wisdom = a.cortex().wisdomContext(task);
+                result = agent.run(asked + "\n\n" + ahead
+                        + (comprehension.isEmpty() ? "" : "\n\n" + comprehension)
+                        + (wisdom.isEmpty() ? "" : "\n\n" + wisdom), earlier); // shared Ibiko 1 evidence accompanies the work
                 long began = System.currentTimeMillis();
                 int round = 1;
                 int spun = 0;

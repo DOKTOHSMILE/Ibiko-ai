@@ -153,7 +153,7 @@ public class LaunchTest {
         ai.ibiko.stage.ChatPane pane = (ai.ibiko.stage.ChatPane) pf.get(c.get());
         pane.activityStep("Cloned me/app");
         pane.activityStep("Read app/Main.java");
-        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS); // the typewriter finishes
+        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS); // the reply is drawn
         android.view.View root = c.get().getWindow().getDecorView();
         android.view.View live = described(root, "What is happening now; tap for every step");
         assertNotNull(live);
@@ -1327,37 +1327,29 @@ public class LaunchTest {
     }
 
     @Test
-    public void thinkStaysAsSetInANewChatAndAfterARestart() throws Exception {
+    public void thinkHoldsInTheChatAndANewChatOrARestartStartsOnOrdinary() throws Exception {
         ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class).create().start().resume().visible();
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
         android.widget.TextView think = c.get().findViewById(ai.ibiko.R.id.btn_think);
         c.get().setThink(1);
         org.junit.Assert.assertTrue(think.isSelected());
+        org.junit.Assert.assertEquals("Think 1 holds in this chat", "Think 1", String.valueOf(think.getText()));
+        org.junit.Assert.assertTrue(c.get().chatTools("obi").deep());
         java.lang.reflect.Method fresh = MainActivity.class.getDeclaredMethod("startNewChatSafely");
         fresh.setAccessible(true);
         fresh.invoke(c.get());
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
-        org.junit.Assert.assertEquals("a new chat keeps Think 1", "Think 1", String.valueOf(think.getText()));
-        org.junit.Assert.assertTrue(c.get().chatTools("obi").deep());
+        org.junit.Assert.assertEquals("a new chat starts on Ordinary", "Ordinary", String.valueOf(think.getText()));
+        org.junit.Assert.assertFalse(think.isSelected());
+        c.get().setThink(2);
+        org.junit.Assert.assertTrue(c.get().chatTools("obi").round());
         c.pause().stop().destroy();
 
         ActivityController<MainActivity> again = Robolectric.buildActivity(MainActivity.class).create().start().resume().visible();
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
         android.widget.TextView after = again.get().findViewById(ai.ibiko.R.id.btn_think);
-        org.junit.Assert.assertEquals("still Think 1 after a restart", "Think 1", String.valueOf(after.getText()));
-        again.get().setThink(2);
-        org.junit.Assert.assertTrue(again.get().chatTools("obi").round());
+        org.junit.Assert.assertEquals("the app opens on a new chat, on Ordinary", "Ordinary", String.valueOf(after.getText()));
         again.pause().stop().destroy();
-
-        ActivityController<MainActivity> third = Robolectric.buildActivity(MainActivity.class).create().start().resume().visible();
-        ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
-        android.widget.TextView later = third.get().findViewById(ai.ibiko.R.id.btn_think);
-        org.junit.Assert.assertEquals("Think 2 stays after a restart", "Think 2", String.valueOf(later.getText()));
-        third.get().setThink(0);
-        fresh.invoke(third.get());
-        ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
-        org.junit.Assert.assertEquals("ordinary stays ordinary in a new chat too", "Ordinary", String.valueOf(later.getText()));
-        third.pause().stop().destroy();
     }
 
     @Test

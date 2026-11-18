@@ -19,6 +19,8 @@ public final class Interpreter {
     public enum Language {
         PIDGIN("Pidgin", "Nigerian Pidgin English, the way people in Lagos or Warri say it"),
         YORUBA("Yoruba", "Yoruba, with the proper tone marks and dots (ẹ, ọ, ṣ)"),
+        HAUSA("Hausa", "natural Hausa, using standard Hausa spelling"),
+        IGBO("Igbo", "natural standard Igbo, preserving the correct letters and diacritics"),
         FRENCH("French", "natural French");
 
         public final String shown;
@@ -91,6 +93,13 @@ public final class Interpreter {
     static final String[] FRENCH_SURE = {"je", "nous", "vous", "suis", "sont", "c'est", "j'ai", "bonjour", "merci",
             "pourquoi", "avec", "dans", "veux", "peux", "très", "s'il", "plaît", "qu'est-ce", "aujourd'hui", "est-ce"};
 
+    // Conservative phrase/word cues: only high-information forms are used to avoid classifying English
+    // messages from short function words. These are detection hints, not a trained language identifier.
+    static final String[] HAUSA_SURE = {"sannu", "na gode", "yaya", "lafiya", "ina kwana", "ina wuni",
+            "menene", "me yasa", "don allah", "yaya kake", "yaya kike", "ina son", "ba haka ba"};
+    static final String[] IGBO_SURE = {"kedu", "ndewo", "biko", "anyị", "gịnị", "ọ dị", "kedu ka", "ka ọ dị",
+            "daalụ", "nnoo", "anyị ga", "nke a", "onye bụ", "ọ bụ"};
+
     private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{M}']+");
     private static final Pattern CODE = Pattern.compile("(?s)```.*?(```|$)|`[^`\\n]+`|https?://\\S+");
 
@@ -119,6 +128,10 @@ public final class Interpreter {
         if (YORUBA_LETTERS.matcher(text).find() && yo >= 1 || yoSure >= 2 || yoSure >= 1 && (n <= 6 || yo * 1f / n >= 0.4f)) {
             return Language.YORUBA;
         }
+        int hausa = count(joined, HAUSA_SURE);
+        if (hausa >= 2 || hasStrongPhrase(joined, HAUSA_SURE)) return Language.HAUSA;
+        int igbo = count(joined, IGBO_SURE);
+        if (igbo >= 2 || hasStrongPhrase(joined, IGBO_SURE)) return Language.IGBO;
         // Pidgin
         int pSure = count(joined, PIDGIN_SURE), pWeak = count(joined, PIDGIN_WEAK);
         if (pSure >= 2 || pSure >= 1 && (n <= 12 || (pSure + pWeak) * 1f / n >= 0.15f)) {
@@ -131,6 +144,15 @@ public final class Interpreter {
             return Language.FRENCH;
         }
         return null;
+    }
+
+    private static boolean hasStrongPhrase(String joined, String[] list) {
+        for (String cue : list) {
+            if ((cue.indexOf(' ') >= 0 || cue.matches(".*[ẹọịụṅẸỌỊỤṄ].*")) && joined.contains(" " + cue + " ")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int count(String joined, String[] list) {
@@ -253,8 +275,8 @@ public final class Interpreter {
             return "";
         }
         String s = said.replaceAll("(?s)<think>.*?(</think>|$)", "").replaceAll("</?final>", "").trim();
-        s = s.replaceFirst("(?i)^(here is|here's)?\\s*(the )?(english |french |yoruba |pidgin )?(translation|version)\\s*(is)?\\s*:\\s*", "");
-        s = s.replaceFirst("(?i)^(english|french|yoruba|pidgin|traduction)\\s*:\\s*", "").trim();
+        s = s.replaceFirst("(?i)^(here is|here's)?\\s*(the )?(english |french |yoruba |pidgin |hausa |igbo )?(translation|version)\\s*(is)?\\s*:\\s*", "");
+        s = s.replaceFirst("(?i)^(english|french|yoruba|pidgin|hausa|igbo|traduction)\\s*:\\s*", "").trim();
         if (s.length() >= 2 && (s.startsWith("\"") && s.endsWith("\"") || s.startsWith("“") && s.endsWith("”"))) {
             s = s.substring(1, s.length() - 1).trim();
         }

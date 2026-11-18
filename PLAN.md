@@ -1,3 +1,11 @@
+# Ibiko 1's existing comprehension now reaches the selected brain (0.99.163)
+
+- [x] The existing `ibiko1/comprehend` result is now included in the shared prompt path: intent, operations, negation, references, word senses, goals, constraints, conditions and clarification.
+- [x] The bridge reuses `Ibiko1.understood(...)` and the existing per-chat Cortex context. It adds no persona, alternate assistant, duplicate parser, model call or action path.
+- [x] The structured reading is explicitly labelled advisory evidence, not an app command. Existing function-code and action gates are unchanged.
+- [x] `Ibiko1.understood` access is synchronized to protect its existing read cache from concurrent access.
+- [ ] On the phone: test a negated request ("Don't delete the red file"), a follow-up reference ("Move it to the folder"), and an unclear reference. Confirm the model receives the structured reading and asks when the reference cannot be resolved.
+
 # How a stage is finished
 
 - A stage of fixes is tested on the computer, every error that test finds is fixed, and the result is pushed, so it can be compiled on the phone.

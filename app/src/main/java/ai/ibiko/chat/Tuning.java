@@ -3,8 +3,9 @@ package ai.ibiko.chat;
 import android.content.SharedPreferences;
 
 /**
- * The limits Ibiko works within, as settings rather than numbers fixed in the code (Settings › Advanced). Each has a
- * sensible default and a safe range; a value out of range is brought back into it.
+ * The limits Ibiko works within. They used to be sliders under Settings › Advanced; they are fixed here now, chosen
+ * for speed and for what a reply really needs, so nothing hidden can change how much a chat or a job uses. A value
+ * once saved by the old sliders is ignored (and cleared once, see {@link #resetOnce}).
  */
 public final class Tuning {
     /** One setting: its key, name, explanation, default and range. */
@@ -28,65 +29,18 @@ public final class Tuning {
             this.tier = tier;
         }
 
-        /**
-         * The values a slider stops at: every whole number for a short range (up to 100 apart), otherwise round
-         * numbers (1, 1.5, 2, 3, 4, 5, 6, 8 times a power of ten) so a small value is as easy to pick as a big one,
-         * with the lowest, the default and the highest always among them.
-         */
-        public int[] stops() {
-            java.util.TreeSet<Integer> out = new java.util.TreeSet<Integer>();
-            if (max - min <= 100) {
-                for (int v = min; v <= max; v++) {
-                    out.add(v);
-                }
-            } else {
-                for (long p = 1; p <= max; p *= 10) {
-                    for (double f : new double[]{1, 1.5, 2, 3, 4, 5, 6, 8}) {
-                        long v = Math.round(f * p);
-                        if (v >= min && v <= max) {
-                            out.add((int) v);
-                        }
-                    }
-                }
-                out.add(min);
-                out.add(def);
-                out.add(max);
-            }
-            int[] a = new int[out.size()];
-            int i = 0;
-            for (int v : out) {
-                a[i++] = v;
-            }
-            return a;
-        }
-
-        /** The stop nearest {@code value}. */
-        public int stopFor(int value) {
-            int[] st = stops();
-            int best = 0;
-            for (int i = 1; i < st.length; i++) {
-                if (Math.abs(st[i] - value) < Math.abs(st[best] - value)) {
-                    best = i;
-                }
-            }
-            return best;
-        }
-
-        /** The value as shown beside its slider ("8,192", "Automatic" for a 0 that means automatic). */
-        public String shown(int value) {
-            return value == 0 && name.contains("0 = automatic") ? "Automatic" : String.format(java.util.Locale.US, "%,d", value);
-        }
-
+        /** The fixed value. {@code p} is no longer read: a number saved by the old Advanced sliders has no effect. */
         public int get(SharedPreferences p) {
-            int v = p == null ? def : p.getInt(key, def);
-            return Math.max(min, Math.min(max, v));
+            return def;
         }
     }
 
     public static final Knob CHAT_TOKENS = new Knob("adv_chat_tokens", "Everyday reply length, tokens",
-            "How long an ordinary answer may be. A reasoning model still keeps a little room to think first.", 160, 64, 8000);
+            "How long an ordinary answer may be. A cap, not a target: a model stops when it is done, so room costs nothing"
+                    + " unless used. 160 cut answers off mid-sentence; 700 fits a full answer and a reasoning model's short think.",
+            700, 64, 8000);
     public static final Knob BIG_TOKENS = new Knob("adv_big_tokens", "Long reply length, tokens",
-            "For real work: writing, research, analysis.", 1500, 256, 32000);
+            "For real work: writing, research, analysis. 3,000 fits about 2,200 words before it is cut.", 3000, 256, 32000);
     public static final Knob AGENT_STEPS = new Knob("adv_agent_steps", "Agent steps per task",
             "How many tool steps Ibiko (or a persona reading files) may take before reporting back.", 30, 3, 100);
     public static final Knob AGENT_TOKENS = new Knob("adv_agent_tokens", "Agent step length, tokens",
@@ -94,7 +48,8 @@ public final class Tuning {
     public static final Knob PASTE_CHARS = new Knob("adv_paste_chars", "Paste becomes a file at, characters",
             "A longer paste turns into an attachment card.", 1500, 200, 100000);
     public static final Knob IMAGE_SIDE = new Knob("adv_image_side", "Image size sent, pixels",
-            "The long side of an attached photo.", 1568, 256, 4096);
+            "The long side of an attached photo. An image costs about (width × height) / 750 tokens: 1,280 keeps text in"
+                    + " a screenshot readable at about 1,600 tokens, against 2,400 at 1,568.", 1280, 256, 4096);
     public static final Knob WEB_RESULTS = new Knob("adv_web_results", "Web results per search",
             "How many results a search lists.", 8, 1, 20);
     public static final Knob WEB_PAGES = new Knob("adv_web_pages", "Pages read per search",
@@ -162,13 +117,12 @@ public final class Tuning {
                     + " Deep and above do not use the short reply timer. Android can still stop the app; the Scribe record is what resumes.",
             2, 0, 4); // deep by default: the short reply timer stopped long jobs that were still working
 
-    /** Marks that the one-time reset below has run. */
-    static final String RESET_MARK = "adv_reset_0966";
+    /** Marks that the one-time clear below has run (a new mark: it runs once more, when the sliders were removed). */
+    static final String RESET_MARK = "adv_reset_fixed";
 
     /**
-     * Once, on the version that took the sliders out of the Settings list: every advanced number back to its default.
-     * A slider in a scrolling list moved whenever a finger scrolled past it, so stored values may never have been
-     * chosen. True when it ran now.
+     * Once, on the version that removed Settings › Advanced: the numbers its sliders saved are deleted, so nothing
+     * left behind is kept on the device. They are not read any more either. True when it ran now.
      */
     public static boolean resetOnce(SharedPreferences p) {
         if (p == null || p.getBoolean(RESET_MARK, false)) {

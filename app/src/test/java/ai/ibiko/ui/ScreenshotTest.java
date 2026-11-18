@@ -179,7 +179,7 @@ public class ScreenshotTest {
                 + "<LinearLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n    android:id=\"@+id/chatScreenRoot\"\n"
                 + "    android:layout_width=\"match_parent\"\n    android:orientation=\"vertical\">\n\n    <!-- Compact conversation header -->\n"
                 + "    <LinearLayout\n        android:id=\"@+id/chatHeader\"");
-        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS); // the typewriter catches up
+        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS); // the reply is drawn
         java.util.ArrayList<android.view.View> lang = new java.util.ArrayList<android.view.View>();
         c.get().getWindow().getDecorView().findViewsWithText(lang, "xml", android.view.View.FIND_VIEWS_WITH_TEXT);
         org.junit.Assert.assertFalse("the code viewer names the language", lang.isEmpty());

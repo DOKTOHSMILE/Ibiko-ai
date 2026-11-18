@@ -237,7 +237,12 @@ public final class Ibiko1 {
 
     /** For any brain, with the request: think ahead, and the next step this pilot usually takes after one like it. */
     public String premeditate(String request) {
-        return foundation(request) + foresight().hint(Methods.kind(request)) + reflection().hint(Methods.kind(request))
+        return premeditate(request, "default");
+    }
+
+    /** The same premeditation, with UCL references isolated to the conversation that asked. */
+    public String premeditate(String request, String conversationId) {
+        return foundation(request, conversationId) + foresight().hint(Methods.kind(request)) + reflection().hint(Methods.kind(request))
                 + ai.ibiko.ibiko1.formulas.Critical.brief(ai.ibiko.ibiko1.formulas.Critical.read(request))
                 + (ai.ibiko.ibiko1.formulas.Analyst.hasData(request) ? ai.ibiko.ibiko1.formulas.Analyst.BRIEF : "")
                 + (ai.ibiko.ibiko1.formulas.Probability.applies(request) ? ai.ibiko.ibiko1.formulas.Probability.BRIEF : "");
@@ -248,6 +253,11 @@ public final class Ibiko1 {
      * store, settled by how trustworthy each source is, with how sure it is.
      */
     public String foundation(String request) {
+        return foundation(request, "default");
+    }
+
+    /** The truth foundation with the UCL reading scoped to the requesting conversation. */
+    public String foundation(String request, String conversationId) {
         List<ai.ibiko.ibiko1.formulas.Truth.Claim> claims = new ArrayList<ai.ibiko.ibiko1.formulas.Truth.Claim>();
         long now = System.currentTimeMillis();
         String about = Methods.kind(request) + ":" + (request == null ? "" : request.trim().toLowerCase(Locale.US));
@@ -288,7 +298,7 @@ public final class Ibiko1 {
         }
         String meaning = "";
         try {
-            ai.ibiko.ibiko1.comprehend.Comprehension.Meaning m = understood(request);
+            ai.ibiko.ibiko1.comprehend.Comprehension.Meaning m = understood(request, conversationId);
             if (m != null && (!m.operations.isEmpty() || !m.references.isEmpty() || !m.senses.isEmpty() || m.negated)) {
                 meaning = " " + m.brief(); // what the message means, worked out before any brain reads it
             }
@@ -342,32 +352,35 @@ public final class Ibiko1 {
         return ai.ibiko.ibiko1.formulas.Truth.trueOnly(checked);
     }
 
-    private ai.ibiko.ibiko1.comprehend.Comprehension comprehension;
+    private ai.ibiko.ibiko1.comprehend.ConversationReading comprehensionSessions;
     private ai.ibiko.ibiko1.comprehend.Lookup lookup;
-    private volatile ai.ibiko.ibiko1.comprehend.Comprehension.Meaning lastMeaning;
-    private volatile String lastRead;
 
     /**
      * The comprehension layer (ibiko1/comprehend): WordNet and ConceptNet, unpacked once from the app and read in
      * place, and the reading of each message with its conversation context.
      */
-    public synchronized ai.ibiko.ibiko1.comprehend.Comprehension comprehension() {
-        if (comprehension == null) {
+    private synchronized void loadComprehension() {
+        if (comprehensionSessions == null) {
             File k = new File(dir, "knowledge");
             File lex = Store.unpacked(k, "lexicon.tsv"), con = Store.unpacked(k, "concepts.tsv");
             ai.ibiko.ibiko1.comprehend.Dictionary d = new ai.ibiko.ibiko1.comprehend.Dictionary(
                     new ai.ibiko.ibiko1.comprehend.SortedTable(lex));
             ai.ibiko.ibiko1.comprehend.Concepts c = new ai.ibiko.ibiko1.comprehend.Concepts(
                     new ai.ibiko.ibiko1.comprehend.SortedTable(con));
-            comprehension = new ai.ibiko.ibiko1.comprehend.Comprehension(d, c);
+            comprehensionSessions = new ai.ibiko.ibiko1.comprehend.ConversationReading(d, c);
             lookup = new ai.ibiko.ibiko1.comprehend.Lookup(d, c);
         }
-        return comprehension;
+    }
+
+    /** The default UCL parser, retained for callers that predate per-chat reading. */
+    public synchronized ai.ibiko.ibiko1.comprehend.Comprehension comprehension() {
+        loadComprehension();
+        return comprehensionSessions.parser("default");
     }
 
     /** A dictionary or common-sense question answered offline ("what does X mean", "what is a knife used for"), or null. */
     public String lookUp(String question) {
-        comprehension();
+        loadComprehension();
         try {
             return lookup.answer(question);
         } catch (RuntimeException e) {
@@ -375,21 +388,22 @@ public final class Ibiko1 {
         }
     }
 
-    /** What the latest message means, read once (a second call for the same words returns the same reading). */
-    public ai.ibiko.ibiko1.comprehend.Comprehension.Meaning understood(String message) {
+    /** Default-chat compatibility overload. */
+    public synchronized ai.ibiko.ibiko1.comprehend.Comprehension.Meaning understood(String message) {
+        return understood(message, "default");
+    }
+
+    /** The message's structured meaning, with references resolved only against this conversation's own history. */
+    public synchronized ai.ibiko.ibiko1.comprehend.Comprehension.Meaning understood(String message, String conversationId) {
         if (message == null) {
             return null;
         }
-        if (message.equals(lastRead) && lastMeaning != null) {
-            return lastMeaning;
-        }
         try {
-            lastMeaning = comprehension().read(message);
-            lastRead = message;
+            loadComprehension();
+            return comprehensionSessions.read(conversationId, message);
         } catch (RuntimeException e) {
-            lastMeaning = null;
+            return null;
         }
-        return lastMeaning;
     }
 
     /** Learning from its own replies: how each one went, judged by what the pilot did next ({@code formulas/Reflection}). */
@@ -403,13 +417,18 @@ public final class Ibiko1 {
 
     /** One of the pilot's messages, to any brain: it may judge Ibiko 1's last answer, and it is read for language. */
     public void hear(String said) {
+        hear(said, "default");
+    }
+
+    /** One of the pilot's messages, scoped to the chat it was sent in. */
+    public void hear(String said, String conversationId) {
         String before = lastRequest;
         if (before != null && replied) {
             reflection().observe(Methods.kind(before), before, said); // the next message judges the last reply
         }
         lastRequest = said;
         replied = false;
-        understood(said); // the comprehension layer reads every message, so "it" in the next one has something to mean
+        understood(said, conversationId); // references stay inside this chat, not another chat's recent objects
         foresight().heard(said, Methods.kind(said), System.currentTimeMillis()); // what this pilot asks after what
         learner().heard(said, System.currentTimeMillis());
     }

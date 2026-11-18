@@ -117,8 +117,8 @@ public class BlueprintTest {
         assertEquals(Blueprint.Phase.CHECK, resumed.phase());
         assertTrue(resumed.startBuilding());
         assertEquals(Blueprint.Phase.BUILD, resumed.phase());
-        assertNull(Blueprint.afterSurvey(true, Blueprint.Phase.PLAN, "read_file", 2));
-        assertEquals(Blueprint.BUILD_NOW, Blueprint.afterSurvey(true, Blueprint.Phase.PLAN, "read_file", 3));
+        assertNull("one last read to open the file the plan names", Blueprint.afterSurvey(true, Blueprint.Phase.PLAN, "read_file", 0));
+        assertEquals(Blueprint.BUILD_NOW, Blueprint.afterSurvey(true, Blueprint.Phase.PLAN, "read_file", 1));
         assertEquals(Blueprint.BUILD_NOW, Blueprint.afterSurvey(true, Blueprint.Phase.CHECK, "workers", 0));
         assertNull("building may use workers", Blueprint.afterSurvey(true, Blueprint.Phase.BUILD, "workers", 0));
         assertNull("before the survey, workers may look", Blueprint.afterSurvey(false, Blueprint.Phase.PLAN, "workers", 0));

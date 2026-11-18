@@ -80,7 +80,7 @@ public class SettingsActivity extends AppCompatActivity {
     static final Class<?>[] SCREENS = {SettingsProfileActivity.class, SettingsChatActivity.class,
             SettingsLearningActivity.class, SettingsWorkActivity.class, SettingsModelsActivity.class, SettingsWebActivity.class,
             SettingsActionsActivity.class, SettingsCodingActivity.class, SettingsAppearanceActivity.class, SettingsDataActivity.class,
-            SettingsAdvancedActivity.class, SettingsAboutActivity.class};
+            SettingsAboutActivity.class};
 
     /** Opens one section's own screen ("Chat"), or the list when the title is unknown. */
     public static Intent intentFor(android.content.Context c, String title) {
@@ -130,7 +130,6 @@ public class SettingsActivity extends AppCompatActivity {
             {"Coding", "Commands, long jobs, running in the background"},
             {"Appearance", "System, light or dark"},
             {"Data and privacy", "Memory, learning, export and deleting chats"},
-            {"Advanced", "Reply lengths, agent steps, offline memory and other limits"},
             {"About", "The version of Ibiko"},
     };
 
@@ -147,7 +146,6 @@ public class SettingsActivity extends AppCompatActivity {
             case "Coding": return ai.ibiko.R.drawable.ic_set_coding;
             case "Appearance": return ai.ibiko.R.drawable.ic_set_appearance;
             case "Data and privacy": return ai.ibiko.R.drawable.ic_set_privacy;
-            case "Advanced": return ai.ibiko.R.drawable.ic_set_advanced;
             default: return ai.ibiko.R.drawable.ic_set_about;
         }
     }
@@ -233,110 +231,6 @@ public class SettingsActivity extends AppCompatActivity {
         body.addView(c, Ui.wide(this, 10));
         return inside;
     }
-
-    /** One advanced number as a row: its name and value; a tap opens its editor. Nothing changes from the list itself. */
-    protected View knobRow(final ai.ibiko.chat.Tuning.Knob k) {
-        LinearLayout r = new LinearLayout(this);
-        r.setGravity(Gravity.CENTER_VERTICAL);
-        r.setMinimumHeight(Ui.dp(this, 52));
-        r.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
-        int now = k.get(prefs);
-        LinearLayout words = new LinearLayout(this);
-        words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(Ui.text(this, plainName(k), 15, Ui.TEXT, false));
-        if (now != k.def) {
-            words.addView(Ui.text(this, "changed (default " + label(k, k.def) + ")", 12, Ui.SUB, false));
-        }
-        r.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        r.addView(Ui.text(this, label(k, now) + "  ›", 15, now != k.def ? Ui.ACCENT : Ui.SUB, now != k.def));
-        r.setContentDescription(k.name);
-        r.setOnClickListener(v -> editKnob(k));
-        return r;
-    }
-
-    /** A knob's name without the "(0 = automatic)" style note, which the value already shows. */
-    static String plainName(ai.ibiko.chat.Tuning.Knob k) {
-        return k.name.replaceAll("\\s*\\(0[^)]*\\)\\s*$", "");
-    }
-
-    /** The editor for one number: what it does, minus and plus, a slider, Default; kept only with Save. */
-    protected void editKnob(final ai.ibiko.chat.Tuning.Knob k) {
-        final int[] stops = k.stops();
-        final int[] at = {k.stopFor(k.get(prefs))};
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        int p = Ui.dp(this, 22);
-        box.setPadding(p, Ui.dp(this, 8), p, 0);
-        box.addView(Ui.text(this, k.about, 13, Ui.SUB, false));
-        final TextView value = Ui.text(this, label(k, stops[at[0]]), 26, Ui.TEXT, true);
-        value.setGravity(Gravity.CENTER);
-        LinearLayout step = new LinearLayout(this);
-        step.setGravity(Gravity.CENTER_VERTICAL);
-        TextView minus = Ui.button(this, "−", false);
-        TextView plus = Ui.button(this, "+", false);
-        step.addView(minus, new LinearLayout.LayoutParams(Ui.dp(this, 56), LinearLayout.LayoutParams.WRAP_CONTENT));
-        step.addView(value, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        step.addView(plus, new LinearLayout.LayoutParams(Ui.dp(this, 56), LinearLayout.LayoutParams.WRAP_CONTENT));
-        box.addView(step, Ui.wide(this, 16));
-        final android.widget.SeekBar bar = new android.widget.SeekBar(this);
-        bar.setMax(stops.length - 1);
-        bar.setProgress(at[0]);
-        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-        bar.setThumbTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-        box.addView(bar, Ui.wide(this, 14));
-        LinearLayout ends = new LinearLayout(this);
-        ends.addView(Ui.text(this, label(k, k.min), 11, Ui.SUB, false), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        ends.addView(Ui.text(this, "default " + label(k, k.def), 11, Ui.SUB, false));
-        TextView hi = Ui.text(this, label(k, k.max), 11, Ui.SUB, false);
-        hi.setGravity(Gravity.END);
-        ends.addView(hi, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        box.addView(ends);
-        final Runnable show = () -> {
-            value.setText(label(k, stops[at[0]]));
-            if (bar.getProgress() != at[0]) {
-                bar.setProgress(at[0]);
-            }
-        };
-        minus.setOnClickListener(v -> {
-            at[0] = Math.max(0, at[0] - 1);
-            show.run();
-        });
-        plus.setOnClickListener(v -> {
-            at[0] = Math.min(stops.length - 1, at[0] + 1);
-            show.run();
-        });
-        bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(android.widget.SeekBar b, int i, boolean byUser) {
-                if (byUser) {
-                    at[0] = i;
-                    value.setText(label(k, stops[i]));
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(android.widget.SeekBar b) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(android.widget.SeekBar b) {
-            }
-        });
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(plainName(k))
-                .setView(box)
-                .setPositiveButton("Save", (d, w) -> {
-                    prefs.edit().putInt(k.key, stops[at[0]]).apply();
-                    fill();
-                })
-                .setNeutralButton("Default", (d, w) -> {
-                    prefs.edit().remove(k.key).apply();
-                    fill();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
 
     /** Keeps a number, brought into its range (the field shows what was kept). */
     /** A switch row kept in the preferences; {@code changed} also runs when it flips. */
@@ -687,7 +581,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
             guard.loaded();
             final String words = s == null ? "The test couldn't run: " + hub.model.problem()
-                    : s.words() + " " + threads + " threads (Settings \u203A Advanced \u203A Offline model threads).";
+                    : s.words() + " " + threads + " threads.";
             runOnUiThread(() -> {
                 testing = null;
                 tested.put(m.file, words);
@@ -875,21 +769,4 @@ public class SettingsActivity extends AppCompatActivity {
         return r;
     }
 
-    /** The number beside a slider. A tier shows Automatic, Fast, Small, Big or Strong instead of a raw count. */
-    static String label(ai.ibiko.chat.Tuning.Knob k, int value) {
-        if (k == ai.ibiko.chat.Tuning.RUN_MODE) {
-            String[] modes = {"Quick", "Balanced", "Deep", "Extended", "Autonomous"};
-            return modes[Math.max(0, Math.min(modes.length - 1, value))];
-        }
-        if (k == ai.ibiko.chat.Tuning.MODEL_THREADS && value == 0) {
-            return "Automatic";
-        }
-        if (k != null && k.tier) {
-            String name = ai.ibiko.chat.Tuning.tierName(null, value);
-            if (name != null) {
-                return name;
-            }
-        }
-        return k == null ? "" : k.shown(value);
-    }
 }

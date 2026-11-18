@@ -52,7 +52,17 @@ final class ThinkTurns {
         a.stopPlay();
         a.stage.setMode(StageMode.THINKING);
         a.armThink("Thinking together", "Writing one answer");
-        final String context = a.chats == null ? "" : a.chats.transcript(a.model.remoteOn() ? 6000 : 1500, a.model.remoteOn() ? 1500 : 300);
+        final String transcript = a.chats == null ? "" : a.chats.transcript(a.model.remoteOn() ? 6000 : 1500, a.model.remoteOn() ? 1500 : 300);
+        final String chatKey = a.chatContextKey();
+        final String comprehension = ai.ibiko.suit.ConversationContext.build(a.ibiko1(), a.cortex(),
+                question, question, chatKey, a.chatSpace());
+        // Keep this route aligned with the ordinary model route: Ibiko 1's UCL, settled evidence, foresight,
+        // critical reading and Wisdom all accompany the selected model. None of these notes is an executable action.
+        final String premeditation = a.ibiko1().premeditate(question, chatKey);
+        final String wisdom = a.cortex().wisdomContext(question);
+        final String context = transcript + (comprehension.isEmpty() ? "" : "\n\n" + comprehension)
+                + (premeditation.isEmpty() ? "" : "\n\n" + premeditation)
+                + (wisdom.isEmpty() ? "" : "\n\n" + wisdom);
         a.hub.worker.execute(() -> {
             ai.ibiko.llm.ReplyService.hold(a);
             final String council = ai.ibiko.agent.AgentBoard.start("Ibiko \u00B7 council", question, a.brainLabel());

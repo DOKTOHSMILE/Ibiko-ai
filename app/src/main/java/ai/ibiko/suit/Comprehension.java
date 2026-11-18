@@ -17,6 +17,8 @@ import java.util.regex.Pattern;
  * decides that. Pure Java.
  */
 public final class Comprehension {
+    /** Deterministic local linguistic evidence; heuristic labels must not be treated as ground truth. */
+    public ai.ibiko.intelligence.UnderstandingEngine.Result understanding;
     /** What the message does. */
     public enum Act { QUESTION, REQUEST, GREETING, THANKS, CORRECTION, FEELING, STATEMENT }
 
@@ -59,6 +61,7 @@ public final class Comprehension {
         this.refused = refused;
         this.hypothetical = hypothetical;
         this.judgement = judgement;
+        this.understanding = new ai.ibiko.intelligence.UnderstandingEngine().analyze("", null);
         this.want = want;
         this.also = also;
         this.math = math;
@@ -88,6 +91,7 @@ public final class Comprehension {
                 || low.matches(".*\\b(should i|should we|which is better|help me decide|torn between|stuck between)\\b.*"));
         FunctionCode[] picked = no || hypothetical || judgement ? new FunctionCode[] {null, null} : pick(low, act(low), math != null);
         Comprehension c = new Comprehension(act(low), negated(low), no, hypothetical, judgement, picked[0], picked[1], math, value);
+        c.understanding = new ai.ibiko.intelligence.UnderstandingEngine().analyze(t, null);
         collect(NUMBER, t, 0, c.numbers);
         collect(LINK, t, 0, c.links);
         String noLinks = LINK.matcher(t).replaceAll(" ");
@@ -339,6 +343,9 @@ public final class Comprehension {
         }
         if (math != null && mathValue != null && !mathValue.isEmpty()) {
             b.append("; exact arithmetic: ").append(math).append(" = ").append(mathValue).append(" (use this value)");
+        }
+        if (understanding != null) {
+            b.append("; ").append(understanding.toPromptContext());
         }
         return b.append('.').toString();
     }

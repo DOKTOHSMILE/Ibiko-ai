@@ -106,37 +106,49 @@ public final class TruthLedger implements Truth.Witness {
 
     /** G9 warn: the known mistakes, then the checked truths, about a request, as a line for the brain; "" when none. */
     public synchronized String about(String request, int most) {
-        java.util.Set<String> words = words(request);
-        if (words.isEmpty()) {
-            return "";
-        }
-        List<Entry> wrong = new ArrayList<Entry>(), right = new ArrayList<Entry>();
+        java.util.Set<String> wanted = words(request);
+        if (wanted.isEmpty() || most <= 0) return "";
+        List<Ranked> wrong = new ArrayList<Ranked>(), right = new ArrayList<Ranked>();
         for (Entry e : all.values()) {
-            java.util.Set<String> w = words(e.sentence);
-            w.retainAll(words);
-            if (!w.isEmpty()) {
-                (e.verdict == Truth.Verdict.FALSE ? wrong : right).add(0, e); // newest first
-            }
+            java.util.Set<String> terms = words(e.sentence);
+            int shared = 0;
+            for (String term : terms) if (wanted.contains(term)) shared++;
+            if (shared == 0) continue;
+            // Dice balances query coverage and sentence precision. A single incidental word no longer
+            // drags an unrelated old verdict into every prompt.
+            double score = (2.0d * shared) / (wanted.size() + terms.size());
+            if (score < 0.45d) continue;
+            (e.verdict == Truth.Verdict.FALSE ? wrong : right).add(new Ranked(e, score));
         }
+        java.util.Comparator<Ranked> order = (a, b) -> {
+            int byScore = Double.compare(b.score, a.score);
+            return byScore != 0 ? byScore : Long.compare(b.entry.last, a.entry.last);
+        };
+        java.util.Collections.sort(wrong, order);
+        java.util.Collections.sort(right, order);
         StringBuilder b = new StringBuilder();
         int n = 0;
-        for (Entry e : wrong) {
-            if (n++ >= most) {
-                break;
-            }
+        for (Ranked ranked : wrong) {
+            if (n++ >= most) break;
+            Entry e = ranked.entry;
             b.append(b.length() == 0 ? " Checked before and found false (never repeat these):" : ";").append(" “")
                     .append(e.sentence).append("”").append(e.correction == null ? "" : ", in fact: " + e.correction);
         }
         int m = 0;
         boolean opened = false;
-        for (Entry e : right) {
-            if (m++ >= most) {
-                break;
-            }
+        for (Ranked ranked : right) {
+            if (m++ >= most) break;
+            Entry e = ranked.entry;
             b.append(opened ? ";" : (b.length() == 0 ? "" : ".") + " Checked before and found true:").append(" “").append(e.sentence).append("”");
             opened = true;
         }
         return b.length() == 0 ? "" : b.append('.').toString();
+    }
+
+    private static final class Ranked {
+        final Entry entry;
+        final double score;
+        Ranked(Entry entry, double score) { this.entry = entry; this.score = score; }
     }
 
     private static java.util.Set<String> words(String s) {

@@ -55,23 +55,29 @@ public final class Understanding {
         }
         if (low.matches("(?s).*\\b(might|may|could|perhaps|maybe)\\b.*")) {
             follows = follows + " It is possible, not settled.";
-            silent = "It does not say it will happen.";
-            undone = "A later word that settles it one way or the other.";
+            silent = join(silent, "It does not say it will happen.");
+            undone = join(undone, "A later word that settles it one way or the other.");
         }
         if (low.matches("(?s).*\\b(if|unless)\\b.*")) {
-            follows = "It applies only in the case it names, not in every case.";
-            silent = "It does not say what happens outside that case.";
-            undone = "The case it names not holding.";
+            follows = join(follows, "This applies only in the case it names, not in every case.");
+            silent = join(silent, "It does not say what happens outside that case.");
+            undone = join(undone, "The case it names not holding.");
         }
         if (low.matches("(?s).*\\b(because|so that|since)\\b.*")) {
-            assumes = "The reason it gives is part of the claim, not decoration.";
-            follows = "If that reason is wrong, the claim does not stand as stated.";
-            undone = "The reason being false.";
+            assumes = join(assumes, "The reason it gives is part of the claim, not decoration.");
+            follows = join(follows, "If that reason is wrong, the claim does not stand as stated.");
+            undone = join(undone, "The reason being false.");
         }
         if (low.matches("(?s).*\\b(should|ought)\\b.*")) {
-            follows = "A recommendation, not a fact that it is already so.";
-            silent = "It does not say the recommended thing has already been done.";
+            follows = join(follows, "This is a recommendation, not a fact that it is already so.");
+            silent = join(silent, "It does not say the recommended thing has already been done.");
         }
         return new Implication(s, assumes, follows, silent, undone);
+    }
+
+    private static String join(String first, String next) {
+        if (first == null || first.isEmpty()) return next;
+        if (next == null || next.isEmpty() || first.contains(next)) return first;
+        return first + " " + next;
     }
 }

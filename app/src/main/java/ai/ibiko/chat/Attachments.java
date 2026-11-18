@@ -168,7 +168,7 @@ public final class Attachments {
         return longPaste(inserted, 1500);
     }
 
-    /** As above, with the length (Settings › Advanced) at which a paste becomes a file. */
+    /** As above, with the length (Tuning.PASTE_CHARS) at which a paste becomes a file. */
     public static boolean longPaste(CharSequence inserted, int chars) {
         if (inserted == null) {
             return false;

@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  * phone are behind {@link Brain} and {@link Host}.
  */
 public final class CodeAgent {
-    /** The default number of steps; Settings › Advanced changes it ({@link #steps}). */
+    /** The default number of steps ({@link #steps} sets it; the app passes Tuning.AGENT_STEPS). */
     public static final int MAX_STEPS = 40;
     private int maxSteps = MAX_STEPS;
     private String persona = "Ibiko";
@@ -785,8 +785,8 @@ public final class CodeAgent {
             + " description of the change).\n"
             + "4. If a push says the branch has newer commits on GitHub: git pull, then push again. If the pull lists"
             + " conflicts, read each file and its .theirs copy, merge them into the file, delete the .theirs file, then push.\n"
-            + "5. If a clone says the repository has too many files, tell the user the number and where to raise the limit"
-            + " (Settings \u203A Advanced \u203A Most files in a clone); don't work around it.\n"
+            + "5. If a clone says the repository has too many files, tell the user the number and that it is over the"
+            + " phone's limit for a clone; don't work around it.\n"
             + "6. git diff shows the changed lines, git log the recent commits, git branches the branch names. None of these download the repository again.\n"
             + "7. To bring main into this branch: git fetch branch=\"main\", then git merge branch=\"main\" (git sync does both)."
             + " The phone fetches the file list and merges on the device. It does not send the repository to a server."

@@ -46,7 +46,8 @@ final class Brains {
 
     synchronized ai.ibiko.suit.Cortex cortex() {
         if (a.cortex == null) {
-            a.cortex = new ai.ibiko.suit.Cortex(q -> brainBox().recallTalk(q));
+            a.cortex = new ai.ibiko.suit.Cortex(q -> brainBox().recallTalk(q),
+                    q -> a.ibiko1().knownLines(q));
         }
         return a.cortex;
     }
@@ -252,7 +253,7 @@ final class Brains {
         if (!safeModel()) {
             return; // nothing on the phone fits it: answers come from an API until a smaller model is chosen
         }
-        a.model.context(ai.ibiko.chat.Tuning.OFFLINE_CONTEXT.get(a.prefs)); // Settings › Advanced › Offline model memory
+        a.model.context(ai.ibiko.chat.Tuning.OFFLINE_CONTEXT.get(a.prefs)); // fixed in Tuning; steps down by itself when memory is short
         a.hub.worker.execute(() -> {
             final ai.ibiko.llm.ModelGuard guard = new ai.ibiko.llm.ModelGuard(a.prefs);
             final String file = a.model.spec.file;

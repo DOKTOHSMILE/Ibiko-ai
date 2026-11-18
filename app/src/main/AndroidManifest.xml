@@ -156,10 +156,6 @@
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />
         <activity
-            android:name=".chat.ui.SettingsAdvancedActivity"
-            android:exported="false"
-            android:theme="@style/Theme.Ibiko" />
-        <activity
             android:name=".chat.ui.SettingsAboutActivity"
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />

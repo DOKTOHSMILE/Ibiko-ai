@@ -184,7 +184,7 @@ Toolchain: Java 17, AGP 8.7.3, Gradle 8.9, compileSdk/targetSdk 35, minSdk 34, N
 - **Limits.** Per-network rate limits apply, and Ibiko pauses when a site shows a warning.
 
 ### 5.7 Languages
-- Nigerian Pidgin, Yoruba and French are recognised. The model works in English, and the reply is translated back.
+- Nigerian Pidgin, Yoruba, Hausa, Igbo and French are recognised by conservative lexical cues. The model works in English, and the reply is translated back; translation quality depends on the selected model.
 - Code and links are protected so they pass through translation unchanged.
 - English is never sent for translation.
 
