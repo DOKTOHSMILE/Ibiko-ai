@@ -16,6 +16,9 @@ public final class Arithmetic {
             "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
     private static final String[] TENS = {"", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"};
 
+    /** The longest sum read: far past anything a person writes, well short of what overflows the parser. */
+    static final int MOST = 400;
+
     private final String s;
     private int at;
 
@@ -26,14 +29,15 @@ public final class Arithmetic {
     /** The result of an expression in symbols or words, or null when it isn't one (or divides by zero). */
     public static BigDecimal eval(String text) {
         String e = normalise(text);
-        if (e == null || e.isEmpty() || !e.matches(".*\\d.*") || !e.matches("[0-9.+\\-*/^()%r ]+")) {
+        // the parser recurses on each bracket and sign: thousands of "(" or "-" overflowed the stack and closed the app
+        if (e == null || e.isEmpty() || e.length() > MOST || !e.matches(".*\\d.*") || !e.matches("[0-9.+\\-*/^()%r ]+")) {
             return null;
         }
         try {
             Arithmetic p = new Arithmetic(e.replace(" ", ""));
             BigDecimal v = p.sum();
             return p.at == p.s.length() ? v : null;
-        } catch (ArithmeticException | NumberFormatException | IndexOutOfBoundsException ex) {
+        } catch (ArithmeticException | NumberFormatException | IndexOutOfBoundsException | StackOverflowError ex) {
             return null;
         }
     }

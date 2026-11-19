@@ -17,6 +17,17 @@ public class SuitTest {
     }
 
     @Test
+    public void aFloodOfBracketsIsNotASumAndDoesNotCloseTheApp() {
+        StringBuilder deep = new StringBuilder();
+        for (int i = 0; i < 20000; i++) {
+            deep.append('(');
+        }
+        assertNull(Arithmetic.eval(deep + "1")); // the recursive parser overflowed the stack
+        assertNull(Arithmetic.asked(deep.toString().replace('(', '-') + "5"));
+        assertEquals("13", Arithmetic.show(Arithmetic.eval("((((6+7))))")));
+    }
+
+    @Test
     public void arithmeticIsExact() {
         assertEquals("84", calc("12*7"));
         assertEquals("0.3", calc("0.1+0.2"));

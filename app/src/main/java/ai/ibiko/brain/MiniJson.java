@@ -31,6 +31,10 @@ public final class MiniJson {
         return v;
     }
 
+    /** How deep objects and arrays may nest: each level recurses, and "[[[[…" thousands deep overflowed the stack. */
+    static final int MOST_DEPTH = 512;
+    private int depth;
+
     private Object value() {
         if (pos >= src.length()) {
             throw error("unexpected end");
@@ -38,9 +42,15 @@ public final class MiniJson {
         char c = src.charAt(pos);
         switch (c) {
             case '{':
-                return object();
             case '[':
-                return array();
+                if (++depth > MOST_DEPTH) {
+                    throw error("nested too deep");
+                }
+                try {
+                    return c == '{' ? object() : array();
+                } finally {
+                    depth--;
+                }
             case '"':
                 return string();
             case 't':
