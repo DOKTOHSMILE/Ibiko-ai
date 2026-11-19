@@ -108,18 +108,20 @@ public final class CampaignRunner extends BroadcastReceiver {
             fail(c, camp, it, "its picture couldn't be drawn on this phone");
             return;
         }
-        SocialAccounts.Account before = accounts.inUse(net);
-        boolean switched = before == null || !before.id.equals(a.id);
-        if (switched && !SocialWeb.switchTo(c, a.id)) {
-            fail(c, camp, it, "the sign-in for " + a.label + " wasn't kept; sign in again under Social accounts");
-            return;
-        }
         SocialPoster.Result r;
-        try {
-            r = SocialPoster.post(c, net, it.text, null, null, picture);
-        } finally {
-            if (switched && before != null) {
-                SocialWeb.switchTo(c, before.id); // the account the person had in use comes back
+        synchronized (SocialWeb.SWITCH) { // switch, post, switch back: nothing else posts or switches meanwhile
+            SocialAccounts.Account before = accounts.inUse(net);
+            boolean switched = before == null || !before.id.equals(a.id);
+            if (switched && !SocialWeb.switchTo(c, a.id)) {
+                fail(c, camp, it, "the sign-in for " + a.label + " wasn't kept; sign in again under Social accounts");
+                return;
+            }
+            try {
+                r = SocialPoster.post(c, net, it.text, null, null, picture);
+            } finally {
+                if (switched && before != null) {
+                    SocialWeb.switchTo(c, before.id); // the account the person had in use comes back
+                }
             }
         }
         if (r.posted) {

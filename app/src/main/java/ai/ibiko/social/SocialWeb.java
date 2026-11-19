@@ -180,6 +180,13 @@ public final class SocialWeb {
         return true;
     }
 
+    /**
+     * Held across "switch to an account, act, switch back" (a campaign post, a lead's reply, reading with a campaign's
+     * account) and across every post: a post the person sent while a campaign had another account in use went out from
+     * that other account. Re-entrant.
+     */
+    public static final Object SWITCH = new Object();
+
     /** Uses another account on its network: the one in use now is kept, and this one's sign-in put in its place. */
     public static boolean switchTo(Context c, String id) {
         SocialAccounts all = accounts(c);

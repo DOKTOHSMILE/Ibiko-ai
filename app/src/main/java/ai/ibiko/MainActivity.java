@@ -3286,6 +3286,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         super.onResume();
         handler.postDelayed(this::takeShared, 400); // something shared to Ibiko from another app
         handler.postDelayed(socialCampaigns::takeDraft, 600); // a campaign brief from Social accounts: the brain plans it
+        socialCampaigns.startWork(); // campaigns' comments answered and leads found, while Ibiko runs
         inFront = true;
         showPersonaBar(); // Settings may have turned the group chat on or off
         connectivity.start();

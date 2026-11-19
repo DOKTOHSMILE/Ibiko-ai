@@ -37,6 +37,11 @@ public final class SocialPoster {
             this.posted = posted;
             this.said = said;
         }
+
+        /** Nothing was posted, and why. */
+        public static Result failed(String said) {
+            return new Result(false, said);
+        }
     }
 
     /** The network for an app name ("facebook", "x"), when Ibiko can post there itself; null otherwise. */
@@ -190,6 +195,12 @@ public final class SocialPoster {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             throw new IllegalStateException("posting waits for the page: call it off the main thread");
         }
+        synchronized (SocialWeb.SWITCH) { // never while a campaign has another account in use
+            return postNow(c, p, text, tags, commentOn, image);
+        }
+    }
+
+    private static Result postNow(Context c, Platform p, String text, java.util.List<String> tags, String commentOn, java.io.File image) {
         if (text == null || text.trim().isEmpty()) {
             return new Result(false, "There was nothing to post.");
         }

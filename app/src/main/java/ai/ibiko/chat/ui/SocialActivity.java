@@ -251,6 +251,85 @@ public final class SocialActivity extends AppCompatActivity {
         Ui.press(add);
         add.setOnClickListener(v -> newCampaign());
         card.addView(add);
+        leads();
+    }
+
+    /** People the campaigns found who may need the offer, each with the reply drafted for them: Send, Edit, Dismiss. */
+    private void leads() {
+        LinearLayout card = section("Leads", ai.ibiko.R.drawable.ic_people);
+        java.util.List<ai.ibiko.social.campaign.Lead> waiting = new java.util.ArrayList<ai.ibiko.social.campaign.Lead>();
+        int sent = 0;
+        for (ai.ibiko.social.campaign.Lead l : ai.ibiko.social.campaign.LeadSender.store(this).all()) {
+            if (l.state == ai.ibiko.social.campaign.Lead.State.NEW && l.kind == ai.ibiko.social.campaign.Lead.Kind.LEAD) {
+                waiting.add(l);
+            } else if (l.state == ai.ibiko.social.campaign.Lead.State.SENT) {
+                sent++;
+            }
+        }
+        waiting.sort((x, y) -> Double.compare(y.fit, x.fit));
+        card.addView(Ui.text(this, waiting.isEmpty() ? "No leads waiting. While a campaign runs, Ibiko looks for people who"
+                + " need your offer about every 45 minutes (Ibiko has to be running, with a brain)." + (sent > 0 ? " Sent so far: " + sent + "." : "")
+                : waiting.size() + " waiting, best fit first · tap one to read the post and the reply drafted for it"
+                + (sent > 0 ? " · " + sent + " sent" : ""), 13, Ui.SUB, false), Ui.wide(this, 8));
+        for (int i = 0; i < waiting.size() && i < 30; i++) {
+            final ai.ibiko.social.campaign.Lead l = waiting.get(i);
+            LinearLayout r = iconRow(l.network.equals("x") ? ai.ibiko.R.drawable.ic_net_x : ai.ibiko.R.drawable.ic_net_facebook,
+                    Math.round(l.fit * 100) + "% fit · " + (l.why.isEmpty() ? "may need your offer" : l.why),
+                    l.snippet.length() > 140 ? l.snippet.substring(0, 140) + "…" : l.snippet);
+            r.setMinimumHeight(Ui.dp(this, 52));
+            Ui.press(r);
+            r.setOnClickListener(v -> lead(l));
+            card.addView(r);
+        }
+    }
+
+    /** One lead: the post, the reply drafted for it (edit it here), and Send, Dismiss or Open the post. */
+    private void lead(final ai.ibiko.social.campaign.Lead l) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 20);
+        box.setPadding(p, Ui.dp(this, 8), p, 0);
+        box.addView(Ui.text(this, "Their post", 13, Ui.SUB, false));
+        box.addView(Ui.text(this, l.snippet, 14, Ui.TEXT, false), Ui.wide(this, 4));
+        box.addView(Ui.text(this, "Your reply, under their post", 13, Ui.SUB, false), Ui.wide(this, 14));
+        final android.widget.EditText reply = Ui.field(this, "Reply", l.reply, false, false);
+        reply.setMinLines(3);
+        box.addView(reply, Ui.wide(this, 4));
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(Math.round(l.fit * 100) + "% fit")
+                .setView(sv)
+                .setPositiveButton("Send", (d, w) -> {
+                    l.reply = reply.getText().toString().trim();
+                    android.widget.Toast.makeText(this, "Sending…", android.widget.Toast.LENGTH_SHORT).show();
+                    new Thread(() -> {
+                        ai.ibiko.social.SocialPoster.Result r = ai.ibiko.social.campaign.LeadSender.send(getApplicationContext(), l);
+                        runOnUiThread(() -> {
+                            android.widget.Toast.makeText(this, r.said, android.widget.Toast.LENGTH_LONG).show();
+                            if (!isFinishing()) {
+                                fill();
+                            }
+                        });
+                    }, "ibiko-lead-send").start();
+                })
+                .setNegativeButton("Dismiss", (d, w) -> {
+                    l.state = ai.ibiko.social.campaign.Lead.State.DISMISSED;
+                    try {
+                        ai.ibiko.social.campaign.LeadSender.store(this).put(l);
+                    } catch (java.io.IOException ignored) {
+                        // shown again next time
+                    }
+                    fill();
+                })
+                .setNeutralButton("Open post", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(l.url)));
+                    } catch (RuntimeException ignored) {
+                        // no browser
+                    }
+                })
+                .show();
     }
 
     /** One campaign: pause or resume it, see its posts, or delete it. */
@@ -278,6 +357,7 @@ public final class SocialActivity extends AppCompatActivity {
                                 .setPositiveButton("Delete", (d2, w2) -> {
                                     try {
                                         ai.ibiko.social.campaign.CampaignRunner.store(this).remove(c.id);
+                                        ai.ibiko.social.campaign.LeadSender.store(this).forget(c.id);
                                     } catch (java.io.IOException ignored) {
                                         // the list shows what was kept
                                     }
@@ -354,6 +434,10 @@ public final class SocialActivity extends AppCompatActivity {
         final android.widget.EditText perDay = field(box, "Posts a day on each account (1 to 6)");
         perDay.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         perDay.setText("1");
+        final android.widget.CheckBox engage = check(box, "Answer comments on its posts", true);
+        final android.widget.CheckBox prospect = check(box, "Find people who need this, and draft a reply for each", true);
+        final android.widget.CheckBox autoPitch = check(box, "Send those replies without asking (up to "
+                + ai.ibiko.social.campaign.LeadSender.MOST_AUTO_PITCHES + " a day)", false);
         ScrollView sv = new ScrollView(this);
         sv.addView(box);
         final androidx.appcompat.app.AlertDialog form = new androidx.appcompat.app.AlertDialog.Builder(this)
@@ -381,6 +465,9 @@ public final class SocialActivity extends AppCompatActivity {
                     }
                     c.days = number(days, 7, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_DAYS);
                     c.perDay = number(perDay, 1, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_PER_DAY);
+                    c.engage = engage.isChecked();
+                    c.prospect = prospect.isChecked();
+                    c.autoPitch = prospect.isChecked() && autoPitch.isChecked();
                     if (c.brief.business.isEmpty() && c.brief.offer.isEmpty()) {
                         android.widget.Toast.makeText(this, "Say what the business is or what the campaign offers.",
                                 android.widget.Toast.LENGTH_LONG).show();
@@ -395,6 +482,16 @@ public final class SocialActivity extends AppCompatActivity {
                     backToChat(); // the chat's brain plans it, and shows the plan for approval
         }));
         form.show();
+    }
+
+    private android.widget.CheckBox check(LinearLayout box, String label, boolean on) {
+        android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText(label);
+        cb.setTextColor(Ui.TEXT);
+        cb.setChecked(on);
+        cb.setMinHeight(Ui.dp(this, 48));
+        box.addView(cb);
+        return cb;
     }
 
     private android.widget.EditText field(LinearLayout box, String hint) {
