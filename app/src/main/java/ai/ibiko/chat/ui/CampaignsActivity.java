@@ -31,7 +31,7 @@ import ai.ibiko.social.campaign.Results;
 /**
  * The campaigns dashboard, the social media manager's own corner: at a glance what is running, what is coming up and
  * what is past, with this week's numbers; every campaign as a card (its state, progress, next post and how people
- * responded) that opens to its posts. New campaign, Products and Leads are one tap away.
+ * responded) that opens to its studio conversation. New campaign, Products and Leads are one tap away.
  */
 public final class CampaignsActivity extends AppCompatActivity {
     private static final int FORM = 51;
@@ -323,16 +323,9 @@ public final class CampaignsActivity extends AppCompatActivity {
         return t;
     }
 
+    /** A campaign opens to its studio conversation (planning shows there as it goes). */
     private void open(final Campaign c, boolean planning) {
-        if (planning) {
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setMessage("Stop planning “" + c.name + "”? Nothing has been posted.")
-                    .setPositiveButton("Stop", (d, w) -> CampaignDraft.stop(c.id))
-                    .setNegativeButton("Keep planning", null)
-                    .show();
-            return;
-        }
-        startActivity(new Intent(this, CampaignActivity.class).putExtra(CampaignActivity.EXTRA_ID, c.id));
+        startActivity(CampaignChatActivity.open(this, c.id));
     }
 
     private void newCampaign() {
@@ -343,10 +336,11 @@ public final class CampaignsActivity extends AppCompatActivity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request == FORM && result == RESULT_OK) {
-            // the brief is with the brain: Ibiko's chat screen takes it and opens the campaign's own chat
-            startActivity(new Intent(this, ai.ibiko.MainActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
-            finish();
+            // the campaign studio plans it on its own; its conversation opens, showing the plan as it is made
+            String id = ai.ibiko.social.campaign.CampaignStudio.startWaiting(this);
+            if (id != null) {
+                startActivity(CampaignChatActivity.open(this, id));
+            }
         }
     }
 }

@@ -90,10 +90,12 @@ public class CampaignsDashboardTest {
         View card = (View) byText(root, "Gas week").getParent().getParent();
         card.performClick();
         android.content.Intent next = Shadows.shadowOf(c.get()).getNextStartedActivity();
-        assertEquals(CampaignActivity.class.getName(), next.getComponent().getClassName());
+        assertEquals("a card opens the campaign's studio conversation", CampaignChatActivity.class.getName(),
+                next.getComponent().getClassName());
         c.pause().stop().destroy();
 
-        ActivityController<CampaignActivity> d = Robolectric.buildActivity(CampaignActivity.class, next).create().start().resume().visible();
+        android.content.Intent all = new android.content.Intent(app, CampaignActivity.class).putExtra(CampaignActivity.EXTRA_ID, "r1");
+        ActivityController<CampaignActivity> d = Robolectric.buildActivity(CampaignActivity.class, all).create().start().resume().visible();
         ShadowLooper.idleMainLooper();
         View page = d.get().getWindow().getDecorView();
         assertNotNull(byText(page, "Pause"));

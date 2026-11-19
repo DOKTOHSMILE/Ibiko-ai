@@ -12,6 +12,21 @@ public final class HtmlDraw {
     private HtmlDraw() {
     }
 
+    /**
+     * Whether the ask wants a photograph-like picture (a real-looking person, place, food or product shot): only then is
+     * an image model better than a page. Logos, posters, flyers, cards, banners, icons, infographics, quotes,
+     * illustrations and anything with words on it are drawn from HTML, which keeps text sharp and spelled right.
+     */
+    public static boolean wantsPhoto(String what) {
+        String t = what == null ? "" : what.toLowerCase(Locale.US);
+        boolean photo = t.matches(".*\\b(photo|photograph|photorealistic|photo-?real|realistic|real life|lifelike|hyper ?realistic"
+                + "|portrait of|headshot|selfie|cinematic|dslr|shot of|picture of a (?:man|woman|person|child|family)|close-?up)\\b.*");
+        boolean designed = t.matches(".*\\b(logo|icon|poster|flyer|banner|card|infographic|chart|diagram|quote|text|words|title"
+                + "|headline|menu|price list|invitation|certificate|thumbnail|cover|mockup|ui|illustration|cartoon|vector|flat"
+                + "|clip ?art|sticker|badge|emoji)\\b.*");
+        return photo && !designed;
+    }
+
     /** Width and height for what was asked. */
     public static int[] shape(String what) {
         String t = what == null ? "" : what.toLowerCase(Locale.US);

@@ -186,6 +186,11 @@
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />
         <activity
+            android:name=".chat.ui.CampaignChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Ibiko" />
+        <activity
             android:name=".chat.ui.CampaignActivity"
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />

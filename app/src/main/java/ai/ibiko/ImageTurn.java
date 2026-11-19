@@ -23,7 +23,8 @@ final class ImageTurn {
         final java.io.File out = new java.io.File(a.chatSpace(), ai.ibiko.main.ChatSpace.IMAGES); // deleted with its chat
         final java.util.List<ai.ibiko.llm.ImageMaker.Source> sources = ai.ibiko.llm.ImageMaker.sources(
                 new ai.ibiko.llm.ProviderStore(a), a.prefs.getString("image_model", ""));
-        final boolean design = ai.ibiko.design.SvgDraw.designish(what) || sources.isEmpty();
+        // drawn from HTML unless a photograph-like picture is asked for and an image model can make it
+        final boolean design = !ai.ibiko.design.HtmlDraw.wantsPhoto(what) || sources.isEmpty();
         a.hub.worker.execute(() -> {
             Made m = draw(what, sources, design, out);
             a.handler.post(() -> {

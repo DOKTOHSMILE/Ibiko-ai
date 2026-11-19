@@ -508,7 +508,11 @@ public final class SocialActivity extends AppCompatActivity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request == FORM && result == RESULT_OK) {
-            backToChat(); // the brief is with the brain: it plans on its own and shows the plan for approval
+            // the campaign studio plans it on its own; its conversation opens, showing the plan as it is made
+            String id = ai.ibiko.social.campaign.CampaignStudio.startWaiting(this);
+            if (id != null) {
+                startActivity(CampaignChatActivity.open(this, id));
+            }
         }
     }
 

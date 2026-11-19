@@ -108,13 +108,8 @@ public final class CampaignActivity extends AppCompatActivity {
                 fill();
             }), grow(0));
         }
-        if (!c.chat.isEmpty()) {
-            acts.addView(action("Its chat", false, v -> {
-                CampaignDraft.openChat(c.chat);
-                startActivity(new Intent(this, ai.ibiko.MainActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
-            }), grow(acts.getChildCount() > 0 ? 8 : 0));
-        }
+        acts.addView(action("Studio chat", false, v -> startActivity(CampaignChatActivity.open(this, c.id))),
+                grow(acts.getChildCount() > 0 ? 8 : 0));
         acts.addView(action("Delete", false, v -> new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setMessage("Delete “" + c.name + "”? Posts already out stay on the networks; the rest won't go out.")
                 .setPositiveButton("Delete", (d, w) -> {

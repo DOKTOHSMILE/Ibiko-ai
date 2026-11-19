@@ -33,4 +33,13 @@ public class HtmlDrawTest {
         assertFalse(page.contains("Enjoy"));
         assertEquals("", CampaignImage.page("Sorry, I can't draw."));
     }
+
+    @Test
+    public void onlyAPhotographGoesToAnImageModel() {
+        assertTrue(HtmlDraw.wantsPhoto("a realistic photo of a woman cooking with a gas cooker"));
+        assertTrue(HtmlDraw.wantsPhoto("Photograph of Lagos at sunset"));
+        assertFalse(HtmlDraw.wantsPhoto("a flyer with a photo of our cylinder and the price"));
+        assertFalse(HtmlDraw.wantsPhoto("a logo for Valineto3"));
+        assertFalse(HtmlDraw.wantsPhoto("a cute cat"));
+    }
 }

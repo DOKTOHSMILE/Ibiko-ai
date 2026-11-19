@@ -320,6 +320,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             Results r = results(c);
             r.forget(camp);
             r.save();
+            CampaignStudio.chat(c, camp.id).delete();
         } catch (IOException ignored) {
             // the list shows what was kept
         }
