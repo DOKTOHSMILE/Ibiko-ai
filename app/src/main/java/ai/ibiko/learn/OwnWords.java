@@ -102,7 +102,7 @@ public final class OwnWords {
             if (dir != null) {
                 dir.mkdirs();
             }
-            Files.write(file.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
+            ai.ibiko.learn.SafeFile.write(file, b.toString()); // whole or not at all
         } catch (IOException ignored) {
             // kept in memory for this run
         }

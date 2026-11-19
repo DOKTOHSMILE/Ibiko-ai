@@ -149,27 +149,7 @@ public final class CodeFile {
 
     /** Writes a text as codes, beside the file first and then moved over it, so a crash never leaves half a file. */
     public static void write(File f, String text) throws IOException {
-        if (f.getParentFile() != null) {
-            f.getParentFile().mkdirs();
-        }
-        // one part file per thread: two saves of the same file at once shared one part, and one could move the
-        // other's half-written bytes into place
-        File part = new File(f.getPath() + "." + Thread.currentThread().getId() + ".part");
-        try {
-            try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
-                out.write(encode(text));
-                out.getFD().sync(); // on the storage before it replaces the old file (a power cut could leave it empty)
-            }
-            try {
-                Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-                Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException | RuntimeException e) {
-            part.delete();
-            throw e;
-        }
+        SafeFile.write(f, encode(text));
     }
 
     /** Reads a file's text. One that can't be read is copied aside before the error is thrown. */
