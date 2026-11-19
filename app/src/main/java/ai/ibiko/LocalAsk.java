@@ -125,8 +125,13 @@ final class LocalAsk {
         // and the way that worked before, and what this is likely to lead to (premeditation)
         // the thought process (learn/Mind): the brain's sections read, recall, weigh and judge what was gathered about
         // this; each says what it did, shown as the thinking, and the thought it reaches goes to the brain as Ibiko's view
-        final ai.ibiko.learn.Mind.Thought thought = act.brainBox().mind().think(question);
-        if (thought.steps.size() >= 3) {
+        // only for a real question: a short reply ("Start", "yes", "go on") answers the last turn, and Mind read it
+        // as a topic of its own ("Start is a money") and gave that to the model as Ibiko's view
+        final ai.ibiko.learn.Mind.Thought thought = act.brainBox().mind().think(
+                question != null && question.trim().split("\\s+").length >= 3 ? question : "");
+        // its steps are Ibiko 1's own reasoning: shown when Ibiko 1 or the device's model answers, not under an API
+        // reply, where they were noise in the steps ("Reader", "Memory", "Weigher", "Critic", "Speaker")
+        if (thought.steps.size() >= 3 && !act.model.remoteOn()) {
             for (ai.ibiko.learn.Mind.Step st : thought.steps) {
                 act.activity(st.line());
             }
