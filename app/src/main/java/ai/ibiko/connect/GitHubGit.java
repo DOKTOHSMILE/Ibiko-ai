@@ -576,8 +576,10 @@ public final class GitHubGit {
                 conflicts.add(path + " (you deleted it, " + got.branch + " changed it)");
                 continue;
             }
+            // only UTF-8 is merged as text: a Latin-1 or UTF-16 file decoded as UTF-8 was written back changed
             if (baseBytes == null || binary(ourBytes) || binary(theirBytes) || binary(baseBytes)
-                    || ourBytes.length > 200_000 || theirBytes.length > 200_000) {
+                    || ourBytes.length > 200_000 || theirBytes.length > 200_000
+                    || !utf8(ourBytes) || !utf8(theirBytes) || !utf8(baseBytes)) {
                 writeFile(dir, path + ".theirs", theirBytes);
                 conflicts.add(path + " (not merged as text)");
                 continue;
@@ -1215,6 +1217,17 @@ public final class GitHubGit {
     /** Git's id for a file's bytes: sha1 of "blob <length>\0" and the bytes. */
     /** The most one file may be to go up: read whole and sent as base64, a bigger one ran out of memory. */
     static final long MOST_PUSH = 50L * 1024 * 1024;
+
+    /** Whether the bytes are valid UTF-8 throughout (only then is a file merged line by line). */
+    static boolean utf8(byte[] b) {
+        try {
+            StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(b));
+            return true;
+        } catch (java.nio.charset.CharacterCodingException e) {
+            return false;
+        }
+    }
 
     /** {@link #blobSha(byte[])} of a file, read a piece at a time (a large tracked file is never held whole). */
     static String blobSha(File f) throws IOException {
