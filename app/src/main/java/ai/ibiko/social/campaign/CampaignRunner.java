@@ -112,6 +112,83 @@ public final class CampaignRunner extends BroadcastReceiver {
         arm(c, more ? now + GAP_MS : 0);
     }
 
+    /** A post due while the phone is offline waits this long, then tries again. */
+    static final long OFFLINE_WAIT_MS = 10 * 60_000L;
+
+    /** True when the phone has a working internet connection (or it can't be told: then the post is tried). */
+    static boolean online(Context c) {
+        try {
+            android.net.ConnectivityManager cm = c.getSystemService(android.net.ConnectivityManager.class);
+            if (cm == null) {
+                return true;
+            }
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
+    /**
+     * What the check after posting found: seen on the network (posted, checked), not there (said plainly, and not
+     * posted again so nothing is doubled), or not known yet (looked for again later).
+     */
+    static void checked(Context c, Campaign camp, Campaign.Item it, Boolean seen, String account, String network, String said) {
+        if (Boolean.TRUE.equals(seen)) {
+            it.state = Campaign.State.POSTED;
+            it.checked = 1;
+            it.result = "Posted and checked: it's on " + network + " (" + account + ").";
+        } else if (Boolean.FALSE.equals(seen)) {
+            it.state = Campaign.State.FAILED;
+            it.checked = -1;
+            it.result = "Ibiko pressed Post, but the post isn't on your " + network + " profile. Look there; it won't be"
+                    + " posted again by itself, so nothing is doubled. Ibiko looks once more later.";
+            tell(c, it.id.hashCode(), camp.name + ": a post isn't showing on " + network, it.result + "\n\n" + it.text);
+        } else {
+            it.state = Campaign.State.POSTED;
+            it.checked = 0;
+            it.result = said + " Not checked yet: Ibiko looks for it on your profile at its next round.";
+        }
+    }
+
+    /**
+     * Looks again for posts of {@code camp} not yet seen on their network (posted in the last two days): one found
+     * is marked posted and checked; one still missing stays as it is. Switches to each post's account to look.
+     * Returns how many changed.
+     */
+    public static int recheck(Context c, Campaign camp) {
+        long now = System.currentTimeMillis();
+        int changed = 0;
+        for (Campaign.Item it : camp.items) {
+            boolean open = it.state == Campaign.State.POSTED && it.checked == 0
+                    || it.state == Campaign.State.FAILED && it.checked == -1;
+            if (!open || it.handoff || now - it.at > 2 * 24 * 3_600_000L) {
+                continue;
+            }
+            final SocialAccounts.Account a = SocialWeb.accounts(c).get(it.account);
+            if (a == null || !a.signedIn) {
+                continue;
+            }
+            final String text = it.text;
+            Boolean seen = LeadSender.as(c, a, () -> PostCheck.look(c, a.platform, text), null);
+            if (Boolean.TRUE.equals(seen)) {
+                it.state = Campaign.State.POSTED;
+                it.checked = 1;
+                it.result = "Posted and checked: it's on " + a.platform.shown + " (" + a.label + ").";
+                keep(c, camp.id, it);
+                changed++;
+            } else if (Boolean.FALSE.equals(seen) && it.checked == 0) {
+                it.checked = -1;
+                it.state = Campaign.State.FAILED;
+                it.result = "Ibiko pressed Post, but the post isn't on your " + a.platform.shown + " profile. Look there;"
+                        + " it won't be posted again by itself, so nothing is doubled.";
+                keep(c, camp.id, it);
+                changed++;
+            }
+        }
+        return changed;
+    }
+
     static Campaign.Item item(Campaign c, String id) {
         for (Campaign.Item i : c.items) {
             if (i.id.equals(id)) {
@@ -134,6 +211,7 @@ public final class CampaignRunner extends BroadcastReceiver {
         }
         it.state = done.state;
         it.result = done.result;
+        it.checked = done.checked;
         it.at = done.at;
         it.imagePath = done.imagePath;
         try {
@@ -166,6 +244,11 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         Platform net = a.platform;
+        if (!online(c)) {
+            it.at = now + OFFLINE_WAIT_MS; // everything is ready on the phone: it goes out when the internet is back
+            it.result = "waiting: no internet on the phone";
+            return;
+        }
         String paused = SocialWeb.limits(c).pausedWhy(a.id, now);
         if (paused != null) {
             it.at = now + LIMIT_WAIT_MS; // the site asked for a check: this account rests, the post waits
@@ -178,6 +261,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         SocialPoster.Result r;
+        Boolean seen = null;
         synchronized (SocialWeb.SWITCH) { // switch, post, switch back: nothing else posts or switches meanwhile
             SocialAccounts.Account before = accounts.inUse(net);
             boolean switched = before == null || !before.id.equals(a.id);
@@ -187,6 +271,9 @@ public final class CampaignRunner extends BroadcastReceiver {
             }
             try {
                 r = SocialPoster.post(c, net, it.text, null, null, picture);
+                if (r.posted) {
+                    seen = PostCheck.verify(c, net, it.text); // pressing Post is not proof: it is looked for
+                }
             } finally {
                 if (switched && before != null) {
                     SocialWeb.switchTo(c, before.id); // the account the person had in use comes back
@@ -194,8 +281,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             }
         }
         if (r.posted) {
-            it.state = Campaign.State.POSTED;
-            it.result = r.said;
+            checked(c, camp, it, seen, a.label, net.shown, r.said);
             return;
         }
         if (r.said.startsWith("Not posted:")) {

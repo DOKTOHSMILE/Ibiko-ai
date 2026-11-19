@@ -34,7 +34,7 @@ public class CampaignTest {
     /** A brain that answers the outline, then each post, as a model would (with a little prose around the JSON). */
     private static CampaignPlanner.Brain fake() {
         return (system, prompt, tokens) -> {
-            if (prompt.contains("Plan it as JSON")) {
+            if (prompt.contains("Plan its strategy as JSON")) {
                 return "Here is the plan:\n```json\n{\"name\":\"Birthday cakes\",\"themes\":[\"Behind the oven\",\"Happy customers\"],"
                         + "\"searches\":[\"need a birthday cake Lagos\"],\"slots\":["
                         + "{\"day\":1,\"time\":\"09:30\",\"account\":\"fb1\",\"theme\":\"Behind the oven\",\"angle\":\"How a cake is made\"},"
@@ -46,8 +46,9 @@ public class CampaignTest {
             }
             if (prompt.contains("Design the picture template")) {
                 // one theme gets a template with a script in it, the other none at all (the built-in card is used)
-                return prompt.contains("Behind the oven") ? "```html\n<!doctype html><html><body onload=\"steal()\"><script>steal()</script>"
-                        + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p><i>{{BRAND}}</i></body></html>\n```" : "Sorry.";
+                // one design for the whole campaign, with a script in it to be taken out
+                return "```html\n<!doctype html><html><body onload=\"steal()\"><script>steal()</script>"
+                        + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p><i>{{BRAND}}</i></body></html>\n```";
             }
             StringBuilder posts = new StringBuilder("{\"posts\":[");
             String[] lines = prompt.split("\n");
@@ -81,8 +82,52 @@ public class CampaignTest {
         assertFalse("no event handler in a picture", fb.imageHtml.contains("onload"));
         assertTrue("the business's name on the picture", fb.imageHtml.contains("Ada&#39;s Bakery") || fb.imageHtml.contains("Ada's Bakery"));
         assertTrue("the post's words go in as text, not markup", fb.imageHtml.contains("Cakes &lt;b&gt;&amp; more&lt;/b&gt;"));
-        assertTrue("a theme with no template gets the built-in card", x.imageHtml.contains("linear-gradient"));
+        assertTrue("every post uses the campaign's one design", x.imageHtml.contains("<i>"));
         assertEquals(Campaign.Status.DRAFT, c.status); // nothing runs before the person approves
+        Campaign phone = brief();
+        assertNull(CampaignPlanner.build(phone, SEATS, fake(), null, null, TimeZone.getTimeZone("Africa/Lagos"), 1));
+        assertTrue("the phone's own model spends no call on a design: the built-in card",
+                phone.items.get(0).imageHtml.contains("linear-gradient"));
+    }
+
+    @Test
+    public void fromAStrategyAloneTheCalendarIsMadeHere() {
+        Campaign c = brief();
+        c.days = 3;
+        c.perDay = 2;
+        final int[] calls = {0};
+        CampaignPlanner.Brain brain = (system, prompt, tokens) -> {
+            calls[0]++;
+            if (prompt.contains("Plan its strategy as JSON")) {
+                return "{\"name\":\"Cakes\",\"themes\":[{\"name\":\"Behind the oven\",\"angles\":[\"How a cake is made\",\"Our flour\"]},"
+                        + "{\"name\":\"Happy customers\",\"angles\":[\"A party saved\"]}],\"searches\":[\"cake Lagos\"],"
+                        + "\"times\":{\"facebook\":[\"10:00\",\"19:00\"],\"x\":[\"08:00\",\"20:00\"]}}";
+            }
+            if (prompt.contains("Design the picture template")) {
+                return "Sorry.";
+            }
+            StringBuilder posts = new StringBuilder("{\"posts\":[");
+            int n = 0;
+            for (String l : prompt.split("\n")) {
+                if (l.matches("^\\d+\\. .*")) {
+                    n++;
+                    posts.append(n > 1 ? "," : "").append("{\"n\":").append(n).append(",\"text\":\"Post ").append(n)
+                            .append(" with plenty of words in it\",\"headline\":\"H\",\"line\":\"L\"}");
+                }
+            }
+            return posts.append("]}").toString();
+        };
+        assertNull(CampaignPlanner.build(c, SEATS, brain, null, null, TimeZone.getTimeZone("UTC"), 4));
+        assertEquals("3 days, 2 a day, 2 accounts", 12, c.items.size());
+        assertEquals("strategy, design, and two batches of posts", 4, calls[0]);
+        java.util.Set<String> themes = new java.util.HashSet<String>();
+        for (int i = 0; i < c.items.size(); i++) {
+            themes.add(c.items.get(i).theme);
+            if (i > 0) {
+                assertTrue("in time order", c.items.get(i - 1).at <= c.items.get(i).at);
+            }
+        }
+        assertEquals("both themes used", 2, themes.size());
     }
 
     @Test

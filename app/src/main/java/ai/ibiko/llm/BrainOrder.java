@@ -98,6 +98,48 @@ public final class BrainOrder {
         return ai.ibiko.suit.FunctionCode.withoutCode(reply);
     }
 
+    private static final java.util.regex.Pattern STALL = java.util.regex.Pattern.compile("(?i)\\b(?:i haven'?t|i have not|i'?ve not)"
+            + " (?:yet )?(?:read|inspected|looked|opened|seen|checked|gone through)\\b|\\btell me (?:which|what|to go ahead|if)"
+            + "|\\b(?:if you want|just tell me|just say|let me know if you(?:'d| would) like|shall i|should i (?:start|begin|go ahead))"
+            + "|\\bplease ask me to\\b|\\bready to start\\b|\\bso i can start\\b");
+
+    /** A reply that only says the work hasn't begun and asks leave to begin it. */
+    public static boolean stalls(String reply) {
+        return reply != null && reply.length() < 900 && STALL.matcher(reply).find();
+    }
+
+    /** A sentence that says something is already done ("Thread posted to your X account.", "I've pushed it."). */
+    private static final java.util.regex.Pattern DONE = java.util.regex.Pattern.compile(
+            "(?i)\\b(?:posted|shared|sent|published|tweeted|scheduled|pushed|merged|deployed|uploaded|created|saved|unzipped"
+                    + "|installed|deleted|commented|replied|done|completed|finished|fixed)\\b");
+    private static final java.util.regex.Pattern NOT_YET = java.util.regex.Pattern.compile(
+            "(?i)\\b(?:will|i'll|let me|going to|about to|once|when|if|after|before|should|can|could|would|ready to|waiting)\\b|\\?");
+
+    /**
+     * The words a brain wrote beside an action, without any sentence that says the action is already done: Ibiko
+     * carries the action out after the reply and says what really happened, so "Thread posted to your X account."
+     * written before the post was even tried (and then refused) is never shown. A plain reply is left as it is.
+     */
+    public static String noClaim(String words, Kind kind) {
+        if (words == null || kind == null) {
+            return words;
+        }
+        switch (kind) {
+            case SAY: case GREET: case TIME: case NAME: case CALC: case CANNOT: case RETRY: case NEWCHAT: case SWITCH:
+                return words;
+            default:
+                break;
+        }
+        StringBuilder out = new StringBuilder();
+        for (String sentence : words.split("(?<=[.!])\\s+")) {
+            if (DONE.matcher(sentence).find() && !NOT_YET.matcher(sentence).find()) {
+                continue; // a claim made before the work ran
+            }
+            out.append(out.length() == 0 ? "" : " ").append(sentence);
+        }
+        return out.toString().trim();
+    }
+
     private static String basePrompt() {
         return "You are the brain. The user speaks only to you. Ibiko does not answer them."
                 + " Read their words and reply with exactly one line."

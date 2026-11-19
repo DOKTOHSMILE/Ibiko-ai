@@ -96,10 +96,39 @@ final class Attachments {
      * gets the images themselves (a model that can see) and the texts as data.
      */
     void sendWithAttachments(String words) {
-        String forModel = a.attachments.forModel(words);
+        String forModel = a.attachments.forModel(words) + intoWorkspace();
         showSentAttachments(words);
         a.attachments.clear();
         a.answer(forModel, true); // already shown: not noted again
+    }
+
+    /**
+     * A zip (or a code file) attached to the message is put in the chat's workspace too, under its own name, so the
+     * coding agent and the shell can open, unzip and compare it (the attachment itself sits in the app's own store,
+     * which they don't reach). The model is told where it is. "" when nothing was copied.
+     */
+    String intoWorkspace() {
+        StringBuilder said = new StringBuilder();
+        java.io.File dir = new java.io.File(a.chatSpace(), "attachments");
+        for (ai.ibiko.chat.ui.ComposerAttachments.Item it : a.attachments.items()) {
+            if (it.path == null || it.name == null || !it.name.toLowerCase(java.util.Locale.US)
+                    .matches(".*\\.(zip|java|kt|py|js|ts|json|xml|gradle|md|txt|html|css|c|cpp|h|go|rs|sh)$")) {
+                continue;
+            }
+            java.io.File from = new java.io.File(it.path);
+            String name = it.name.replaceAll("[^A-Za-z0-9._-]", "_");
+            java.io.File to = new java.io.File(dir, name);
+            try {
+                dir.mkdirs();
+                java.nio.file.Files.copy(from.toPath(), to.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                said.append("\n\n[").append(it.name).append(" is in the workspace at attachments/").append(name)
+                        .append(name.toLowerCase(java.util.Locale.US).endsWith(".zip")
+                                ? ": unzip it there to work with what is inside]" : "]");
+            } catch (java.io.IOException | RuntimeException e) {
+                // the model still gets the file as an attachment
+            }
+        }
+        return said.toString();
     }
 
     /** The attachment sits at the top of the user's message, the words under it. The file's text is for the model only. */

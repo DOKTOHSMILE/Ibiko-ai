@@ -50,30 +50,92 @@ public final class CampaignPlanner {
 
     /** The request for the outline. */
     static String outlinePrompt(Campaign.Brief brief, List<Seat> seats, int days, int perDay) {
-        StringBuilder s = new StringBuilder();
-        s.append(brief.words()).append("\n\nAccounts to post from (use their ids):\n");
+        java.util.Set<String> nets = new java.util.LinkedHashSet<String>();
         for (Seat seat : seats) {
-            s.append("- ").append(seat.id).append(": ").append(seat.network).append(" (").append(seat.label).append(")\n");
+            nets.add(seat.network);
         }
-        s.append("\nThe campaign runs ").append(days).append(" days with ").append(perDay)
-                .append(" post(s) a day on each account. Plan it as JSON:\n")
-                .append("{\"name\":\"short campaign name\",\"themes\":[\"3 to 6 content themes\"],")
-                .append("\"searches\":[\"3 to 8 short searches that find public posts by people who need this offer\"],")
-                .append("\"slots\":[{\"day\":1,\"time\":\"09:30\",\"account\":\"<id>\",\"theme\":\"one of the themes\",")
-                .append("\"angle\":\"what this post says, in one line\"}]}\n")
-                .append("Give each account its own slots, at the hours its audience is active, varied (not every post the same")
-                .append(" time). Mix value, proof and offer posts; no two posts say the same thing.")
-                .append(brief.products.isEmpty() ? "" : " Give each slot that shows a product its number, as \"product\":\"P1\";"
-                        + " spread the posts across the products.")
+        StringBuilder s = new StringBuilder();
+        s.append(brief.words()).append("\n\nNetworks: ").append(String.join(", ", nets)).append(". The campaign runs ").append(days)
+                .append(" days with ").append(perDay).append(" post(s) a day on each account (")
+                .append(days * perDay * seats.size()).append(" posts). Plan its strategy as JSON (the calendar is made from it):\n")
+                .append("{\"name\":\"short campaign name\",\"themes\":[{\"name\":\"a content theme\",\"angles\":[\"what one")
+                .append(" post on it says, in one line\"]}],\"searches\":[\"3 to 8 short searches that find public posts by people who")
+                .append(" need this offer\"],\"times\":{\"<network>\":[\"09:30\",\"19:00\"]}}\n")
+                .append("3 to 6 themes mixing value, proof and offer, each with ").append(Math.max(3, Math.min(8, days * perDay * seats.size() / 4 + 1)))
+                .append(" different angles; for each network the 2 to 4 times of day its audience is most active. Short lines only.")
                 .append(brief.lessons.isEmpty() ? "" : " Lean on what worked in earlier campaigns.")
                 .append(' ').append(PlatformRules.FOR_THE_BRAIN);
         return s.toString();
     }
 
+    /** When a network's audience is usually about, if the brain gave no times for it. */
+    static List<Integer> usualTimes(String network) {
+        String[] t;
+        switch (network == null ? "" : network) {
+            case "x":
+                t = new String[]{"08:30", "12:30", "18:00", "21:00"};
+                break;
+            case "instagram":
+                t = new String[]{"11:00", "19:00", "21:00"};
+                break;
+            case "linkedin":
+                t = new String[]{"08:00", "12:00", "17:30"};
+                break;
+            default:
+                t = new String[]{"09:00", "13:00", "19:30"};
+        }
+        List<Integer> out = new ArrayList<Integer>();
+        for (String x : t) {
+            out.add(minute(x));
+        }
+        return out;
+    }
+
+    /**
+     * The calendar, made from the strategy: each account its posts a day at its network's active times (spread over the
+     * day and shifted a little day to day), the themes taken in turn, each theme's angles in turn, and the products
+     * spread across about two posts in three.
+     */
+    static void schedule(Outline o, List<Seat> seats, int days, int perDay, int products) {
+        if (o.themes.isEmpty()) {
+            return;
+        }
+        int n = 0;
+        java.util.Map<String, Integer> angleAt = new java.util.HashMap<String, Integer>();
+        for (int day = 1; day <= days; day++) {
+            for (int si = 0; si < seats.size(); si++) {
+                Seat seat = seats.get(si);
+                List<Integer> times = o.times.containsKey(seat.network) ? o.times.get(seat.network) : usualTimes(seat.network);
+                for (int k = 0; k < perDay; k++) {
+                    if (o.slots.size() >= MOST_POSTS) {
+                        return;
+                    }
+                    Slot slot = new Slot();
+                    slot.day = day;
+                    int base = perDay <= times.size() ? times.get((k * times.size() / perDay + day + si) % times.size())
+                            : 8 * 60 + k * (14 * 60 / perDay); // more posts than active times: spread 08:00 to 22:00
+                    slot.minute = Math.max(0, Math.min(23 * 60 + 50, base + ((day * 7 + si * 11) % 21) - 10));
+                    slot.account = seat.id;
+                    String theme = o.themes.get((n + si) % o.themes.size());
+                    slot.theme = theme;
+                    List<String> angles = o.angles.containsKey(theme) ? o.angles.get(theme) : new ArrayList<String>();
+                    int at = angleAt.getOrDefault(theme, 0);
+                    angleAt.put(theme, at + 1);
+                    String angle = angles.isEmpty() ? "a post on " + theme : angles.get(at % angles.size());
+                    slot.angle = at >= Math.max(1, angles.size()) ? angle + " (a fresh take, unlike earlier posts on it)" : angle;
+                    slot.product = products > 0 && n % 3 != 2 ? (n - n / 3) % products : -1;
+                    o.slots.add(slot);
+                    n++;
+                }
+            }
+        }
+        o.slots.sort((x, y) -> x.day != y.day ? Integer.compare(x.day, y.day) : Integer.compare(x.minute, y.minute));
+    }
+
     /** Posts written in one call: fewer calls, each still short enough to come back whole. */
-    static final int BATCH = 8;
+    static final int BATCH = 10;
     /** Calls at once on an API (the phone's own model takes one at a time). */
-    public static final int WORKERS = 4;
+    public static final int WORKERS = 6;
 
     private static final String POSTS_SYSTEM = "You write social media posts for a small business campaign: honest, useful,"
             + " a clear call to action, no made-up facts, prices or reviews. " + PlatformRules.FOR_THE_BRAIN
@@ -101,7 +163,9 @@ public final class CampaignPlanner {
 
     /** The request for one theme's picture template. */
     static String templatePrompt(Campaign.Brief brief, String theme) {
-        return brief.words() + "\n\nDesign the picture template for the theme \u201c" + theme + "\u201d: one HTML document,"
+        String what = "the whole campaign".equals(theme) ? "the whole campaign (every post's picture uses it)"
+                : "the theme \u201c" + theme + "\u201d";
+        return brief.words() + "\n\nDesign the picture template for " + what + ": one HTML document,"
                 + " 1080 by 1080 pixels, its own <style> only (no script, no outside images; Google Fonts may be linked)."
                 + " Bold and readable, on-brand colours. Put these placeholders where the words go, exactly as written:"
                 + " {{HEADLINE}} (large), {{LINE}} (smaller, under it) and {{BRAND}} (the business name, small)."
@@ -140,6 +204,9 @@ public final class CampaignPlanner {
         String name = "";
         final List<String> themes = new ArrayList<String>(), searches = new ArrayList<String>();
         final List<Slot> slots = new ArrayList<Slot>();
+        /** Each theme's angles, and each network's active times (minutes past midnight), from the strategy. */
+        final Map<String, List<String>> angles = new java.util.HashMap<String, List<String>>();
+        final Map<String, List<Integer>> times = new java.util.HashMap<String, List<Integer>>();
     }
 
     /** The first JSON object in a reply (the brain may wrap it in a code block or a sentence), or null. */
@@ -177,9 +244,33 @@ public final class CampaignPlanner {
         }
         Outline o = new Outline();
         o.name = clip(MiniJson.str(m.get("name"), ""), 60);
-        for (String t : MiniJson.strings(m.get("themes"))) {
-            if (!t.trim().isEmpty() && o.themes.size() < 8) {
-                o.themes.add(clip(t.trim(), 80));
+        for (Object x : MiniJson.list(m.get("themes"))) {
+            String t = x instanceof String ? (String) x : MiniJson.str(MiniJson.obj(x).get("name"), "");
+            t = clip(t.trim(), 80);
+            if (t.isEmpty() || o.themes.size() >= 8 || o.themes.contains(t)) {
+                continue;
+            }
+            o.themes.add(t);
+            if (!(x instanceof String)) {
+                List<String> as = new ArrayList<String>();
+                for (String a : MiniJson.strings(MiniJson.obj(x).get("angles"))) {
+                    if (!a.trim().isEmpty() && as.size() < 12) {
+                        as.add(clip(a.trim(), 200));
+                    }
+                }
+                o.angles.put(t, as);
+            }
+        }
+        for (Map.Entry<String, Object> e : MiniJson.obj(m.get("times")).entrySet()) {
+            List<Integer> ts = new ArrayList<Integer>();
+            for (String t : MiniJson.strings(e.getValue())) {
+                int mm = minute(t);
+                if (mm >= 0 && ts.size() < 6 && !ts.contains(mm)) {
+                    ts.add(mm);
+                }
+            }
+            if (!ts.isEmpty()) {
+                o.times.put(e.getKey().trim().toLowerCase(Locale.ROOT), ts);
             }
         }
         for (String t : MiniJson.strings(m.get("searches"))) {
@@ -215,6 +306,9 @@ public final class CampaignPlanner {
             if (o.slots.size() >= MOST_POSTS) {
                 break;
             }
+        }
+        if (o.slots.isEmpty() && !m.containsKey("slots")) {
+            schedule(o, seats, days, perDay, products); // the strategy only: the calendar is made here, not written out
         }
         return o.slots.isEmpty() ? null : o;
     }
@@ -337,9 +431,21 @@ public final class CampaignPlanner {
         c.days = Math.max(1, Math.min(MOST_DAYS, c.days));
         c.perDay = Math.max(1, Math.min(MOST_PER_DAY, c.perDay));
         say(progress, "Planning the campaign");
-        String reply = brain.ask(OUTLINE_SYSTEM, outlinePrompt(c.brief, seats, c.days, c.perDay), 4000);
+        final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, workers));
+        // on an API the campaign's picture design is made while the strategy is (it needs only the brief); the phone's
+        // own model, one call at a time, uses the built-in cards instead of spending a long call on a design
+        final java.util.concurrent.Future<String> design = workers > 1
+                ? pool.submit(() -> template(brain.ask(TEMPLATE_SYSTEM, templatePrompt(c.brief, "the whole campaign"), 2500))) : null;
+        String reply;
+        try {
+            reply = brain.ask(OUTLINE_SYSTEM, outlinePrompt(c.brief, seats, c.days, c.perDay), 1500);
+        } catch (RuntimeException e) {
+            pool.shutdownNow();
+            throw e;
+        }
         Outline o = outline(reply, seats, c.days, c.perDay, c.brief.products.size());
         if (o == null) {
+            pool.shutdownNow();
             return reply == null ? "The brain didn't answer." : "The brain's plan couldn't be read. Try again.";
         }
         c.name = o.name.isEmpty() ? clip(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer, 40) : o.name;
@@ -353,14 +459,12 @@ public final class CampaignPlanner {
             network.put(s.id, s.network);
         }
         final String brand = clip(c.brief.business.replaceAll("[,.(].*$", ""), 40);
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, workers));
         try {
-            // one picture template a theme, made alongside the posts (not one whole design a post)
+            // one picture design for the campaign, made alongside the strategy (not one a theme, nor one a post)
             java.util.Map<String, java.util.concurrent.Future<String>> templates = new java.util.HashMap<String, java.util.concurrent.Future<String>>();
             for (Slot slot : o.slots) {
-                if (!templates.containsKey(slot.theme) && templates.size() < 6) {
-                    final String theme = slot.theme;
-                    templates.put(theme, pool.submit(() -> template(brain.ask(TEMPLATE_SYSTEM, templatePrompt(c.brief, theme), 3000))));
+                if (design != null) {
+                    templates.put(slot.theme, design);
                 }
             }
             List<java.util.concurrent.Future<java.util.Map<Integer, String[]>>> batches = new ArrayList<java.util.concurrent.Future<java.util.Map<Integer, String[]>>>();
@@ -372,7 +476,7 @@ public final class CampaignPlanner {
                             + (slot.product >= 0 ? " (shows P" + (slot.product + 1) + ": " + c.brief.products.get(slot.product).name + ")" : "")});
                 }
                 asked.add(part);
-                batches.add(pool.submit(() -> posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 3500), part)));
+                batches.add(pool.submit(() -> posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 4000), part)));
             }
             int n = 0;
             for (int b = 0; b < batches.size(); b++) {

@@ -110,6 +110,8 @@ public final class Campaign {
         public String product = "";
         /** A network Ibiko can't post on itself (Instagram, LinkedIn): offered to the person to share when due. */
         public boolean handoff;
+        /** Whether the post was seen on the network after posting: 1 seen, -1 looked for and not there, 0 not checked yet. */
+        public int checked;
 
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -127,6 +129,7 @@ public final class Campaign {
             m.put("riskOk", riskOk);
             m.put("product", product);
             m.put("handoff", handoff);
+            m.put("checked", (double) checked);
             return m;
         }
 
@@ -147,6 +150,7 @@ public final class Campaign {
             i.riskOk = Boolean.TRUE.equals(m.get("riskOk"));
             i.product = MiniJson.str(m.get("product"), "");
             i.handoff = Boolean.TRUE.equals(m.get("handoff"));
+            i.checked = (int) MiniJson.num(m.get("checked"), 0);
             return i;
         }
 
@@ -176,6 +180,8 @@ public final class Campaign {
     public boolean whatsappShare = false;
     /** Networks Ibiko prepares posts for and the person shares from the app (Instagram, LinkedIn). */
     public final List<String> handoff = new ArrayList<String>();
+    /** The chat that is this campaign's own: its brief, its planning and its plan (a chat id), or "". */
+    public String chat = "";
     public final List<String> themes = new ArrayList<String>();
     /** What to search for: posts by people who may need the offer ("need a logo designer in Lagos"). */
     public final List<String> searches = new ArrayList<String>();
@@ -224,6 +230,7 @@ public final class Campaign {
         m.put("autoPitch", autoPitch);
         m.put("whatsappShare", whatsappShare);
         m.put("handoff", new ArrayList<Object>(handoff));
+        m.put("chat", chat);
         m.put("themes", new ArrayList<Object>(themes));
         m.put("searches", new ArrayList<Object>(searches));
         List<Object> its = new ArrayList<Object>();
@@ -255,6 +262,7 @@ public final class Campaign {
         c.autoPitch = Boolean.TRUE.equals(m.get("autoPitch"));
         c.whatsappShare = Boolean.TRUE.equals(m.get("whatsappShare"));
         c.handoff.addAll(MiniJson.strings(m.get("handoff")));
+        c.chat = MiniJson.str(m.get("chat"), "");
         c.themes.addAll(MiniJson.strings(m.get("themes")));
         c.searches.addAll(MiniJson.strings(m.get("searches")));
         for (Object i : MiniJson.list(m.get("items"))) {

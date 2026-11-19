@@ -576,7 +576,8 @@ public final class SocialActivity extends AppCompatActivity {
         for (final ai.ibiko.social.campaign.Campaign.Item it : c.items) {
             SocialAccounts.Account a = accounts.get(it.account);
             boolean posted = it.state == ai.ibiko.social.campaign.Campaign.State.POSTED;
-            String state = posted ? (it.handoff ? "Handed to you" : "Posted")
+            String state = posted ? (it.handoff ? "Handed to you" : it.checked == 1 ? "Posted, checked on the network"
+                    : "Posted, not checked yet")
                     : it.state == ai.ibiko.social.campaign.Campaign.State.FAILED ? "Didn't go out: " + it.result
                     : it.result.startsWith("waiting") ? "Waiting: " + it.result.substring(8).trim() : "Planned";
             String where = it.handoff || a == null ? ai.ibiko.social.campaign.CampaignRunner.shown(it.network) : a.label;

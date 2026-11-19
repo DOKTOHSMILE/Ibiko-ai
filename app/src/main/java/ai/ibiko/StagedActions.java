@@ -127,12 +127,20 @@ final class StagedActions {
             a.note("Posting on " + net.shown + "\u2026");
             new Thread(() -> {
                 ai.ibiko.social.SocialPoster.Result r = ai.ibiko.social.SocialPoster.post(a, net, p.content, p.tags, null);
+                String checked = null;
                 if (r.posted) {
                     a.ibiko1().readReply(p.content); // Ibiko 1 learns the language of what the pilot approved
+                    a.handler.post(() -> a.note("Checking that it's on your " + net.shown + " profile\u2026"));
+                    Boolean seen = ai.ibiko.social.campaign.PostCheck.verify(a, net, p.content); // pressing Post isn't proof
+                    checked = Boolean.TRUE.equals(seen) ? "Posted on " + net.shown + " and checked: it's on your profile."
+                            : Boolean.FALSE.equals(seen) ? "I pressed Post on " + net.shown + ", but the post isn't on your profile."
+                                    + " Check it there; I won't post it again, so nothing is doubled."
+                            : r.said + " I couldn't check your profile to confirm it.";
                 }
+                final String said = checked;
                 a.handler.post(() -> {
                     if (r.posted) {
-                        a.play(LocalTurn.speakAs(agent, r.said), null);
+                        a.play(LocalTurn.speakAs(agent, said), null);
                         return;
                     }
                     boolean handed = ai.ibiko.act.Actions.share(a, p); // couldn't do it here: the app, for the pilot to press Post

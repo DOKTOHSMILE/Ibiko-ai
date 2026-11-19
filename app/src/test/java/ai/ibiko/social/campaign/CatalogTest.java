@@ -51,7 +51,7 @@ public class CatalogTest {
         c.handoff.add("instagram");
         final String[] postsAsked = {""};
         CampaignPlanner.Brain brain = (system, prompt, tokens) -> {
-            if (prompt.contains("Plan it as JSON")) {
+            if (prompt.contains("Plan its strategy as JSON")) {
                 return "{\"name\":\"Gas\",\"themes\":[\"Safety\"],\"slots\":["
                         + "{\"day\":1,\"time\":\"10:00\",\"account\":\"fb1\",\"theme\":\"Safety\",\"angle\":\"Cook safely\",\"product\":\"P1\"},"
                         + "{\"day\":1,\"time\":\"12:00\",\"account\":\"handoff:instagram\",\"theme\":\"Safety\",\"angle\":\"Refill day\",\"product\":\"P9\"}]}";
