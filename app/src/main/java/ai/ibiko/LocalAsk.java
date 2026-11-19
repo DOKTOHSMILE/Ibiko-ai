@@ -326,27 +326,24 @@ final class LocalAsk {
                     }
                 });
             }
-            boolean ring = pageTools.round() && act.model.remoteOn()
-                    && ai.ibiko.llm.RoundThink.worth(english);
-            if (ring) {
-                raw = ai.ibiko.llm.RoundThink.run(
-                        (model, sys, prompt) -> act.model.askNamed(model, sys, prompt,
-                                Math.max(length, 800)),
-                        act.model.ring(), english, context, system, line -> act.handler.post(() -> {
-                            if (act.alive(id)) {
-                                act.activity(line);
-                            }
-                        }), () -> !act.alive(id));
+            // Think 2: every API model thinks on its own, in private, at once; the strongest that answered judges
+            // all the notes and writes the one answer. Nothing of the round is shown (no steps, no model names). For
+            // "continue" the round thinks about the plan under way, not about the word
+            boolean carry = AgentWork.carriesOn(english)
+                    || english.trim().toLowerCase(java.util.Locale.US).matches("^(continue|go on|carry on|keep going|next|proceed|go ahead)[.!]*$");
+            String subject = ai.ibiko.llm.ThinkTwo.subject(english, carry,
+                    carry && act.activeQuestion != null && !act.activeQuestion.equalsIgnoreCase(english) ? act.activeQuestion : null,
+                    carry ? act.lastReply() : null);
+            java.util.List<ai.ibiko.llm.ThinkTwo.Thinker> thinkers = pageTools.round() && act.model.remoteOn()
+                    ? act.model.thinkers() : java.util.Collections.<ai.ibiko.llm.ThinkTwo.Thinker>emptyList();
+            if (!thinkers.isEmpty() && (carry || ai.ibiko.llm.ThinkTwo.worth(english))) {
+                final int room = Math.max(length, 800);
+                raw = ai.ibiko.llm.ThinkTwo.run((t, sys, prompt) -> act.model.askThinker(t, sys, prompt, room),
+                        thinkers, subject, context, system, () -> !act.alive(id));
                 if (raw != null) {
                     sink.onText(raw);
-                } else if (act.alive(id)) {
-                    // the round came back with nothing: one model still answers, and the row says so
-                    act.handler.post(() -> {
-                        if (act.alive(id)) {
-                            act.activity("Think 2 didn't finish; answering once");
-                        }
-                    });
                 }
+                // nothing came back: the selected model answers once, as usual, with nothing said about the round
             }
             if (raw == null && act.alive(id) && pageTools.deep()) {
                 // deep thinking, switched on for this chat: the same brain plans, drafts, checks and revises
