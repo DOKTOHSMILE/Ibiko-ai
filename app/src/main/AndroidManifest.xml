@@ -176,6 +176,10 @@
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />
         <activity
+            android:name=".chat.ui.CampaignFormActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Ibiko" />
+        <activity
             android:name=".chat.ui.TerminalActivity"
             android:exported="false"
             android:theme="@style/Theme.Ibiko"

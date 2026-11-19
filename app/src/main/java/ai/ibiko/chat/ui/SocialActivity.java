@@ -446,121 +446,29 @@ public final class SocialActivity extends AppCompatActivity {
         BottomSheet.showView(this, c.name, sv);
     }
 
-    /** The brief: what the campaign is for, the accounts it runs on, how long, how often. */
+    private static final int FORM = 41;
+
+    /** The brief, on its own screen (roomy boxes for long answers); a usable account is needed first. */
     private void newCampaign() {
-        final java.util.List<SocialAccounts.Account> usable = new java.util.ArrayList<SocialAccounts.Account>();
+        boolean any = false;
         for (SocialAccounts.Account a : SocialWeb.accounts(this).all()) {
-            if (a.signedIn && (a.platform == Platform.X || a.platform == Platform.FACEBOOK)) {
-                usable.add(a);
-            }
+            any |= a.signedIn && (a.platform == Platform.X || a.platform == Platform.FACEBOOK);
         }
-        if (usable.isEmpty()) {
+        if (!any) {
             new androidx.appcompat.app.AlertDialog.Builder(this)
                     .setMessage("A campaign posts from your Facebook or X accounts. Sign in to one first (above).")
                     .setPositiveButton("OK", null)
                     .show();
             return;
         }
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        int p = Ui.dp(this, 20);
-        box.setPadding(p, Ui.dp(this, 8), p, 0);
-        final android.widget.EditText business = field(box, "Your business (name, what you do, where)");
-        final android.widget.EditText offer = field(box, "What this campaign offers or promotes");
-        final android.widget.EditText audience = field(box, "Who it's for");
-        final android.widget.EditText goal = field(box, "The goal (orders, sign-ups, visits, enquiries)");
-        final android.widget.EditText tone = field(box, "Tone (friendly, expert, playful…)");
-        final android.widget.EditText link = field(box, "Link or contact (optional)");
-        box.addView(Ui.text(this, "Post from", 14, Ui.SUB, false), Ui.wide(this, 12));
-        final java.util.List<android.widget.CheckBox> picks = new java.util.ArrayList<android.widget.CheckBox>();
-        for (SocialAccounts.Account a : usable) {
-            android.widget.CheckBox cb = new android.widget.CheckBox(this);
-            cb.setText(a.label + " (" + a.platform.shown + ")");
-            cb.setTextColor(Ui.TEXT);
-            cb.setChecked(a.inUse);
-            cb.setMinHeight(Ui.dp(this, 48));
-            box.addView(cb);
-            picks.add(cb);
-        }
-        final android.widget.EditText days = field(box, "Days (1 to 90)");
-        days.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        days.setText("7");
-        final android.widget.EditText perDay = field(box, "Posts a day on each account (1 to 6)");
-        perDay.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        perDay.setText("1");
-        final android.widget.CheckBox engage = check(box, "Answer comments on its posts", true);
-        final android.widget.CheckBox prospect = check(box, "Find people who need this, and draft a reply for each", true);
-        final android.widget.CheckBox autoPitch = check(box, "Send those replies without asking (up to "
-                + ai.ibiko.social.campaign.LeadSender.MOST_AUTO_PITCHES + " a day)", false);
-        ScrollView sv = new ScrollView(this);
-        sv.addView(box);
-        final androidx.appcompat.app.AlertDialog form = new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("New campaign")
-                .setView(sv)
-                .setPositiveButton("Plan it", null) // set below: a brief missing a part keeps the form open, not lost
-                .setNegativeButton("Cancel", null)
-                .create();
-        form.setOnShowListener(x -> form.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener(btn -> {
-                    ai.ibiko.social.campaign.Campaign c = new ai.ibiko.social.campaign.Campaign();
-                    long now = System.currentTimeMillis();
-                    c.id = "c" + now;
-                    c.createdAt = now;
-                    c.startAt = now;
-                    c.brief.business = business.getText().toString().trim();
-                    c.brief.offer = offer.getText().toString().trim();
-                    c.brief.audience = audience.getText().toString().trim();
-                    c.brief.goal = goal.getText().toString().trim();
-                    c.brief.tone = tone.getText().toString().trim();
-                    c.brief.link = link.getText().toString().trim();
-                    for (int i = 0; i < picks.size(); i++) {
-                        if (picks.get(i).isChecked()) {
-                            c.accounts.add(usable.get(i).id);
-                        }
-                    }
-                    c.days = number(days, 7, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_DAYS);
-                    c.perDay = number(perDay, 1, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_PER_DAY);
-                    c.engage = engage.isChecked();
-                    c.prospect = prospect.isChecked();
-                    c.autoPitch = prospect.isChecked() && autoPitch.isChecked();
-                    if (c.brief.business.isEmpty() && c.brief.offer.isEmpty()) {
-                        android.widget.Toast.makeText(this, "Say what the business is or what the campaign offers.",
-                                android.widget.Toast.LENGTH_LONG).show();
-                        return; // the form stays open with what was typed
-                    }
-                    if (c.accounts.isEmpty()) {
-                        android.widget.Toast.makeText(this, "Choose at least one account to post from.", android.widget.Toast.LENGTH_LONG).show();
-                        return; // the form stays open with what was typed
-                    }
-                    ai.ibiko.social.campaign.CampaignDraft.offer(c);
-                    form.dismiss();
-                    backToChat(); // the chat's brain plans it, and shows the plan for approval
-        }));
-        form.show();
+        startActivityForResult(new Intent(this, CampaignFormActivity.class), FORM);
     }
 
-    private android.widget.CheckBox check(LinearLayout box, String label, boolean on) {
-        android.widget.CheckBox cb = new android.widget.CheckBox(this);
-        cb.setText(label);
-        cb.setTextColor(Ui.TEXT);
-        cb.setChecked(on);
-        cb.setMinHeight(Ui.dp(this, 48));
-        box.addView(cb);
-        return cb;
-    }
-
-    private android.widget.EditText field(LinearLayout box, String hint) {
-        android.widget.EditText f = Ui.field(this, hint, "", false, false);
-        box.addView(f, Ui.wide(this, 8));
-        return f;
-    }
-
-    private static int number(android.widget.EditText f, int fallback, int least, int most) {
-        try {
-            String t = f.getText().toString().trim();
-            int n = t.isEmpty() ? fallback : Integer.parseInt(t);
-            return Math.max(least, Math.min(most, n));
-        } catch (NumberFormatException e) {
-            return fallback;
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request == FORM && result == RESULT_OK) {
+            backToChat(); // the brief is with the brain: it plans on its own and shows the plan for approval
         }
     }
 
