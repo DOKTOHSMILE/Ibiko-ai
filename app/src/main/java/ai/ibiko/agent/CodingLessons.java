@@ -88,12 +88,7 @@ public final class CodingLessons {
             if (dir != null) {
                 dir.mkdirs();
             }
-            File tmp = new File(file.getPath() + ".tmp");
-            Files.write(tmp.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
-            if (!tmp.renameTo(file)) {
-                Files.write(file.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
-                tmp.delete();
-            }
+            ai.ibiko.learn.SafeFile.write(file, b.toString()); // whole or not at all
         } catch (IOException ignored) {
             // kept in memory for this run
         }

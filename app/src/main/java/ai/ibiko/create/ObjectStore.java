@@ -63,7 +63,7 @@ public final class ObjectStore {
         j.put("measured", Boolean.FALSE);
         j.put("assetId", existingAssetId(new File(dir, name(m.spec.category) + ".json")));
         File f = new File(dir, name(m.spec.category) + ".json");
-        Files.write(f.toPath(), MiniJson.write(j).getBytes(StandardCharsets.UTF_8));
+        ai.ibiko.learn.SafeFile.write(f, MiniJson.write(j)); // whole or not at all
         return f;
     }
 
@@ -177,7 +177,7 @@ public final class ObjectStore {
             base += c.mesh.pos.length / 3;
         }
         File f = new File(dir, name(m.spec.category) + ".obj");
-        Files.write(f.toPath(), sb.toString().getBytes(StandardCharsets.UTF_8));
+        ai.ibiko.learn.SafeFile.write(f, sb.toString()); // whole or not at all
         return f;
     }
 

@@ -104,11 +104,7 @@ public final class LearnedIntents {
             b.append(e.getKey()).append('\t').append(e.getValue().replace('\n', ' ')).append('\n');
         }
         try {
-            File tmp = new File(file.getPath() + ".tmp");
-            Files.write(tmp.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
-            if (!tmp.renameTo(file)) {
-                Files.write(file.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
-            }
+            ai.ibiko.learn.SafeFile.write(file, b.toString()); // whole or not at all
         } catch (IOException ignored) {
             // learning is a help, not a must
         }
