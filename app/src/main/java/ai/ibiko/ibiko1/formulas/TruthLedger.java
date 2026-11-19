@@ -234,12 +234,7 @@ public final class TruthLedger implements Truth.Witness {
             if (parent != null) {
                 parent.mkdirs();
             }
-            File tmp = new File(file.getPath() + ".tmp");
-            Files.write(tmp.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
-            if (!tmp.renameTo(file)) {
-                Files.write(file.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
-                tmp.delete();
-            }
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // whole or not at all
         } catch (java.io.IOException e) {
             // kept in memory; written next time
         }

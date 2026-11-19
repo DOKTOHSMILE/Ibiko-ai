@@ -211,6 +211,7 @@ final class AgentSession {
             final java.util.List<String> changed = new java.util.ArrayList<String>();
             ai.ibiko.agent.CodeAgent agent = make.get();
             String result;
+            boolean broke = false;
             try {
                 if (a.carriesOn(task)) {
                     agent.resume(a.agentWork(persona)); // "continue", "give me the result": the same work goes on
@@ -257,11 +258,14 @@ final class AgentSession {
                             + ". Say \u201ccontinue\u201d to keep going.)";
                 }
             } catch (RuntimeException failed) {
-                if (a.model != null) {
-                    a.model.coding = false;
-                }
-                a.handler.post(() -> ai.ibiko.main.LiveWork.ended(a));
-                throw failed;
+                // rethrown on this bare thread it closed the whole app, and the chat stayed marked as running: the
+                // job ends here instead, and says what went wrong
+                ai.ibiko.CrashLog.toDownloads(a, "ibiko-agent-error-" + ai.ibiko.CrashLog.stamp(System.currentTimeMillis())
+                        + ".txt", ai.ibiko.CrashLog.report(a, "Agent error", ai.ibiko.CrashLog.stack(failed), null));
+                broke = true;
+                result = "The work stopped on an error: " + failed.getClass().getSimpleName()
+                        + (failed.getMessage() == null ? "" : " (" + failed.getMessage() + ")")
+                        + ". A report is in Download/Ibiko. Say “continue” to try again from the last checkpoint.";
             } finally {
                 a.model.watchIdleMs = 0;
                 a.model.watchCapMs = 0;
@@ -272,6 +276,7 @@ final class AgentSession {
             a.markRunning(null, null); // finished (or stopped): nothing to carry on after a restart
             a.backgroundTask = null;
             final String answer = result;
+            final boolean errored = broke;
             final String passedTo = agent.handedTo();
             changed.addAll(agent.changed());
             scribe.finish(answer, host.stopped(), changed);
@@ -312,7 +317,7 @@ final class AgentSession {
                 a.attachWork(readOnly ? null : changed, since); // the diff, pull requests and files, under this reply
                 String spoken = ai.ibiko.chat.ReplyText.prepare(answer);
                 a.play(LocalTurn.speakAs(persona, spoken.isEmpty() ? answer : spoken), null);
-                if (planning && answer != null && !answer.trim().isEmpty() && !host.stopped()) {
+                if (planning && !errored && answer != null && !answer.trim().isEmpty() && !host.stopped()) {
                     a.approvePlan(task, answer);
                 }
             });

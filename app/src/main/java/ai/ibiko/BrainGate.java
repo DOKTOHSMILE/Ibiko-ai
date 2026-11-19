@@ -391,8 +391,10 @@ final class BrainGate {
             }
             // said on this page and kept there, not a notice that fades: the message is waiting, not lost
             String busyWith = a.runAgent == null ? "Another chat" : a.labelOf(a.runAgent);
-            a.chats.noteHere(a.stage == null ? null : a.stage.agent(), "Waiting: " + busyWith + " is still working. Your message goes out"
-                    + " the moment that finishes. Tap Stop to end it sooner.");
+            if (a.chats != null) {
+                a.chats.noteHere(a.stage == null ? null : a.stage.agent(), "Waiting: " + busyWith + " is still working. Your message goes out"
+                        + " the moment that finishes. Tap Stop to end it sooner.");
+            }
             if (a.chatPane != null) {
                 a.chatPane.show();
             }

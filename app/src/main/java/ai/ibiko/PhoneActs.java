@@ -174,9 +174,20 @@ final class PhoneActs {
             case PLANMODE:
                 a.command(ai.ibiko.turn.Meaning.Command.MODE_PLAN);
                 return;
-            case AUTOON:
-                a.command(ai.ibiko.turn.Meaning.Command.AUTO_ON);
+            case AUTOON: {
+                // the model read this from the turn, and the turn can hold an attached file or a pasted page: turning
+                // every approval off takes the user's own tap, not the model's word
+                ai.ibiko.chat.ui.BottomSheet.Item[] items = {
+                        new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_mode_auto, "Yes, turn auto-accept on",
+                                "Ibiko runs commands, pushes and pull requests without asking"),
+                        new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_close, "No, keep asking", null)};
+                ai.ibiko.chat.ui.BottomSheet.show(a, "Turn auto-accept on?", items, which -> {
+                    if (which == 0) {
+                        a.command(ai.ibiko.turn.Meaning.Command.AUTO_ON);
+                    }
+                });
                 return;
+            }
             case AUTOOFF:
                 a.command(ai.ibiko.turn.Meaning.Command.AUTO_OFF);
                 return;

@@ -503,6 +503,15 @@ public class LaunchTest {
         brainSays(c, "\u00A7SW obi");
         org.junit.Assert.assertEquals("Obi", ((android.widget.TextView) c.get().findViewById(ai.ibiko.R.id.tabObi)).getText().toString());
         brainSays(c, "\u00A7AO");
+        // the model's code alone changes nothing: turning every approval off takes the user's tap
+        org.junit.Assert.assertFalse("asked, not switched", prefs.getBoolean("auto_accept", false));
+        android.app.Dialog asked = org.robolectric.shadows.ShadowDialog.getLatestDialog();
+        org.junit.Assert.assertNotNull(asked);
+        android.view.View yes = described(asked.getWindow().getDecorView(),
+                "Yes, turn auto-accept on. Ibiko runs commands, pushes and pull requests without asking");
+        org.junit.Assert.assertNotNull(yes);
+        yes.performClick();
+        ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
         org.junit.Assert.assertTrue(prefs.getBoolean("auto_accept", false));
         brainSays(c, "\u00A7AF");
         org.junit.Assert.assertFalse(prefs.getBoolean("auto_accept", false));
@@ -1415,4 +1424,5 @@ public class LaunchTest {
         }
         return null;
     }
+
 }

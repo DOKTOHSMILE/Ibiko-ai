@@ -158,7 +158,7 @@ public final class SourceRead {
     }
 
     /** Whether {@code f}, every link followed, is {@code root} or inside it. */
-    static boolean within(File root, File f) {
+    public static boolean within(File root, File f) {
         try {
             String r = root.getCanonicalPath(), p = f.getCanonicalPath();
             return p.equals(r) || p.startsWith(r + File.separator);
