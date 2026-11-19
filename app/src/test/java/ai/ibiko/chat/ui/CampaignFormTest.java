@@ -61,6 +61,7 @@ public class CampaignFormTest {
         assertEquals(1, got.accounts.size());
         assertTrue(a.isFinishing());
         c.pause().stop().destroy();
+        accounts.remove(x.id); // the accounts list is shared with other tests
     }
 
     @Test
@@ -72,6 +73,33 @@ public class CampaignFormTest {
         assertNull(CampaignDraft.take());
         assertTrue(!a.isFinishing());
         c.pause().stop().destroy();
+    }
+
+    @Test
+    public void aLocalWhatsAppNumberAsksForItsCountryCode() {
+        CampaignDraft.take();
+        android.content.Context app = org.robolectric.RuntimeEnvironment.getApplication();
+        SocialAccounts accounts = SocialWeb.accounts(app);
+        SocialAccounts.Account x = accounts.add(Platform.X, "Brand", System.currentTimeMillis());
+        accounts.signedIn(x.id, true);
+        accounts.use(x.id);
+        ActivityController<CampaignFormActivity> c = Robolectric.buildActivity(CampaignFormActivity.class).create().start().resume().visible();
+        CampaignFormActivity a = c.get();
+        List<EditText> boxes = new ArrayList<EditText>();
+        collect(a.getWindow().getDecorView(), boxes);
+        boxes.get(1).setText("Cakes");
+        EditText wa = boxes.get(6);
+        wa.setText("0803 123 4567");
+        ((TextView) byText(a.getWindow().getDecorView(), "Plan it")).performClick();
+        assertNotNull(wa.getError());
+        assertNull(CampaignDraft.take());
+        wa.setText("+234 803 123 4567");
+        ((TextView) byText(a.getWindow().getDecorView(), "Plan it")).performClick();
+        Campaign got = CampaignDraft.take();
+        assertNotNull(got);
+        assertTrue(got.brief.chat().startsWith("https://wa.me/2348031234567"));
+        c.pause().stop().destroy();
+        accounts.remove(x.id); // the accounts list is shared with other tests
     }
 
     private static void collect(View v, List<EditText> out) {

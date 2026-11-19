@@ -71,6 +71,9 @@ public final class CampaignRunner extends BroadcastReceiver {
                 usedThisRun.add(it.account);
                 postOne(c, camp, it, now);
                 changed = true;
+                if (camp.whatsappShare && it.state == Campaign.State.POSTED) {
+                    ai.ibiko.chat.ui.WhatsAppShareActivity.offer(c, camp, it);
+                }
             }
             if (camp.planned().isEmpty()) {
                 camp.status = Campaign.Status.DONE;
@@ -135,6 +138,11 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         fail(c, camp, it, r.said);
+    }
+
+    /** {@link #picture}, for a share from outside this package. */
+    public static File pictureOf(Context c, Campaign camp, Campaign.Item it) {
+        return picture(c, camp, it);
     }
 
     /** The post's picture, drawn now if it wasn't yet; null when there is none or it couldn't be drawn. */

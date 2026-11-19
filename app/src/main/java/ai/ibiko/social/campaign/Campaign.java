@@ -22,6 +22,8 @@ public final class Campaign {
     /** What the person asked for, in their words. */
     public static final class Brief {
         public String business = "", offer = "", audience = "", goal = "", tone = "", link = "";
+        /** The business's WhatsApp: a number with its country code, or a wa.me link. */
+        public String whatsapp = "";
 
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -31,6 +33,7 @@ public final class Campaign {
             m.put("goal", goal);
             m.put("tone", tone);
             m.put("link", link);
+            m.put("whatsapp", whatsapp);
             return m;
         }
 
@@ -43,6 +46,7 @@ public final class Campaign {
             b.goal = MiniJson.str(m.get("goal"), "");
             b.tone = MiniJson.str(m.get("tone"), "");
             b.link = MiniJson.str(m.get("link"), "");
+            b.whatsapp = MiniJson.str(m.get("whatsapp"), "");
             return b;
         }
 
@@ -55,7 +59,14 @@ public final class Campaign {
             line(s, "Goal", goal);
             line(s, "Tone", tone);
             line(s, "Link", link);
+            line(s, "WhatsApp chat link", chat());
             return s.toString().trim();
+        }
+
+        /** The click-to-chat link for the business's WhatsApp, or "" when none was given. */
+        public String chat() {
+            String l = WhatsApp.link(whatsapp, WhatsApp.greeting(this));
+            return l == null ? "" : l;
         }
 
         private static void line(StringBuilder s, String name, String v) {
@@ -124,6 +135,8 @@ public final class Campaign {
     public boolean prospect = true;
     /** Send drafted pitches without asking (off: each waits in Leads for a tap). */
     public boolean autoPitch = false;
+    /** When each post goes out, a notification offers it to share to WhatsApp Status or a group in one tap. */
+    public boolean whatsappShare = false;
     public final List<String> themes = new ArrayList<String>();
     /** What to search for: posts by people who may need the offer ("need a logo designer in Lagos"). */
     public final List<String> searches = new ArrayList<String>();
@@ -170,6 +183,7 @@ public final class Campaign {
         m.put("engage", engage);
         m.put("prospect", prospect);
         m.put("autoPitch", autoPitch);
+        m.put("whatsappShare", whatsappShare);
         m.put("themes", new ArrayList<Object>(themes));
         m.put("searches", new ArrayList<Object>(searches));
         List<Object> its = new ArrayList<Object>();
@@ -199,6 +213,7 @@ public final class Campaign {
         c.engage = !Boolean.FALSE.equals(m.get("engage"));
         c.prospect = !Boolean.FALSE.equals(m.get("prospect"));
         c.autoPitch = Boolean.TRUE.equals(m.get("autoPitch"));
+        c.whatsappShare = Boolean.TRUE.equals(m.get("whatsappShare"));
         c.themes.addAll(MiniJson.strings(m.get("themes")));
         c.searches.addAll(MiniJson.strings(m.get("searches")));
         for (Object i : MiniJson.list(m.get("items"))) {

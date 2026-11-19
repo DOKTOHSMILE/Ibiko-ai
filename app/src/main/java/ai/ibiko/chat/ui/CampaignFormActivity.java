@@ -22,6 +22,7 @@ import ai.ibiko.social.campaign.Campaign;
 import ai.ibiko.social.campaign.CampaignDraft;
 import ai.ibiko.social.campaign.CampaignPlanner;
 import ai.ibiko.social.campaign.LeadSender;
+import ai.ibiko.social.campaign.WhatsApp;
 
 /**
  * A new campaign's brief, on a screen of its own: each part named above its box (the name stays when the box is
@@ -34,8 +35,8 @@ public final class CampaignFormActivity extends AppCompatActivity {
 
     private final List<SocialAccounts.Account> usable = new ArrayList<SocialAccounts.Account>();
     private final List<CheckBox> picks = new ArrayList<CheckBox>();
-    private EditText business, offer, audience, goal, tone, link, days, perDay;
-    private CheckBox engage, prospect, autoPitch;
+    private EditText business, offer, audience, goal, tone, link, whatsapp, days, perDay;
+    private CheckBox engage, prospect, autoPitch, whatsappShare;
     private int nextId = ID_BASE;
 
     @Override
@@ -79,7 +80,11 @@ public final class CampaignFormActivity extends AppCompatActivity {
         audience = big(box, "Who it's for", "E.g. young professionals in Lagos who shop online", 2);
         goal = big(box, "The goal", "Orders, enquiries, sign-ups, visits…", 2);
         tone = big(box, "Tone", "Friendly, expert, playful…", 1);
-        link = label(box, "Link or contact (optional)", Ui.field(this, "A website or wa.me link", "", false, false));
+        link = label(box, "Website or other link (optional)", Ui.field(this, "https://…", "", false, false));
+        whatsapp = label(box, "WhatsApp (optional)", Ui.field(this, "+234 803 123 4567 or a wa.me link", "", false, false));
+        whatsapp.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        box.addView(Ui.text(this, "Posts and replies get a link that opens a WhatsApp chat with you in one tap. Free: no"
+                + " WhatsApp Business account needed.", 12, Ui.SUB, false), Ui.wide(this, 4));
 
         box.addView(Ui.text(this, "Post from", 15, Ui.TEXT, true), Ui.wide(this, 20));
         if (usable.isEmpty()) {
@@ -105,6 +110,7 @@ public final class CampaignFormActivity extends AppCompatActivity {
         prospect = check(box, "Find people who need this, and draft a reply for each", true);
         autoPitch = check(box, "Send those replies without asking (up to " + LeadSender.MOST_AUTO_PITCHES + " a day)", false);
         prospect.setOnCheckedChangeListener((b, on) -> autoPitch.setEnabled(on));
+        whatsappShare = check(box, "When a post goes out, offer it to share to my WhatsApp Status or groups", false);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -187,6 +193,7 @@ public final class CampaignFormActivity extends AppCompatActivity {
         c.brief.goal = words(goal);
         c.brief.tone = words(tone);
         c.brief.link = words(link);
+        c.brief.whatsapp = words(whatsapp);
         for (int i = 0; i < picks.size(); i++) {
             if (picks.get(i).isChecked()) {
                 c.accounts.add(usable.get(i).id);
@@ -197,6 +204,12 @@ public final class CampaignFormActivity extends AppCompatActivity {
         c.engage = engage.isChecked();
         c.prospect = prospect.isChecked();
         c.autoPitch = prospect.isChecked() && autoPitch.isChecked();
+        c.whatsappShare = whatsappShare.isChecked();
+        if (!c.brief.whatsapp.isEmpty() && WhatsApp.link(c.brief.whatsapp, null) == null) {
+            whatsapp.setError("Write the number with its country code, e.g. +234 803 123 4567, or paste a wa.me link");
+            whatsapp.requestFocus();
+            return;
+        }
         if (c.brief.business.isEmpty() && c.brief.offer.isEmpty()) {
             business.setError("Say what the business is, or what the campaign promotes");
             business.requestFocus();

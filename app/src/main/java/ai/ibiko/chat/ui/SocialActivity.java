@@ -440,6 +440,14 @@ public final class SocialActivity extends AppCompatActivity {
             list.addView(iconRow(it.state == ai.ibiko.social.campaign.Campaign.State.POSTED ? ai.ibiko.R.drawable.ic_check
                     : ai.ibiko.R.drawable.ic_calendar, df.format(new java.util.Date(it.at)) + " · "
                     + (a == null ? it.network : a.label) + " · " + state, it.text));
+            final String itemId = it.id;
+            TextView wa = Ui.text(this, "Share to WhatsApp Status or a group", 14, Ui.ACCENT, false);
+            wa.setMinHeight(Ui.dp(this, 48));
+            wa.setGravity(Gravity.CENTER_VERTICAL);
+            wa.setPadding(Ui.dp(this, 36), 0, 0, 0);
+            Ui.press(wa);
+            wa.setOnClickListener(v -> startActivity(WhatsAppShareActivity.intent(this, c.id, itemId)));
+            list.addView(wa);
         }
         ScrollView sv = new ScrollView(this);
         sv.addView(list);
