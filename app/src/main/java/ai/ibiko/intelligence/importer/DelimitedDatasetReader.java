@@ -10,6 +10,9 @@ import java.util.Locale;
 
 /** Streaming RFC-4180-style delimited reader for CSV/TSV. Handles quoted separators and escaped quotes, both doubled ("") and backslashed (\\"). */
 public final class DelimitedDatasetReader {
+    /** The longest one record may be. */
+    static final int MOST_RECORD = 1 << 20;
+
     public interface RowConsumer { void accept(List<String> header, List<String> row, long rowNumber) throws IOException; }
     private DelimitedDatasetReader() {}
 
@@ -22,6 +25,10 @@ public final class DelimitedDatasetReader {
         long rows = 0;
         int ch;
         while ((ch = in.read()) != -1) {
+            if (record.length() > MOST_RECORD) {
+                // an unclosed quote made the rest of a large file one record, held in memory until it ran out
+                throw new IOException("A record is longer than " + (MOST_RECORD / 1024) + " KB: the file may have an unclosed quote");
+            }
             char c = (char) ch;
             if (c == '\\' && quoted) {
                 // a backslash-escaped quote (\") inside a quoted field, as many CSV exports write it
