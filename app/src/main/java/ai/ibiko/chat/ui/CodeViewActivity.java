@@ -33,7 +33,7 @@ public final class CodeViewActivity extends AppCompatActivity {
     /** Up to this size the code is shown as one selectable text; above, as a list of lines. */
     static final int SELECTABLE_CHARS = 40_000;
     /** The clipboard travels through the same 1 MB channel: more than this is shared, not copied. */
-    static final int MOST_COPY = 300_000;
+    public static final int MOST_COPY = 300_000;
 
     /** Opens code from a chat message: small code inside the Intent, big code through a file. */
     public static void open(Context c, String code, String lang) {

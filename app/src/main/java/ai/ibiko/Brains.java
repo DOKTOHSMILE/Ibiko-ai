@@ -303,7 +303,7 @@ final class Brains {
                 int taught = a.journal == null ? 0 : a.journal.taughtCount();
                 if (ok) {
                     a.stage.activity("BRAIN",
-                            "synced with Ibiko " + BuildConfigInfo.version(a) + ": 3 personas, "
+                            "synced with Ibiko " + BuildConfigInfo.version(a) + ": "
                                     + taught + (taught == 1 ? " taught fact" : " taught facts"));
                 }
                 if (tell) {

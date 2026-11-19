@@ -23,8 +23,12 @@ public final class Actions {
         if (cm == null) {
             return false;
         }
-        cm.setPrimaryClip(ClipData.newPlainText("Ibiko", text));
-        return true;
+        try {
+            cm.setPrimaryClip(ClipData.newPlainText("Ibiko", text == null ? "" : text));
+            return true;
+        } catch (RuntimeException tooBig) {
+            return false; // the clipboard goes through a 1 MB channel: a very long text threw here and closed the app
+        }
     }
 
     /** Opens the target app (or the share menu) with the text. Returns false if nothing could open it. */
