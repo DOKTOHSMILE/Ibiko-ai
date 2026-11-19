@@ -2104,6 +2104,10 @@ public final class CodeAgent {
                     return cached;
                 }
                 host.step("Searched for \u201c" + clip(c.a("query"), 40) + "\u201d");
+                String where = c.a("path").trim();
+                if (!where.isEmpty() && !where.equals(".")) {
+                    inside(where); // the same rule as reading a file: this chat's workspace and this worker's project only
+                }
                 String found = SourceRead.search(workspace, c.a("query"), c.a("path"));
                 String note = tongue().searchNote(c.a("query"));
                 String out = note == null ? found : note + "\n" + found;
