@@ -38,17 +38,18 @@ public final class SocialActivity extends AppCompatActivity {
         int pad = Ui.dp(this, 16);
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.setPadding(pad, Ui.dp(this, 20), pad, Ui.dp(this, 8));
+        head.setPadding(Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 4));
         android.widget.ImageView close = Ui.icon(this, ai.ibiko.R.drawable.ic_close, Ui.ACCENT, ai.ibiko.IconSize.STANDARD);
         close.setContentDescription("Close");
-        close.setPadding(Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6));
-        close.setContentDescription("Close");
+        int cp = Ui.dp(this, 12);
+        close.setPadding(cp, cp, cp, cp);
         close.setOnClickListener(v -> finish());
-        head.addView(close);
+        Ui.press(close);
+        head.addView(close, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48))); // a 48 dp target
         TextView title = Ui.text(this, "Social accounts", 19, Ui.TEXT, true);
         title.setGravity(Gravity.CENTER);
         head.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
-        head.addView(new android.view.View(this), new LinearLayout.LayoutParams(Ui.dp(this, 34), 1));
+        head.addView(new android.view.View(this), new LinearLayout.LayoutParams(Ui.dp(this, 48), 1)); // as wide as Close: the title centred
         root.addView(head);
         ScrollView scroll = new ScrollView(this);
         body = new LinearLayout(this);
@@ -90,6 +91,10 @@ public final class SocialActivity extends AppCompatActivity {
                                         + " posts · " + limits.used(a.id, SocialLimits.Kind.COMMENT, now) + " of "
                                         + limits.cap(p, SocialLimits.Kind.COMMENT, true) + " comments");
                 LinearLayout row = row(a.label, a.inUse, state, () -> remove(a), () -> rename(a));
+                row.setContentDescription(a.label + ", " + p.shown + ". " + state);
+                if (!a.inUse) {
+                    Ui.press(row); // only a row that switches the account looks tappable
+                }
                 row.setOnClickListener(v -> {
                     if (!a.inUse) {
                         boolean ok = SocialWeb.switchTo(this, a.id);
@@ -104,7 +109,9 @@ public final class SocialActivity extends AppCompatActivity {
                 }
                 if (paused != null) {
                     TextView resume = Ui.text(this, "Resume " + a.label, 15, Ui.ACCENT, false);
-                    resume.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 10));
+                    resume.setGravity(Gravity.CENTER_VERTICAL);
+                    resume.setMinHeight(Ui.dp(this, 48));
+                    Ui.press(resume);
                     resume.setOnClickListener(v -> new androidx.appcompat.app.AlertDialog.Builder(this)
                             .setMessage("Open " + p.shown + " in your browser or its app first and clear the warning or check."
                                     + " Resume " + a.label + " now?")
@@ -119,7 +126,9 @@ public final class SocialActivity extends AppCompatActivity {
                 }
             }
             TextView add = Ui.text(this, on.isEmpty() ? "Sign in to " + p.shown : "Add account", 15, Ui.ACCENT, false);
-            add.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+            add.setGravity(Gravity.CENTER_VERTICAL);
+            add.setMinHeight(Ui.dp(this, 48));
+            Ui.press(add);
             add.setOnClickListener(v -> startActivity(new Intent(this, SocialLoginActivity.class)
                     .putExtra(SocialLoginActivity.EXTRA_PLATFORM, p.name())));
             card.addView(add);
@@ -143,6 +152,8 @@ public final class SocialActivity extends AppCompatActivity {
         for (final ai.ibiko.social.PostPlan plan : plans) {
             LinearLayout r = iconRow(ai.ibiko.R.drawable.ic_calendar, df.format(new java.util.Date(plan.at)) + " \u00B7 " + plan.network
                     + " \u00B7 " + plan.repeatWords(), plan.text);
+            r.setMinimumHeight(Ui.dp(this, 48));
+            Ui.press(r);
             r.setOnClickListener(v -> new androidx.appcompat.app.AlertDialog.Builder(this)
                     .setMessage("Cancel this scheduled post?\n\n" + plan.text)
                     .setPositiveButton("Cancel it", (d, w) -> {
@@ -175,7 +186,11 @@ public final class SocialActivity extends AppCompatActivity {
             boolean picked = c[1].equals(prefs.getString("social_pace", "normal"));
             TextView pill = Ui.text(this, c[0], 14, picked ? Ui.BG : Ui.TEXT, picked);
             pill.setBackground(Ui.round(this, picked ? Ui.TEXT : Ui.FIELD, 0, 16));
-            pill.setPadding(Ui.dp(this, 14), Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
+            pill.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0);
+            pill.setGravity(Gravity.CENTER);
+            pill.setMinHeight(Ui.dp(this, 40));
+            pill.setSelected(picked);
+            pill.setContentDescription(c[0] + " pace" + (picked ? ", selected" : ""));
             pill.setOnClickListener(v -> {
                 prefs.edit().putString("social_pace", c[1]).apply();
                 SocialWeb.limits(this);
@@ -273,7 +288,15 @@ public final class SocialActivity extends AppCompatActivity {
 
     /** Back to the chat with words ready in the message box, for the user to finish and send. */
     private void ask(String words) {
-        setResult(RESULT_OK, new Intent().putExtra("compose", words));
+        if (getCallingActivity() != null) {
+            setResult(RESULT_OK, new Intent().putExtra("compose", words));
+        } else {
+            // opened from Tools or Connectors, not for a result: the words were dropped and the chips did nothing. They
+            // wait for the chat, which is brought to the front (any screen above it closes)
+            ShareActivity.offerText(words);
+            startActivity(new Intent(this, ai.ibiko.MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        }
         finish();
     }
 
@@ -289,7 +312,9 @@ public final class SocialActivity extends AppCompatActivity {
         TextView t = Ui.text(this, label, 13, Ui.TEXT, false);
         t.setPadding(Ui.dp(this, 6), 0, 0, 0);
         c.addView(t);
-        c.setMinimumHeight(Ui.dp(this, 36));
+        c.setMinimumHeight(Ui.dp(this, 40));
+        c.setContentDescription(label);
+        Ui.press(c);
         c.setOnClickListener(v -> tap.run());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.rightMargin = Ui.dp(this, 8);
@@ -366,7 +391,8 @@ public final class SocialActivity extends AppCompatActivity {
         edit.setPadding(ep, ep, ep, ep);
         edit.setContentDescription("Rename " + what);
         edit.setOnClickListener(v -> rename.run());
-        r.addView(edit, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+        Ui.press(edit);
+        r.addView(edit, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         ImageView x = new ImageView(this);
         x.setImageResource(ai.ibiko.R.drawable.ic_close);
         x.setColorFilter(Ui.ACCENT);
@@ -374,25 +400,48 @@ public final class SocialActivity extends AppCompatActivity {
         x.setPadding(p, p, p, p);
         x.setContentDescription("Remove " + what);
         x.setOnClickListener(v -> remove.run());
-        r.addView(x, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+        Ui.press(x);
+        r.addView(x, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         return r;
     }
 
     private android.view.View toggle(String title, String about, final String key, boolean def) {
         LinearLayout r = new LinearLayout(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12)); // as in Settings: air around each switch
+        r.setMinimumHeight(Ui.dp(this, 56));
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
+        words.setPadding(0, 0, Ui.dp(this, 16), 0);
         words.addView(Ui.text(this, title, 16, Ui.TEXT, false));
-        words.addView(Ui.text(this, about, 13, Ui.SUB, false));
+        words.addView(Ui.text(this, about, 13, Ui.SUB, false), Ui.wide(this, 4));
         r.addView(words, new LinearLayout.LayoutParams(0, -2, 1f));
-        android.widget.Switch sw = new android.widget.Switch(this);
+        final android.widget.Switch sw = new android.widget.Switch(this);
         sw.setChecked(prefs.getBoolean(key, def));
+        sw.setContentDescription(title);
         sw.setTrackTintList(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_checked}, {}},
                 new int[]{Ui.CORAL, Ui.FIELD}));
-        sw.setOnCheckedChangeListener((b, on) -> prefs.edit().putBoolean(key, on).apply());
+        sw.setOnCheckedChangeListener((b, on) -> {
+            if (on && "social_auto".equals(key) && !prefs.getBoolean(key, false)) {
+                // posting without a yes is a big step: a stray tap on the row turned it on unasked
+                b.setChecked(false);
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Post without asking?")
+                        .setMessage("Posts and comments you ask for will go out from your account at once, without showing"
+                                + " them to you first. Still only what you ask for, within the daily limits.")
+                        .setPositiveButton("Turn on", (d, w) -> {
+                            prefs.edit().putBoolean(key, true).apply();
+                            fill();
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+                return;
+            }
+            prefs.edit().putBoolean(key, on).apply();
+        });
         r.addView(sw);
         r.setOnClickListener(v -> sw.toggle());
+        Ui.press(r);
         return r;
     }
 }

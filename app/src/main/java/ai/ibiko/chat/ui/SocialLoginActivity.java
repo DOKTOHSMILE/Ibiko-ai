@@ -26,6 +26,9 @@ public final class SocialLoginActivity extends AppCompatActivity {
     private Platform platform;
     private SocialAccounts.Account before;
     private boolean saved;
+    /** "Not yet" was tapped: the page's own sign-in no longer asks again on every page; Done does. */
+    private boolean declined;
+    private android.widget.ProgressBar loading;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,19 +48,25 @@ public final class SocialLoginActivity extends AppCompatActivity {
         int pad = Ui.dp(this, 12);
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.setPadding(pad, Ui.dp(this, 14), pad, Ui.dp(this, 6));
+        head.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 4));
         android.widget.ImageView close = Ui.icon(this, ai.ibiko.R.drawable.ic_close, Ui.ACCENT, ai.ibiko.IconSize.STANDARD);
         close.setContentDescription("Close");
-        close.setPadding(Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6));
-        close.setContentDescription("Close");
+        int cp = Ui.dp(this, 12);
+        close.setPadding(cp, cp, cp, cp);
         close.setOnClickListener(v -> finish());
-        head.addView(close);
+        Ui.press(close);
+        head.addView(close, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48))); // a 48 dp target
         TextView title = Ui.text(this, "Sign in to " + platform.shown, 18, Ui.TEXT, true);
         title.setGravity(Gravity.CENTER);
         head.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
         TextView done = Ui.text(this, "Done", 16, Ui.ACCENT, true);
-        done.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6));
+        done.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
+        done.setGravity(Gravity.CENTER);
+        done.setMinHeight(Ui.dp(this, 48));
+        done.setMinWidth(Ui.dp(this, 48));
+        Ui.press(done);
         done.setOnClickListener(v -> {
+            declined = false; // Done is the person asking: the name is asked for now
             if (platform == Platform.TELEGRAM) {
                 checkTelegram(true);
             } else if (SocialWeb.signedInNow(platform)) {
@@ -77,6 +86,11 @@ public final class SocialLoginActivity extends AppCompatActivity {
                 + " with Google” doesn't work inside apps.", 12, Ui.SUB, false);
         note.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), Ui.dp(this, 8));
         page.addView(note);
+        // the site takes a few seconds: a thin bar says it is loading instead of a blank page
+        loading = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        loading.setMax(100);
+        loading.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+        page.addView(loading, new LinearLayout.LayoutParams(-1, Ui.dp(this, 3)));
 
         web = new WebView(this);
         WebSettings s = web.getSettings();
@@ -95,8 +109,17 @@ public final class SocialLoginActivity extends AppCompatActivity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (!saved && SocialWeb.signedInNow(platform)) {
-                    name();
+                if (!saved && !declined && SocialWeb.signedInNow(platform)) {
+                    name(); // after "Not yet" it waited for Done; it used to pop up again on every page
+                }
+            }
+        });
+        web.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int progress) {
+                if (loading != null) {
+                    loading.setProgress(progress);
+                    loading.setVisibility(progress >= 100 ? android.view.View.INVISIBLE : android.view.View.VISIBLE);
                 }
             }
         });
@@ -153,6 +176,7 @@ public final class SocialLoginActivity extends AppCompatActivity {
                 .setCancelable(false)
                 .setNegativeButton("Not yet", (d, w) -> {
                     saved = false; // not signed in after all: the page stays open to sign in
+                    declined = true; // asked again on Done, not on every page
                     if (platform == Platform.TELEGRAM && web != null) {
                         SocialWeb.telegramSignedIn(this, false);
                         web.removeCallbacks(telegramWatch);
@@ -166,6 +190,16 @@ public final class SocialLoginActivity extends AppCompatActivity {
                     finish();
                 })
                 .show();
+    }
+
+    /** Back steps back through the site's own pages (a password step to the username step) before it closes. */
+    @Override
+    public void onBackPressed() {
+        if (web != null && web.canGoBack()) {
+            web.goBack();
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override

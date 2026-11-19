@@ -34,6 +34,16 @@ public final class ShareActivity extends Activity {
         return s;
     }
 
+    /** Words for the message box, put in the next time the chat comes to the front (nothing is sent). */
+    public static void offerText(String words) {
+        if (words == null || words.isEmpty()) {
+            return;
+        }
+        Shared s = new Shared();
+        s.text = words;
+        keep(s);
+    }
+
     private static synchronized void keep(Shared s) {
         if (waiting != null) {
             s.files.addAll(0, waiting.files);
