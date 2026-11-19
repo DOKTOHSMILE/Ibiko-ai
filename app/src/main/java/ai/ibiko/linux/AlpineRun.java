@@ -209,6 +209,12 @@ public final class AlpineRun {
     private static void drain(InputStream in, ByteArrayOutputStream out, int cap, Consumer<String> live,
             AtomicInteger received) {
         byte[] buf = new byte[4096];
+        // one decoder for the whole stream: a character whose bytes fell across two reads came out as garbage
+        java.nio.charset.CharsetDecoder text = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPLACE)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPLACE);
+        java.nio.ByteBuffer pending = java.nio.ByteBuffer.allocate(4096 + 8);
+        java.nio.CharBuffer chars = java.nio.CharBuffer.allocate(4096 + 8);
         try {
             int n;
             while ((n = in.read(buf)) > 0) {
@@ -219,7 +225,15 @@ public final class AlpineRun {
                     }
                 }
                 if (live != null) {
-                    live.accept(new String(buf, 0, n, StandardCharsets.UTF_8));
+                    pending.put(buf, 0, n);
+                    pending.flip();
+                    chars.clear();
+                    text.decode(pending, chars, false); // a cut-off character waits in pending for its last bytes
+                    pending.compact();
+                    chars.flip();
+                    if (chars.hasRemaining()) {
+                        live.accept(chars.toString());
+                    }
                 }
             }
         } catch (IOException ignored) {

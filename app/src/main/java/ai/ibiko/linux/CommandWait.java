@@ -24,7 +24,7 @@ public final class CommandWait {
         if (command == null) {
             return false;
         }
-        String s = command.toLowerCase();
+        String s = command.toLowerCase(java.util.Locale.ROOT);
         return GIT_TRANSFER.matcher(s).find()
                 || s.contains("apk add") || s.contains("apk upgrade") || s.contains("pkg install")
                 || s.contains("wget ") || s.contains("curl ");
