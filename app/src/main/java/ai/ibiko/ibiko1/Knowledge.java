@@ -555,7 +555,7 @@ public final class Knowledge {
             if (file.getParentFile() != null) {
                 file.getParentFile().mkdirs();
             }
-            Files.write(file.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // beside, synced, then moved: a crash mid-write lost what Ibiko 1 knew
         } catch (IOException ignored) {
             // kept in memory for this run
         }

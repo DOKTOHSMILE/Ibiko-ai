@@ -150,7 +150,10 @@ public final class CodeFile {
             f.getParentFile().mkdirs();
         }
         File part = new File(f.getPath() + ".part");
-        Files.write(part.toPath(), encode(text));
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+            out.write(encode(text));
+            out.getFD().sync(); // on the storage before it replaces the old file (a power cut could leave it empty)
+        }
         try {
             Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
                     java.nio.file.StandardCopyOption.ATOMIC_MOVE);
