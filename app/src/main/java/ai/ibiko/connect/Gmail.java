@@ -27,8 +27,23 @@ public final class Gmail {
         Socket open(String host, int port) throws IOException;
     }
 
-    /** Google's servers over TLS. */
-    public static final Wire TLS = (host, port) -> javax.net.ssl.SSLSocketFactory.getDefault().createSocket(host, port);
+    /**
+     * Google's servers over TLS, with the server's name checked. A raw SSLSocket on Android checks the certificate
+     * chain but not that it belongs to this host (only HttpsURLConnection does), so any valid certificate for another
+     * name was taken, and someone on the same network could stand in for Gmail and receive the app password.
+     */
+    public static final Wire TLS = (host, port) -> {
+        javax.net.ssl.SSLSocket s = (javax.net.ssl.SSLSocket) javax.net.ssl.SSLSocketFactory.getDefault().createSocket(host, port);
+        javax.net.ssl.SSLParameters p = s.getSSLParameters();
+        p.setEndpointIdentificationAlgorithm("HTTPS");
+        s.setSSLParameters(p);
+        s.startHandshake();
+        if (!javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier().verify(host, s.getSession())) {
+            s.close();
+            throw new IOException("the mail server's certificate isn't for " + host);
+        }
+        return s;
+    };
 
     /** One mail as listed: its id (the UID), who sent it, the subject, the date and the start of its text. */
     public static final class Mail {
@@ -316,8 +331,14 @@ public final class Gmail {
         return got == n ? buf : java.util.Arrays.copyOf(buf, got);
     }
 
+    /**
+     * An IMAP quoted string. Line breaks and other control characters are left out: the search words come from the
+     * model, and a line break ended the command there, so whatever followed (written into a mail the model read) was
+     * sent to Gmail as commands of its own (open the inbox read-write, delete, move).
+     */
     static String quote(String s) {
-        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        String clean = s.replaceAll("[\\p{Cntrl}]", " ");
+        return "\"" + clean.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static String oneLine(String s) {
