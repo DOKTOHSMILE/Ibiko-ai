@@ -45,9 +45,6 @@ public final class CampaignPlanner {
             + " honest, useful campaigns that attract real customers: value first, a clear offer, a call to action, no"
             + " spam, no fake claims, no fake reviews, no engagement bait. Reply with one JSON object only, no prose.";
 
-    private static final String POST_SYSTEM = "You write one social media post for a small business campaign, and design"
-            + " its picture as a single self-contained HTML document. Reply with one JSON object only, no prose.";
-
     private CampaignPlanner() {
     }
 
@@ -69,15 +66,38 @@ public final class CampaignPlanner {
         return s.toString();
     }
 
-    /** The request for one post. */
-    static String postPrompt(Campaign.Brief brief, String network, String theme, String angle) {
-        int most = maxChars(network);
-        return brief.words() + "\n\nWrite one " + network + " post. Theme: " + theme + ". Angle: " + angle + ".\n"
-                + "At most " + most + " characters, in the brief's tone, with a clear call to action"
-                + (brief.link.isEmpty() ? "" : " and the link") + "; at most 3 hashtags. No made-up facts, prices or reviews.\n"
-                + "Design its picture: one HTML document, 1080 by 1080 pixels, its own <style> only (no script, no outside"
-                + " images; Google Fonts may be linked). Bold, readable, the offer's key words large, the business name.\n"
-                + "JSON: {\"text\":\"the post\",\"image\":\"<!doctype html>...\"}";
+    /** Posts written in one call: fewer calls, each still short enough to come back whole. */
+    static final int BATCH = 8;
+    /** Calls at once on an API (the phone's own model takes one at a time). */
+    public static final int WORKERS = 4;
+
+    private static final String POSTS_SYSTEM = "You write social media posts for a small business campaign: honest, useful,"
+            + " a clear call to action, no made-up facts, prices or reviews. Reply with one JSON object only, no prose.";
+
+    private static final String TEMPLATE_SYSTEM = "You design one picture template for a campaign theme, as a single"
+            + " self-contained HTML document. Reply with the HTML only.";
+
+    /** The request for a batch of posts: each slot's network, theme and angle, numbered. */
+    static String postsPrompt(Campaign.Brief brief, List<String[]> slots) {
+        StringBuilder s = new StringBuilder(brief.words()).append("\n\nWrite these posts (number, network, theme, angle):\n");
+        for (int i = 0; i < slots.size(); i++) {
+            String[] sl = slots.get(i);
+            s.append(i + 1).append(". ").append(sl[0]).append(" (at most ").append(maxChars(sl[0])).append(" characters)")
+                    .append(" | ").append(sl[1]).append(" | ").append(sl[2]).append('\n');
+        }
+        s.append("\nEach post in the brief's tone, with a clear call to action")
+                .append(brief.link.isEmpty() ? "" : " and the link").append(", at most 3 hashtags; no two alike.")
+                .append(" For each also a picture headline (at most 6 words) and a short line under it (at most 10 words).\n")
+                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\"}]}");
+        return s.toString();
+    }
+
+    /** The request for one theme's picture template. */
+    static String templatePrompt(Campaign.Brief brief, String theme) {
+        return brief.words() + "\n\nDesign the picture template for the theme \u201c" + theme + "\u201d: one HTML document,"
+                + " 1080 by 1080 pixels, its own <style> only (no script, no outside images; Google Fonts may be linked)."
+                + " Bold and readable, on-brand colours. Put these placeholders where the words go, exactly as written:"
+                + " {{HEADLINE}} (large), {{LINE}} (smaller, under it) and {{BRAND}} (the business name, small).";
     }
 
     /** The most characters a post may have on a network (X's limit; the others kept readable). */
@@ -175,22 +195,54 @@ public final class CampaignPlanner {
         return h < 24 && min < 60 ? h * 60 + min : -1;
     }
 
-    /** One post's words and picture, checked; null when the reply holds no words. */
-    static String[] post(String reply, String network) {
+    /** A batch's posts, checked: index in the batch to {text, headline, line}; a missing or empty post is left out. */
+    static java.util.Map<Integer, String[]> posts(String reply, List<String[]> slots) {
+        java.util.Map<Integer, String[]> out = new java.util.HashMap<Integer, String[]>();
         Map<String, Object> m = json(reply);
         if (m == null) {
-            return null;
+            return out;
         }
-        String text = MiniJson.str(m.get("text"), "").trim();
-        if (text.isEmpty()) {
-            return null;
+        for (Object o : MiniJson.list(m.get("posts"))) {
+            Map<String, Object> p = MiniJson.obj(o);
+            int n = (int) MiniJson.num(p.get("n"), -1);
+            if (n < 1 || n > slots.size() || out.containsKey(n - 1)) {
+                continue;
+            }
+            String text = MiniJson.str(p.get("text"), "").trim();
+            if (text.isEmpty()) {
+                continue;
+            }
+            int most = maxChars(slots.get(n - 1)[0]);
+            if (text.length() > most) {
+                int cut = text.lastIndexOf(' ', most - 1);
+                text = text.substring(0, cut > most / 2 ? cut : most - 1).trim() + "\u2026";
+            }
+            out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90)});
         }
-        int most = maxChars(network);
-        if (text.length() > most) {
-            int cut = text.lastIndexOf(' ', most - 1);
-            text = text.substring(0, cut > most / 2 ? cut : most - 1).trim() + "\u2026";
-        }
-        return new String[]{text, picture(MiniJson.str(m.get("image"), ""))};
+        return out;
+    }
+
+    /** A theme's template, made safe; the built-in card when the brain's has no headline slot. */
+    static String template(String reply) {
+        String h = picture(reply == null ? "" : reply.replaceAll("(?s)^.*?(<!doctype|<html)", "$1").replaceAll("(?s)```.*$", ""));
+        return h.contains("{{HEADLINE}}") ? h : "";
+    }
+
+    /** The card used when a theme has no template of its own: plain, bold, readable. */
+    static final String CARD = "<!doctype html><html><head><style>body{margin:0;width:1080px;height:1080px;display:flex;"
+            + "flex-direction:column;justify-content:center;padding:96px;box-sizing:border-box;background:linear-gradient(135deg,"
+            + "#3b1f8f,#8b5cf6);color:#fff;font-family:sans-serif}h1{font-size:96px;line-height:1.05;margin:0 0 32px}"
+            + "p{font-size:44px;margin:0;opacity:.9}b{position:absolute;bottom:72px;font-size:34px;opacity:.85}</style></head>"
+            + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></body></html>";
+
+    /** The template with this post's words in it (as text: nothing the brain wrote becomes markup). */
+    static String fill(String template, String headline, String line, String brand) {
+        String t = template == null || template.isEmpty() ? CARD : template;
+        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", esc(brand));
+    }
+
+    static String esc(String s) {
+        return (s == null ? "" : s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     /**
@@ -215,6 +267,12 @@ public final class CampaignPlanner {
      */
     public static String build(Campaign c, List<Seat> seats, Brain brain, Progress progress, java.util.function.BooleanSupplier stop,
             TimeZone zone) {
+        return build(c, seats, brain, progress, stop, zone, 1);
+    }
+
+    /** As above, with {@code workers} calls at once (an API can take several; the phone's model one). */
+    public static String build(Campaign c, List<Seat> seats, Brain brain, Progress progress, java.util.function.BooleanSupplier stop,
+            TimeZone zone, int workers) {
         if (seats.isEmpty()) {
             return "Choose at least one signed-in account.";
         }
@@ -236,27 +294,67 @@ public final class CampaignPlanner {
         for (Seat s : seats) {
             network.put(s.id, s.network);
         }
-        int n = 0;
-        for (Slot slot : o.slots) {
-            if (stop != null && stop.getAsBoolean()) {
-                return "Stopped.";
+        final String brand = clip(c.brief.business.replaceAll("[,.(].*$", ""), 40);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, workers));
+        try {
+            // one picture template a theme, made alongside the posts (not one whole design a post)
+            java.util.Map<String, java.util.concurrent.Future<String>> templates = new java.util.HashMap<String, java.util.concurrent.Future<String>>();
+            for (Slot slot : o.slots) {
+                if (!templates.containsKey(slot.theme) && templates.size() < 6) {
+                    final String theme = slot.theme;
+                    templates.put(theme, pool.submit(() -> template(brain.ask(TEMPLATE_SYSTEM, templatePrompt(c.brief, theme), 3000))));
+                }
             }
-            n++;
-            say(progress, "Writing post " + n + " of " + o.slots.size());
-            String net = network.get(slot.account);
-            String[] got = post(brain.ask(POST_SYSTEM, postPrompt(c.brief, net, slot.theme, slot.angle), 3000), net);
-            if (got == null) {
-                continue; // one post the brain couldn't write: the rest of the plan stands
+            List<java.util.concurrent.Future<java.util.Map<Integer, String[]>>> batches = new ArrayList<java.util.concurrent.Future<java.util.Map<Integer, String[]>>>();
+            List<List<String[]>> asked = new ArrayList<List<String[]>>();
+            for (int at = 0; at < o.slots.size(); at += BATCH) {
+                final List<String[]> part = new ArrayList<String[]>();
+                for (Slot slot : o.slots.subList(at, Math.min(o.slots.size(), at + BATCH))) {
+                    part.add(new String[]{network.get(slot.account), slot.theme, slot.angle});
+                }
+                asked.add(part);
+                batches.add(pool.submit(() -> posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 3500), part)));
             }
-            Campaign.Item it = new Campaign.Item();
-            it.id = c.id + "-" + n;
-            it.account = slot.account;
-            it.network = net;
-            it.theme = slot.theme;
-            it.text = got[0];
-            it.imageHtml = got[1];
-            it.at = at(c.startAt, slot.day, slot.minute, zone);
-            c.items.add(it);
+            int n = 0;
+            for (int b = 0; b < batches.size(); b++) {
+                if (stop != null && stop.getAsBoolean()) {
+                    return "Stopped.";
+                }
+                int from = b * BATCH;
+                say(progress, "Writing posts " + (from + 1) + "\u2013" + Math.min(o.slots.size(), from + BATCH) + " of " + o.slots.size());
+                java.util.Map<Integer, String[]> got;
+                try {
+                    got = batches.get(b).get(10, java.util.concurrent.TimeUnit.MINUTES);
+                } catch (Exception e) {
+                    continue; // one batch the brain couldn't write: the rest of the plan stands
+                }
+                for (int i = 0; i < asked.get(b).size(); i++) {
+                    String[] p = got.get(i);
+                    if (p == null) {
+                        continue;
+                    }
+                    Slot slot = o.slots.get(from + i);
+                    String tpl;
+                    try {
+                        java.util.concurrent.Future<String> f = templates.get(slot.theme);
+                        tpl = f == null ? "" : f.get(5, java.util.concurrent.TimeUnit.MINUTES);
+                    } catch (Exception e) {
+                        tpl = "";
+                    }
+                    n++;
+                    Campaign.Item it = new Campaign.Item();
+                    it.id = c.id + "-" + n;
+                    it.account = slot.account;
+                    it.network = network.get(slot.account);
+                    it.theme = slot.theme;
+                    it.text = p[0];
+                    it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand);
+                    it.at = at(c.startAt, slot.day, slot.minute, zone);
+                    c.items.add(it);
+                }
+            }
+        } finally {
+            pool.shutdownNow();
         }
         c.items.sort((a, b) -> Long.compare(a.at, b.at));
         return c.items.isEmpty() ? "No post could be written. Try again." : null;

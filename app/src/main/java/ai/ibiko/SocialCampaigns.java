@@ -33,12 +33,17 @@ final class SocialCampaigns {
         a.armThink("Planning the campaign", "Planning the campaign");
         a.activity("Planning the campaign “" + clip(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer) + "”");
         a.hub.worker.execute(() -> {
-            String why = CampaignPlanner.build(c, seats, (system, prompt, tokens) -> a.model.task(system, prompt, tokens, null),
-                    line -> a.handler.post(() -> {
+            // on an API the batches run side by side, without the phone model's lock; the phone's model takes one at a time
+            final boolean api = a.model.remoteOn();
+            CampaignPlanner.Brain brain = (system, prompt, tokens) -> {
+                String got = api ? a.model.remoteTask(system, prompt, tokens) : null;
+                return got != null ? got : a.model.task(system, prompt, tokens, null);
+            };
+            String why = CampaignPlanner.build(c, seats, brain, line -> a.handler.post(() -> {
                         if (a.alive(id)) {
                             a.activity(line);
                         }
-                    }), () -> !a.alive(id), java.util.TimeZone.getDefault());
+                    }), () -> !a.alive(id), java.util.TimeZone.getDefault(), api ? CampaignPlanner.WORKERS : 1);
             a.handler.post(() -> {
                 a.endThink();
                 if (why != null) {

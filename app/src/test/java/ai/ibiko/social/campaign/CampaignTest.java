@@ -44,17 +44,30 @@ public class CampaignTest {
                         + "{\"day\":2,\"time\":\"25:00\",\"account\":\"fb1\",\"theme\":\"x\",\"angle\":\"no such time: dropped\"},"
                         + "{\"day\":2,\"time\":\"08:00\",\"account\":\"someone-else\",\"theme\":\"x\",\"angle\":\"not chosen: dropped\"}]}\n```";
             }
-            String long280 = new String(new char[400]).replace('\0', 'a');
-            return "{\"text\":\"" + (prompt.contains(" x post") ? long280 : "Fresh cakes for your party. Order now!")
-                    + "\",\"image\":\"<!doctype html><html><body onload=\\\"steal()\\\"><script>steal()</script>"
-                    + "<div style=\\\"font-size:90px\\\">Ada's Bakery</div></body></html>\"}";
+            if (prompt.contains("Design the picture template")) {
+                // one theme gets a template with a script in it, the other none at all (the built-in card is used)
+                return prompt.contains("Behind the oven") ? "```html\n<!doctype html><html><body onload=\"steal()\"><script>steal()</script>"
+                        + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p><i>{{BRAND}}</i></body></html>\n```" : "Sorry.";
+            }
+            StringBuilder posts = new StringBuilder("{\"posts\":[");
+            String[] lines = prompt.split("\n");
+            int n = 0;
+            for (String l : lines) {
+                if (l.matches("^\\d+\\. .*")) {
+                    n++;
+                    String text = l.contains(". x ") ? new String(new char[400]).replace('\0', 'a') : "Fresh cakes for your party. Order now!";
+                    posts.append(n > 1 ? "," : "").append("{\"n\":").append(n).append(",\"text\":\"").append(text)
+                            .append("\",\"headline\":\"Cakes <b>& more</b>\",\"line\":\"Baked fresh\"}");
+                }
+            }
+            return posts.append("]}").toString();
         };
     }
 
     @Test
     public void theBrainsPlanIsCheckedBeforeAnythingIsKept() {
         Campaign c = brief();
-        String why = CampaignPlanner.build(c, SEATS, fake(), null, null, TimeZone.getTimeZone("Africa/Lagos"));
+        String why = CampaignPlanner.build(c, SEATS, fake(), null, null, TimeZone.getTimeZone("Africa/Lagos"), 4);
         assertNull(why);
         assertEquals("Birthday cakes", c.name);
         assertEquals(Arrays.asList("need a birthday cake Lagos"), c.searches);
@@ -66,7 +79,9 @@ public class CampaignTest {
         assertTrue("X's 280 characters", x.text.length() <= 280);
         assertFalse("no script in a picture", fb.imageHtml.contains("<script"));
         assertFalse("no event handler in a picture", fb.imageHtml.contains("onload"));
-        assertTrue(fb.imageHtml.contains("Ada's Bakery"));
+        assertTrue("the business's name on the picture", fb.imageHtml.contains("Ada&#39;s Bakery") || fb.imageHtml.contains("Ada's Bakery"));
+        assertTrue("the post's words go in as text, not markup", fb.imageHtml.contains("Cakes &lt;b&gt;&amp; more&lt;/b&gt;"));
+        assertTrue("a theme with no template gets the built-in card", x.imageHtml.contains("linear-gradient"));
         assertEquals(Campaign.Status.DRAFT, c.status); // nothing runs before the person approves
     }
 
