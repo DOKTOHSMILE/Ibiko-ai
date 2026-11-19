@@ -224,8 +224,7 @@ final class AgentWork {
         }
         String w = work.length() > 400_000 ? work.substring(work.length() - 400_000) : work;
         try {
-            java.nio.file.Files.write(agentFile(key).toPath(),
-                    w.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            ai.ibiko.learn.CodeFile.write(agentFile(key), w); // whole or not at all: a crash mid-save kept half the steps
         } catch (java.io.IOException ignored) {
             // carrying on is a bonus
         }
