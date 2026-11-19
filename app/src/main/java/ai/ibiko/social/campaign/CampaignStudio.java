@@ -35,13 +35,95 @@ public final class CampaignStudio {
         return thinking.contains(campaignId);
     }
 
-    /** The brain for campaign work, or null when none is ready (no API on and no model on the phone). */
+    /** The studio's own model choice: a provider and one of its models (Social › Campaigns › the model at the top). */
+    static final String PREF_PROVIDER = "studio_provider", PREF_MODEL = "studio_model";
+
+    /** A model the studio can use: its provider, the model, and the name to show. */
+    public static final class Choice {
+        public final ai.ibiko.llm.Providers provider;
+        public final String model;
+
+        Choice(ai.ibiko.llm.Providers provider, String model) {
+            this.provider = provider;
+            this.model = model;
+        }
+
+        public String shown() {
+            return model;
+        }
+    }
+
+    /** Every API model the studio could use: each provider set up, with its models. */
+    public static List<Choice> choices(Context c) {
+        ai.ibiko.llm.ProviderStore store = new ai.ibiko.llm.ProviderStore(c);
+        List<Choice> out = new ArrayList<Choice>();
+        for (ai.ibiko.llm.Providers p : store.order()) {
+            if (store.brain(p) == null) {
+                continue;
+            }
+            java.util.LinkedHashSet<String> models = new java.util.LinkedHashSet<String>();
+            models.add(store.model(p));
+            models.addAll(store.models(p));
+            for (String m : models) {
+                if (m != null && !m.trim().isEmpty()) {
+                    out.add(new Choice(p, m.trim()));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The model the studio uses now: the one chosen on its screen, else the first API set up; null for none. */
+    public static Choice chosen(Context c) {
+        android.content.SharedPreferences prefs = c.getSharedPreferences("ibiko", Context.MODE_PRIVATE);
+        String p = prefs.getString(PREF_PROVIDER, ""), m = prefs.getString(PREF_MODEL, "");
+        List<Choice> all = choices(c);
+        for (Choice ch : all) {
+            if (ch.provider.name().equals(p) && ch.model.equals(m)) {
+                return ch;
+            }
+        }
+        return all.isEmpty() ? null : all.get(0);
+    }
+
+    public static void choose(Context c, Choice ch) {
+        c.getSharedPreferences("ibiko", Context.MODE_PRIVATE).edit().putString(PREF_PROVIDER, ch.provider.name())
+                .putString(PREF_MODEL, ch.model).apply();
+    }
+
+    /**
+     * The brain for campaign work: the studio's API model, asked directly (it works whichever screen is open; the
+     * chat's API connection only counts as online while the chat is on screen), else the phone's own model when it is
+     * loaded. Null when there is neither.
+     */
     static CampaignPlanner.Brain brain(Context c) {
+        final Choice ch = chosen(c);
+        final ai.ibiko.llm.ProviderStore store = new ai.ibiko.llm.ProviderStore(c);
         final LocalModel model = ai.ibiko.llm.ModelHub.get(c).model;
+        if (ch != null) {
+            return (system, prompt, tokens) -> {
+                ai.ibiko.llm.RemoteBrain b = store.brainWith(ch.provider, ch.model); // one a call: calls run side by side
+                String got = null;
+                if (b != null) {
+                    List<String[]> turns = new ArrayList<String[]>();
+                    turns.add(new String[]{"user", prompt});
+                    got = b.chat(system, turns, tokens, 0.7f, null);
+                }
+                if ((got == null || got.trim().isEmpty()) && model != null && model.ready()) {
+                    got = LocalModel.inBackground(() -> model.task(system, prompt, tokens, null));
+                }
+                return got;
+            };
+        }
         if (model == null || !(model.ready() || model.remoteOn())) {
             return null;
         }
         return background(model);
+    }
+
+    /** Whether an API model does the studio's work (calls can run side by side). */
+    static boolean api(Context c) {
+        return chosen(c) != null;
     }
 
     /** {@code model} as campaign work: on the API when one is on, else the phone's model; background either way. */
@@ -117,7 +199,7 @@ public final class CampaignStudio {
             } catch (RuntimeException e) {
                 c.brief.lessons = "";
             }
-            final boolean api = ai.ibiko.llm.ModelHub.get(app).model.remoteOn();
+            final boolean api = api(app);
             String why;
             try {
                 why = CampaignPlanner.build(c, seats(app, c, true), brain, line -> CampaignDraft.at(app, c.id, title, line),
@@ -153,6 +235,8 @@ public final class CampaignStudio {
             save(app, c);
             chat.add(CampaignChat.STUDIO, "plan", "Your campaign “" + c.name + "” is planned: " + c.items.size()
                     + " posts over " + c.days + " days" + (c.themes.isEmpty() ? "" : ", themes: " + String.join(", ", c.themes))
+                    + (c.unwritten > 0 ? " (" + c.unwritten + (c.unwritten == 1 ? " post" : " posts") + " couldn't be written:"
+                    + " say \u201cadd the missing posts\u201d to try them again)" : "")
                     + ". Every post's words and picture are ready on the phone. Look through them, tell me what to change, and"
                     + " approve when it's right. Nothing is posted before you do.", System.currentTimeMillis());
             CampaignDraft.show(app, c.id, "“" + c.name + "” is ready to review", c.items.size() + " posts over "

@@ -176,6 +176,8 @@ public final class Campaign {
     public boolean whatsappShare = false;
     /** Networks Ibiko prepares posts for and the person shares from the app (Instagram, LinkedIn). */
     public final List<String> handoff = new ArrayList<String>();
+    /** Posts the planner couldn't write in this planning (not kept: said once when the plan is ready). */
+    public transient int unwritten;
     /** The chat that is this campaign's own: its brief, its planning and its plan (a chat id), or "". */
     public String chat = "";
     public final List<String> themes = new ArrayList<String>();

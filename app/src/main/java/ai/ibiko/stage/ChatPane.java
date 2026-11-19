@@ -1815,6 +1815,7 @@ public final class ChatPane extends LinearLayout {
         }
         LinearLayout list = (LinearLayout) found;
         list.removeAllViews();
+        campaigns(list);
         // as in Claude: Projects, then Pinned, then Recents; each newest first, oldest last
         List<String> projects = book.projectsNewestFirst();
         if (!projects.isEmpty()) {
@@ -1840,6 +1841,51 @@ public final class ChatPane extends LinearLayout {
             }
             list.addView(chatRow(s));
         }
+    }
+
+    /**
+     * The campaigns, first in the drawer: the running and upcoming ones (then the latest finished), each opening its
+     * studio; and All campaigns, the dashboard.
+     */
+    private void campaigns(LinearLayout list) {
+        final android.content.Context c = getContext();
+        java.util.List<ai.ibiko.social.campaign.Campaign> all = ai.ibiko.social.campaign.CampaignRunner.store(c).all();
+        if (all.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        java.util.Set<String> planning = new java.util.HashSet<String>();
+        for (ai.ibiko.social.campaign.Campaign x : all) {
+            if (ai.ibiko.social.campaign.CampaignDraft.planning(x.id) != null) {
+                planning.add(x.id);
+            }
+        }
+        java.util.List<ai.ibiko.social.campaign.Campaign> shown = new java.util.ArrayList<ai.ibiko.social.campaign.Campaign>();
+        for (ai.ibiko.social.campaign.CampaignBoard.Bucket b : ai.ibiko.social.campaign.CampaignBoard.Bucket.values()) {
+            for (ai.ibiko.social.campaign.Campaign x : ai.ibiko.social.campaign.CampaignBoard.of(all, b, planning, now)) {
+                if (shown.size() < 5) {
+                    shown.add(x);
+                }
+            }
+        }
+        list.addView(drawerHeader("Campaigns"));
+        for (final ai.ibiko.social.campaign.Campaign x : shown) {
+            String state = ai.ibiko.social.campaign.CampaignBoard.state(x, planning.contains(x.id), now);
+            TextView row = drawerRow((x.name.isEmpty() ? "Campaign" : x.name) + "  \u00B7  " + state, R.drawable.ic_calendar, false);
+            row.setContentDescription("Campaign " + x.name + ", " + state);
+            row.setOnClickListener(v -> {
+                closeDrawer();
+                c.startActivity(ai.ibiko.chat.ui.CampaignChatActivity.open(c, x.id));
+            });
+            list.addView(row);
+        }
+        TextView more = drawerRow("All campaigns", 0, false);
+        more.setTextColor(color(R.color.icon_brand));
+        more.setOnClickListener(v -> {
+            closeDrawer();
+            c.startActivity(new android.content.Intent(c, ai.ibiko.chat.ui.CampaignsActivity.class));
+        });
+        list.addView(more);
     }
 
     private TextView drawerHeader(String name) {

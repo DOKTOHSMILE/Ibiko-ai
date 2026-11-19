@@ -139,7 +139,8 @@ public final class StudioEdit {
             int most = CampaignPlanner.maxChars(it.network);
             it.text = WhatsApp.withLink(text.length() > most ? text.substring(0, most - 1).trim() + "…" : text, c.brief.chat(), most);
             String headline = MiniJson.str(a.get("headline"), "");
-            it.imageHtml = CampaignPlanner.fill(null, headline.isEmpty() ? it.theme : headline, MiniJson.str(a.get("line"), ""), brand);
+            it.imageHtml = CampaignPlanner.fill(CampaignPlanner.DESIGNS[serial % CampaignPlanner.DESIGNS.length],
+                    headline.isEmpty() ? it.theme : headline, MiniJson.str(a.get("line"), ""), brand, "", it.theme);
             it.at = Math.max(CampaignPlanner.at(c.startAt, day, minute, zone), System.currentTimeMillis() + 10 * 60_000L);
             c.items.add(it);
             d.newItems.add(it);

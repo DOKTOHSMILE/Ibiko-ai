@@ -400,6 +400,16 @@ public final class ProviderStore {
                 RemoteBrain.https(sockets(certificate(p)))).autoFormat("auto".equals(format(p)))));
     }
 
+    /** {@link #brain} with another of the provider's models ({@code model} empty: its own). Null when it can't be used. */
+    public RemoteBrain brainWith(Providers p, String model) {
+        String m = model == null || model.trim().isEmpty() ? model(p) : model.trim();
+        if (!p.api() || RemoteBrain.check(address(p), m, key(p)) != null) {
+            return null;
+        }
+        return signedIn(p, configured(p, new RemoteBrain(protocol(p), address(p), m, key(p), backupKey(p),
+                RemoteBrain.https(sockets(certificate(p)))).autoFormat("auto".equals(format(p)))));
+    }
+
     /** The Ibiko server signs in with the phone's session, fetched at each request; other providers keep their key. */
     private static RemoteBrain signedIn(Providers p, RemoteBrain b) {
         java.util.function.Supplier<String> s = serverSession;

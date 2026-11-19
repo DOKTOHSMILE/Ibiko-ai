@@ -31,6 +31,7 @@ final class PostActions {
         }
         if (planned) {
             labels.add("Edit the words");
+            labels.add("Change the date and time");
         }
         if (it.state == Campaign.State.FAILED) {
             labels.add("Try posting it again");
@@ -50,6 +51,8 @@ final class PostActions {
                                 CampaignRunner.catalog(a).inline(it.imageHtml)));
                     } else if (l.equals("Edit the words")) {
                         edit(a, c, it, redraw);
+                    } else if (l.equals("Change the date and time")) {
+                        when(a, c, it, redraw);
                     } else if (l.equals("Try posting it again")) {
                         Runnable again = () -> {
                             it.state = Campaign.State.PLANNED; // it goes out at the next run
@@ -79,6 +82,36 @@ final class PostActions {
                     }
                 })
                 .show();
+    }
+
+    /** A new date, then a new time, for a post still to go out; never in the past. */
+    static void when(final Activity a, final Campaign c, final Campaign.Item it, final Runnable redraw) {
+        final java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(Math.max(it.at, System.currentTimeMillis()));
+        android.app.DatePickerDialog d = new android.app.DatePickerDialog(a, (v, y, m, day) -> {
+            cal.set(y, m, day);
+            new android.app.TimePickerDialog(a, (v2, h, min) -> {
+                cal.set(java.util.Calendar.HOUR_OF_DAY, h);
+                cal.set(java.util.Calendar.MINUTE, min);
+                cal.set(java.util.Calendar.SECOND, 0);
+                long at = cal.getTimeInMillis();
+                if (at < System.currentTimeMillis()) {
+                    Toast.makeText(a, "That time has passed: pick a later one.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                it.at = at;
+                if (it.state == Campaign.State.FAILED) {
+                    it.state = Campaign.State.PLANNED; // a new time is a new try
+                    it.result = "";
+                }
+                c.items.sort((x, y2) -> Long.compare(x.at, y2.at));
+                save(a, c, redraw);
+                CampaignRunner.arm(a, 0);
+            }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE),
+                    android.text.format.DateFormat.is24HourFormat(a)).show();
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH));
+        d.getDatePicker().setMinDate(System.currentTimeMillis() - 1000);
+        d.show();
     }
 
     /** The words in a roomy box; saved with the rules checked again. */

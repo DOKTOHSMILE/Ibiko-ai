@@ -80,14 +80,15 @@ public class CampaignTest {
         assertTrue("X's 280 characters", x.text.length() <= 280);
         assertFalse("no script in a picture", fb.imageHtml.contains("<script"));
         assertFalse("no event handler in a picture", fb.imageHtml.contains("onload"));
-        assertTrue("the business's name on the picture", fb.imageHtml.contains("Ada&#39;s Bakery") || fb.imageHtml.contains("Ada's Bakery"));
+        assertFalse("no business name on the picture", fb.imageHtml.contains("Ada"));
+        assertTrue("the theme as the picture's tag", fb.imageHtml.contains("Behind the oven"));
         assertTrue("the post's words go in as text, not markup", fb.imageHtml.contains("Cakes &lt;b&gt;&amp; more&lt;/b&gt;"));
-        assertTrue("every post uses the campaign's one design", x.imageHtml.contains("<i>"));
+        assertFalse("each theme its own designed layout", x.imageHtml.equals(fb.imageHtml.replace("Behind the oven", "Happy customers")));
+        assertTrue(x.imageHtml.contains("Poppins"));
         assertEquals(Campaign.Status.DRAFT, c.status); // nothing runs before the person approves
         Campaign phone = brief();
         assertNull(CampaignPlanner.build(phone, SEATS, fake(), null, null, TimeZone.getTimeZone("Africa/Lagos"), 1));
-        assertTrue("the phone's own model spends no call on a design: the built-in card",
-                phone.items.get(0).imageHtml.contains("linear-gradient"));
+        assertTrue("the phone's own model gets the same designed layouts", phone.items.get(0).imageHtml.contains("Poppins"));
     }
 
     @Test
@@ -119,7 +120,7 @@ public class CampaignTest {
         };
         assertNull(CampaignPlanner.build(c, SEATS, brain, null, null, TimeZone.getTimeZone("UTC"), 4));
         assertEquals("3 days, 2 a day, 2 accounts", 12, c.items.size());
-        assertEquals("strategy, design, and two batches of posts", 4, calls[0]);
+        assertEquals("the strategy and two batches of posts: no call spent on a design", 3, calls[0]);
         java.util.Set<String> themes = new java.util.HashSet<String>();
         for (int i = 0; i < c.items.size(); i++) {
             themes.add(c.items.get(i).theme);

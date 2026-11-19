@@ -56,7 +56,8 @@ final class ChatChrome {
         if (socialRow != null)
             socialRow.setOnClickListener(v -> {
                 a.closeDrawer();
-                a.startActivityForResult(new android.content.Intent(a, ai.ibiko.chat.ui.SocialActivity.class), a.SOCIAL);
+                // the social media manager: the campaigns, each opening its studio (accounts are a tap away there)
+                a.startActivity(new android.content.Intent(a, ai.ibiko.chat.ui.CampaignsActivity.class));
             });
         android.view.View providers = a.findViewById(R.id.btnProviders);
         if (providers != null)

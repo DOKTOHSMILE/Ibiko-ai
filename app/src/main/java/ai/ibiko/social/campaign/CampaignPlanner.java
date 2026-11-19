@@ -136,8 +136,17 @@ public final class CampaignPlanner {
     /** Calls at once on an API (the phone's own model takes one at a time). */
     public static final int WORKERS = 6;
 
-    private static final String POSTS_SYSTEM = "You write social media posts for a small business campaign: honest, useful,"
-            + " a clear call to action, no made-up facts, prices or reviews."
+    private static final String POSTS_SYSTEM = "You are a top social media copywriter for a small business. Every post"
+            + " stops the scroll: a first line that hooks (a bold claim, a question, a surprising fact, a relatable"
+            + " moment), then short lines with air between them, real value or a story, and one clear call to action."
+            + " Vary the format across posts: a quick tip list, a question to the reader, a mini story, myth versus fact,"
+            + " behind the scenes, a before and after, a straight offer. Sound like a person, warm and confident, never"
+            + " corporate filler (no \"in today's fast-paced world\", no \"unlock\", no \"elevate\"). Fit the network:"
+            + " X short and punchy (under 260 characters, at most one emoji, one or two hashtags); Facebook"
+            + " conversational, 50 to 120 words, 1 to 3 fitting emojis, ends with a question or the call to action;"
+            + " Instagram a caption of 60 to 130 words with emojis as bullets, the call to action, then 5 to 8 hashtags"
+            + " on their own line; LinkedIn professional storytelling, 100 to 180 words, short paragraphs, an insight,"
+            + " at most 2 emojis, 3 hashtags. Honest: no made-up facts, prices, numbers or reviews."
             + " Reply with one JSON object only, no prose.";
 
     private static final String TEMPLATE_SYSTEM = "You design one picture template for a campaign theme, as a single"
@@ -151,11 +160,12 @@ public final class CampaignPlanner {
             s.append(i + 1).append(". ").append(sl[0]).append(" (at most ").append(maxChars(sl[0])).append(" characters)")
                     .append(" | ").append(sl[1]).append(" | ").append(sl[2]).append('\n');
         }
-        s.append("\nEach post in the brief's tone, with a clear call to action")
+        s.append("\nEach post in the brief's tone, written for its network, with a clear call to action")
                 .append(brief.link.isEmpty() ? "" : " and the link")
                 .append(brief.chat().isEmpty() ? "" : "; where it fits, invite people to chat on WhatsApp with the WhatsApp chat link exactly as given")
-                .append(", at most 3 hashtags; no two alike.")
-                .append(" For each also a picture headline (at most 6 words) and a short line under it (at most 10 words).\n")
+                .append("; no two alike in opening or format.")
+                .append(" For each also a picture headline (3 to 6 punchy words, no business name) and a short line under it"
+                        + " (at most 9 words) that adds to the headline, not repeats it.\n")
                 .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\"}]}");
         return s.toString();
     }
@@ -359,8 +369,71 @@ public final class CampaignPlanner {
     static final String CARD = "<!doctype html><html><head><style>body{margin:0;width:1080px;height:1080px;display:flex;"
             + "flex-direction:column;justify-content:center;padding:96px;box-sizing:border-box;background:linear-gradient(135deg,"
             + "#3b1f8f,#8b5cf6);color:#fff;font-family:sans-serif}h1{font-size:96px;line-height:1.05;margin:0 0 32px}"
-            + "p{font-size:44px;margin:0;opacity:.9}b{position:absolute;bottom:72px;font-size:34px;opacity:.85}</style></head>"
-            + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></body></html>";
+            + "p{font-size:44px;margin:0;opacity:.9}</style></head>"
+            + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></body></html>";
+
+    /** Designed picture layouts, one a theme in turn: bold type, depth and shape; the theme as a small tag, no name. */
+    static final String[] DESIGNS = {
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
+                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
+                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:radial-gradi"
+                    + "ent(circle at 18% 20%,#7c3aed 0,transparent 42%),radial-gradient(circle at 85% 80%,#06b6d4 0,transpa"
+                    + "rent 45%),radial-gradient(circle at 80% 10%,#f472b6 0,transparent 30%),#0b1026;color:#fff}.ring{posi"
+                    + "tion:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.18)}.r1{width:620px;height:620px;"
+                    + "right:-180px;top:-160px}.r2{width:420px;height:420px;right:-80px;top:-60px;border-color:rgba(255,255"
+                    + ",255,.28)}.dots{position:absolute;left:80px;bottom:80px;width:260px;height:120px;background-image:ra"
+                    + "dial-gradient(rgba(255,255,255,.35) 2px,transparent 2px);background-size:22px 22px}.c{position:absol"
+                    + "ute;left:96px;right:96px;top:50%;transform:translateY(-50%)}.tag{display:inline-block;padding:12px 2"
+                    + "6px;border-radius:40px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);font-"
+                    + "size:28px;letter-spacing:3px;text-transform:uppercase;margin-bottom:40px}h1{font-size:104px;line-hei"
+                    + "ght:1.02;margin:0 0 36px;font-weight:800;letter-spacing:-2px}.bar{width:140px;height:10px;border-rad"
+                    + "ius:6px;background:linear-gradient(90deg,#f472b6,#06b6d4);margin-bottom:36px}p{font-size:44px;line-h"
+                    + "eight:1.3;margin:0;color:rgba(255,255,255,.85)}</style></head><body><div class=\"ring r1\"></div><div "
+                    + "class=\"ring r2\"></div><div class=\"dots\"></div><div class=\"c\"><div class=\"tag\">{{THEME}}</div><h1>{{H"
+                    + "EADLINE}}</h1><div class=\"bar\"></div><p>{{LINE}}</p></div></body></html>",
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
+                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
+                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:#fff7ed;colo"
+                    + "r:#1c1917}.blob{position:absolute;right:-140px;bottom:-140px;width:760px;height:760px;border-radius:"
+                    + "46% 54% 42% 58%/55% 45% 55% 45%;background:linear-gradient(135deg,#fb923c,#e11d48)}.blob2{position:a"
+                    + "bsolute;right:120px;bottom:140px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,"
+                    + "255,.22)}svg{position:absolute;right:150px;bottom:170px;width:240px;height:240px}.c{position:absolut"
+                    + "e;left:90px;top:120px;width:640px}.k{font-size:30px;font-weight:700;color:#e11d48;letter-spacing:4px"
+                    + ";text-transform:uppercase;margin-bottom:28px}h1{font-size:96px;line-height:1.02;margin:0 0 32px;font"
+                    + "-weight:800;letter-spacing:-2px}p{font-size:42px;line-height:1.35;margin:0;color:#44403c}</style></h"
+                    + "ead><body><div class=\"blob\"></div><div class=\"blob2\"></div><svg viewBox=\"0 0 100 100\"><path d=\"M50 8"
+                    + " L61 38 L93 39 L67 58 L77 90 L50 71 L23 90 L33 58 L7 39 L39 38 Z\" fill=\"#fff\"/></svg><div class=\"c\">"
+                    + "<div class=\"k\">{{THEME}}</div><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></body></html>",
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
+                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
+                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:linear-gradi"
+                    + "ent(160deg,#0f766e 0%,#14b8a6 45%,#a7f3d0 100%);color:#fff}.grid{position:absolute;inset:0;backgroun"
+                    + "d-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,25"
+                    + "5,255,.08) 1px,transparent 1px);background-size:60px 60px}.card{position:absolute;left:90px;right:90"
+                    + "px;bottom:110px;padding:70px 64px;border-radius:44px;background:rgba(6,40,38,.55);border:1px solid r"
+                    + "gba(255,255,255,.25);box-shadow:0 30px 80px rgba(0,0,0,.25)}.num{position:absolute;right:90px;top:70"
+                    + "px;font-size:300px;font-weight:900;color:rgba(255,255,255,.14);line-height:1}.k{font-size:28px;lette"
+                    + "r-spacing:4px;text-transform:uppercase;color:#a7f3d0;margin-bottom:22px;font-weight:700}h1{font-size"
+                    + ":88px;line-height:1.04;margin:0 0 26px;font-weight:800;letter-spacing:-1.5px}p{font-size:40px;line-h"
+                    + "eight:1.35;margin:0;color:rgba(255,255,255,.88)}</style></head><body><div class=\"grid\"></div><div cl"
+                    + "ass=\"num\">&#10022;</div><div class=\"card\"><div class=\"k\">{{THEME}}</div><h1>{{HEADLINE}}</h1><p>{{LI"
+                    + "NE}}</p></div></body></html>",
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
+                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
+                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:#111827;colo"
+                    + "r:#f9fafb}.half{position:absolute;left:0;top:0;width:1080px;height:1080px;background:linear-gradient"
+                    + "(135deg,#facc15,#f97316);clip-path:polygon(0 0,100% 0,100% 38%,0 62%)}svg{position:absolute;right:80"
+                    + "px;top:70px;width:300px;height:300px}.c{position:absolute;left:90px;right:90px;bottom:120px}h1{font-"
+                    + "size:110px;line-height:1;margin:0 0 30px;font-weight:900;text-transform:uppercase;letter-spacing:-2p"
+                    + "x}h1 span{color:#facc15}p{font-size:42px;line-height:1.35;margin:0;color:#d1d5db}.k{position:absolut"
+                    + "e;left:90px;top:110px;font-size:34px;font-weight:800;color:#111827;letter-spacing:3px;text-transform"
+                    + ":uppercase;max-width:560px}</style></head><body><div class=\"half\"></div><div class=\"k\">{{THEME}}</di"
+                    + "v><svg viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"46\" fill=\"none\" stroke=\"#111827\" stroke-widt"
+                    + "h=\"5\"/><circle cx=\"50\" cy=\"50\" r=\"30\" fill=\"none\" stroke=\"#111827\" stroke-width=\"5\"/><circle cx=\"50\""
+                    + " cy=\"50\" r=\"12\" fill=\"#111827\"/></svg><div class=\"c\"><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></bod"
+                    + "y></html>"
+    };
+
 
     /** The card for a post that shows a product photo, when the theme's template has no place for one. */
     static final String CARD_PHOTO = "<!doctype html><html><head><style>body{margin:0;width:1080px;height:1080px;"
@@ -369,7 +442,7 @@ public final class CampaignPlanner {
             + ".s{position:absolute;left:0;right:0;bottom:0;padding:72px 80px 64px;background:linear-gradient(transparent,"
             + "rgba(20,11,51,.92) 38%)}h1{font-size:84px;line-height:1.05;margin:0 0 20px}p{font-size:40px;margin:0 0 28px;"
             + "opacity:.92}b{font-size:32px;opacity:.85}</style></head><body><img src=\"{{PHOTO}}\"><div class=\"s\">"
-            + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></div></body></html>";
+            + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></body></html>";
 
     /** The template with this post's words in it (as text: nothing the brain wrote becomes markup). */
     static String fill(String template, String headline, String line, String brand) {
@@ -382,14 +455,20 @@ public final class CampaignPlanner {
      * ({@link Catalog#inline}).
      */
     static String fill(String template, String headline, String line, String brand, String photoId) {
+        return fill(template, headline, line, brand, photoId, "");
+    }
+
+    /** As above, with the theme shown as the picture's small tag. */
+    static String fill(String template, String headline, String line, String brand, String photoId, String theme) {
         String t = template == null || template.isEmpty() ? CARD : template;
         boolean photo = photoId != null && !photoId.isEmpty();
         if (photo && !t.contains("{{PHOTO}}")) {
             t = CARD_PHOTO;
         }
         String src = photo ? Catalog.PHOTO + Catalog.safe(photoId) : Catalog.BLANK;
-        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", esc(brand))
-                .replace("{{PHOTO}}", src);
+        // the business's name is not written on the picture: the post comes from its own account already
+        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", "")
+                .replace("{{THEME}}", esc(theme == null ? "" : theme)).replace("{{PHOTO}}", src);
     }
 
     static String esc(String s) {
@@ -433,8 +512,9 @@ public final class CampaignPlanner {
         final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, workers));
         // on an API the campaign's picture design is made while the strategy is (it needs only the brief); the phone's
         // own model, one call at a time, uses the built-in cards instead of spending a long call on a design
-        final java.util.concurrent.Future<String> design = workers > 1
-                ? pool.submit(() -> template(brain.ask(TEMPLATE_SYSTEM, templatePrompt(c.brief, "the whole campaign"), 2500))) : null;
+        // the pictures use Ibiko's designed layouts (one a theme in turn): more polished than a design written in one
+        // call, and no call spent on it
+        final java.util.concurrent.Future<String> design = null;
         String reply;
         try {
             reply = brain.ask(OUTLINE_SYSTEM, outlinePrompt(c.brief, seats, c.days, c.perDay), 1500);
@@ -488,7 +568,34 @@ public final class CampaignPlanner {
                 try {
                     got = batches.get(b).get(10, java.util.concurrent.TimeUnit.MINUTES);
                 } catch (Exception e) {
-                    continue; // one batch the brain couldn't write: the rest of the plan stands
+                    got = new java.util.HashMap<Integer, String[]>();
+                }
+                // posts the brain left out or couldn't write (a busy server, a cut-off reply): asked for once more
+                List<Integer> missing = new ArrayList<Integer>();
+                for (int i = 0; i < asked.get(b).size(); i++) {
+                    if (!got.containsKey(i)) {
+                        missing.add(i);
+                    }
+                }
+                if (!missing.isEmpty() && (stop == null || !stop.getAsBoolean())) {
+                    List<String[]> again = new ArrayList<String[]>();
+                    for (int i : missing) {
+                        again.add(asked.get(b).get(i));
+                    }
+                    say(progress, "Writing posts again that didn't come back (" + missing.size() + ")");
+                    java.util.Map<Integer, String[]> second;
+                    try {
+                        second = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, again), 4000), again);
+                    } catch (RuntimeException e) {
+                        second = new java.util.HashMap<Integer, String[]>();
+                    }
+                    for (int k = 0; k < missing.size(); k++) {
+                        if (second.containsKey(k)) {
+                            got.put(missing.get(k), second.get(k));
+                        } else {
+                            c.unwritten++;
+                        }
+                    }
                 }
                 for (int i = 0; i < asked.get(b).size(); i++) {
                     String[] p = got.get(i);
@@ -503,6 +610,10 @@ public final class CampaignPlanner {
                     } catch (Exception e) {
                         tpl = "";
                     }
+                    if (tpl.isEmpty()) {
+                        int t = Math.max(0, o.themes.indexOf(slot.theme));
+                        tpl = DESIGNS[(t + (from + i) / Math.max(1, o.themes.size())) % DESIGNS.length];
+                    }
                     n++;
                     Campaign.Item it = new Campaign.Item();
                     it.id = c.id + "-" + n;
@@ -514,7 +625,7 @@ public final class CampaignPlanner {
                     it.product = shown == null ? "" : shown.id;
                     it.handoff = slot.account.startsWith(HANDOFF);
                     it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand,
-                            shown == null || shown.photo.isEmpty() ? "" : shown.id);
+                            shown == null || shown.photo.isEmpty() ? "" : shown.id, slot.theme);
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }
