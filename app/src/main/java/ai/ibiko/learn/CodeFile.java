@@ -124,6 +124,9 @@ public final class CodeFile {
         File[] in = dir == null ? null : dir.listFiles();
         int n = 0;
         for (File f : in == null ? new File[0] : in) {
+            if (java.nio.file.Files.isSymbolicLink(f.toPath())) {
+                continue; // run at every start: a looping link in a chat crashed the app each time it opened
+            }
             if (f.isDirectory()) {
                 if (!f.getName().equals("repos")) { // a chat's cloned repositories are the user's own files
                     n += upgradeAll(f);

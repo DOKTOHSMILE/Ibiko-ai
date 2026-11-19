@@ -241,7 +241,7 @@ public final class SpeechCache {
             return;
         }
         for (File k : kids) {
-            if (k.isDirectory()) {
+            if (k.isDirectory() && !java.nio.file.Files.isSymbolicLink(k.toPath())) {
                 collect(k, out);
             } else if (k.getName().endsWith(".f32")) {
                 out.add(k);

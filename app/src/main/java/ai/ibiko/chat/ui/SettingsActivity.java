@@ -353,7 +353,7 @@ public class SettingsActivity extends AppCompatActivity {
             return f.length();
         }
         long t = 0;
-        java.io.File[] kids = f.listFiles();
+        java.io.File[] kids = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles(); // a looping link crashed it
         if (kids != null) {
             for (java.io.File k : kids) {
                 t += size(k);
