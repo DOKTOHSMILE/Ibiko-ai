@@ -89,8 +89,12 @@ final class Retries {
                 .show();
     }
 
+    /**
+     * Deletes {@code f} and what is in it. A link is removed, never followed: a link in a chat's files (made by a
+     * command, or by git) to /sdcard or to the app's own folder made "delete this chat's files" delete those.
+     */
     static void deleteTree(java.io.File f) {
-        java.io.File[] kids = f.listFiles();
+        java.io.File[] kids = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles();
         if (kids != null) {
             for (java.io.File k : kids) {
                 deleteTree(k);

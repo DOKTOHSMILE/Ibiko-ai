@@ -174,7 +174,8 @@ public final class WorkspaceActivity extends AppCompatActivity {
     }
 
     private static void delete(File f) {
-        File[] kids = f.listFiles();
+        // a link is removed, never followed: one to /sdcard or the app's folder had what it pointed to deleted
+        File[] kids = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles();
         if (kids != null) {
             for (File k : kids) {
                 delete(k);

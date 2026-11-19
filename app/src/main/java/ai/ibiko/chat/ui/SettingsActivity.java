@@ -336,7 +336,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     protected static void delete(java.io.File f) {
-        java.io.File[] kids = f.listFiles();
+        java.io.File[] kids = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles(); // a link is not followed
         if (kids != null) {
             for (java.io.File k : kids) {
                 delete(k);
