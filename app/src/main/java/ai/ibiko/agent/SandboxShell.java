@@ -19,7 +19,11 @@ public final class SandboxShell {
     public static String run(String command, File dir, long timeoutMs, int maxChars) {
         dir.mkdirs();
         String sh = new File("/system/bin/sh").exists() ? "/system/bin/sh" : "sh";
-        ProcessBuilder pb = new ProcessBuilder(sh, "-c", command).directory(dir).redirectErrorStream(true);
+        // in a process group of its own (setsid), so a timeout stops everything the command started, not only the
+        // shell: a server or a watcher it ran in the background kept running, with no one to stop it
+        String setsid = setsid();
+        ProcessBuilder pb = (setsid == null ? new ProcessBuilder(sh, "-c", command)
+                : new ProcessBuilder(setsid, sh, "-c", command)).directory(dir).redirectErrorStream(true);
         pb.environment().put("HOME", dir.getAbsolutePath());
         pb.environment().put("TMPDIR", dir.getAbsolutePath());
         Process p;
@@ -52,6 +56,7 @@ public final class SandboxShell {
             finished = false;
         }
         if (!finished) {
+            stopGroup(p, setsid != null);
             p.destroyForcibly();
         }
         try {
@@ -67,6 +72,30 @@ public final class SandboxShell {
             text = text.substring(0, maxChars) + "\n…(output cut short)";
         }
         return (text.isEmpty() ? "(no output)" : text.trim()) + "\n[" + (finished ? "exit " + p.exitValue() : "stopped after " + timeoutMs / 1000 + " s") + "]";
+    }
+
+    /** The setsid program on this device, or null. */
+    static String setsid() {
+        for (String path : new String[]{"/system/bin/setsid", "/usr/bin/setsid", "/bin/setsid"}) {
+            if (new File(path).canExecute()) {
+                return path;
+            }
+        }
+        return null;
+    }
+
+    /** Stops the command and everything it started: the whole process group it leads. */
+    static void stopGroup(Process p, boolean ownGroup) {
+        long pid = ai.ibiko.linux.ProotSession.pidOf(p);
+        if (!ownGroup || pid <= 0) {
+            return;
+        }
+        String kill = new File("/system/bin/kill").canExecute() ? "/system/bin/kill" : "kill";
+        try {
+            new ProcessBuilder(kill, "-9", "--", "-" + pid).redirectErrorStream(true).start().waitFor(2, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
+            // the shell itself is still stopped below
+        }
     }
 
     /** A web page as readable text: scripts, styles and tags out, whitespace tidied. */

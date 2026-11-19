@@ -68,6 +68,15 @@ public final class WebGet {
      * Any https page for reading: a big page is cut at {@code maxBytes} rather than dropped, redirects are followed,
      * and a failure says why ("404", "the site didn't answer"). Blocking; call off the main thread.
      */
+    /** Whether a redirect stays on the site the cookies belong to (the same host, or one under it). */
+    static boolean sameSite(String host, String to) {
+        if (host == null || to == null) {
+            return false;
+        }
+        String h = host.toLowerCase(java.util.Locale.ROOT), t = to.toLowerCase(java.util.Locale.ROOT);
+        return t.equals(h) || t.endsWith("." + h) || h.endsWith("." + t) && t.contains(".");
+    }
+
     public static Page page(String url, int timeoutMs, int maxBytes) {
         return page(url, timeoutMs, maxBytes, null);
     }
@@ -79,17 +88,35 @@ public final class WebGet {
         }
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(url).openConnection();
-            c.setInstanceFollowRedirects(true);
-            c.setConnectTimeout(timeoutMs);
-            c.setReadTimeout(timeoutMs);
-            c.setRequestProperty("User-Agent", BROWSER);
-            c.setRequestProperty("Accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.8");
-            c.setRequestProperty("Accept-Language", "en");
-            if (cookie != null && !cookie.isEmpty()) {
-                c.setRequestProperty("Cookie", cookie.replace("\r", "").replace("\n", ""));
+            // with the account's cookies, redirects are followed by hand: HttpURLConnection sends a header set here to
+            // wherever it is redirected, so a link shortener's redirect handed the person's session to another site
+            boolean withCookie = cookie != null && !cookie.isEmpty();
+            String host = new URL(url).getHost();
+            String at = url;
+            int status = 0;
+            for (int hop = 0; ; hop++) {
+                c = (HttpURLConnection) new URL(at).openConnection();
+                c.setInstanceFollowRedirects(!withCookie);
+                c.setConnectTimeout(timeoutMs);
+                c.setReadTimeout(timeoutMs);
+                c.setRequestProperty("User-Agent", BROWSER);
+                c.setRequestProperty("Accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.8");
+                c.setRequestProperty("Accept-Language", "en");
+                if (withCookie && sameSite(host, new URL(at).getHost())) {
+                    c.setRequestProperty("Cookie", cookie.replace("\r", "").replace("\n", ""));
+                }
+                status = c.getResponseCode();
+                String next = withCookie && status >= 300 && status < 400 ? c.getHeaderField("Location") : null;
+                if (next == null || hop >= 5) {
+                    break;
+                }
+                java.net.URL to = new URL(new URL(at), next);
+                c.disconnect();
+                if (!"https".equalsIgnoreCase(to.getProtocol())) {
+                    return new Page(status, null, "it redirected to an address that isn't https");
+                }
+                at = to.toString();
             }
-            int status = c.getResponseCode();
             InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             if (in != null) {

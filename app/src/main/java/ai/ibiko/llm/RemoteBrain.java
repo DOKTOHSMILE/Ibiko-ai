@@ -31,6 +31,8 @@ public final class RemoteBrain {
     public static final class Response {
         public final int status;
         public final InputStream body;
+        /** Cuts the connection at once, from any thread (a stop, or a request gone quiet); null: closing the body does. */
+        public volatile Runnable abort;
 
         public Response(int status, InputStream body) {
             this.status = status;
@@ -236,9 +238,34 @@ public final class RemoteBrain {
         this.transport = transport;
     }
 
+    /**
+     * A copy for one request. A RemoteBrain keeps the state of the request it is making (stopped, cut off, the
+     * failure, what was used), so workers asking the same provider at once each need their own: sharing one let one
+     * worker's result decide another's retry, and a new request cleared another's stop. What was learned about the
+     * provider (its format, that it takes no images or files) is shared, in the static maps.
+     */
+    /** When this request last heard a byte from the server (or started), and whether it has heard any yet. */
+    private volatile long lastByteAt;
+    private volatile boolean anyByte;
+
+    /** How long this request has heard nothing at all from the server, or -1 when it isn't asking. */
+    public long quietFor(long now) {
+        return lastByteAt == 0 ? -1 : now - lastByteAt;
+    }
+
+    /** Whether the server has sent anything yet (headers count) for the request being made. */
+    public boolean heardAny() {
+        return anyByte;
+    }
+
+    public RemoteBrain copy() {
+        return withModel(model);
+    }
+
     /** The same provider and key, asking {@code other} instead of this brain's model. */
     public RemoteBrain withModel(String other) {
         RemoteBrain n = new RemoteBrain(protocol, baseUrl, other, key, backupKey, transport);
+        n.keySource = keySource; // an Ibiko account's key changes: the copy asks for it too, or it sent an old one
         n.autoFormat = autoFormat;
         n.vision = vision;
         n.reasoningMode = reasoningMode;
@@ -366,7 +393,23 @@ public final class RemoteBrain {
     /** Stops the reply being written (from any thread); the stream is abandoned at the next piece. */
     public void cancel() {
         cancelled = true;
+        // a read blocked on a dead connection never sees the flag: cut the connection so it returns now
+        Response open = openResponse;
+        if (open != null) {
+            try {
+                if (open.abort != null) {
+                    open.abort.run();
+                } else {
+                    open.body.close();
+                }
+            } catch (Exception ignored) {
+                // already closed
+            }
+        }
     }
+
+    /** The response being read now, so {@link #cancel} can cut it. */
+    private volatile Response openResponse;
 
     /**
      * One chat: the system instructions and the turns (role, text), streamed to {@code sink} piece by piece.
@@ -520,6 +563,8 @@ public final class RemoteBrain {
 
     private String chatOnce(String system, List<String[]> turns, int maxTokens, float temperature, NativeLlm.Sink sink) {
         cancelled = false;
+        lastByteAt = System.currentTimeMillis();
+        anyByte = false;
         cutOff = false;
         problem = null;
         used = null;
@@ -557,7 +602,13 @@ public final class RemoteBrain {
                     transientFailure = PromptFit.retryReach(e.getMessage());
                     return null;
                 }
-                try (InputStream in = r.body) {
+                anyByte = true;
+                lastByteAt = System.currentTimeMillis();
+                openResponse = r;
+                if (cancelled) {
+                    cancel(); // stopped while it was connecting
+                }
+                try (InputStream in = heard(r.body)) {
                     if ((r.status == 404 || r.status == 405) && autoFormat && !switched) {
                         // this gateway doesn't have that path: it speaks the other format
                         switched = true;
@@ -601,6 +652,8 @@ public final class RemoteBrain {
                     problem = "the connection to " + host() + " broke";
                     transientFailure = true;
                     return null;
+                } finally {
+                    openResponse = null;
                 }
             }
         }
@@ -608,6 +661,25 @@ public final class RemoteBrain {
             problem = "the server refused the request";
         }
         return null;
+    }
+
+    /** The body, noting the time of every byte that arrives: a keep-alive line is alive, a dead connection says nothing. */
+    private InputStream heard(InputStream body) {
+        return new java.io.FilterInputStream(body) {
+            @Override
+            public int read() throws IOException {
+                int b = super.read();
+                lastByteAt = System.currentTimeMillis();
+                return b;
+            }
+
+            @Override
+            public int read(byte[] buf, int off, int len) throws IOException {
+                int n = super.read(buf, off, len);
+                lastByteAt = System.currentTimeMillis();
+                return n;
+            }
+        };
     }
 
     String url() {
@@ -1165,13 +1237,15 @@ public final class RemoteBrain {
                 int status = c.getResponseCode();
                 InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
                 InputStream raw = in == null ? new java.io.ByteArrayInputStream(new byte[0]) : in;
-                return new Response(status, new java.io.FilterInputStream(raw) {
+                Response response = new Response(status, new java.io.FilterInputStream(raw) {
                     @Override
                     public void close() throws IOException {
                         ai.ibiko.net.NetSwitch.done(open);
                         super.close();
                     }
                 });
+                response.abort = open::disconnect;
+                return response;
             } catch (IOException | RuntimeException e) {
                 ai.ibiko.net.NetSwitch.done(c);
                 throw e;

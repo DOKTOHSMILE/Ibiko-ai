@@ -109,7 +109,7 @@ public final class ProotSession {
     }
 
     /** The process id, or -1 when this Android library does not expose it. */
-    static long pidOf(Process proc) {
+    public static long pidOf(Process proc) {
         if (proc == null) {
             return -1;
         }

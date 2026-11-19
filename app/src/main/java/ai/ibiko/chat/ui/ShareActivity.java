@@ -45,6 +45,20 @@ public final class ShareActivity extends Activity {
     }
 
     /** A file name safe to keep in the cache: the name only, no path, never empty. */
+    /**
+     * Whether a shared link is a file another app is handing over: a content:// link from another app's provider. Any
+     * app can "share" a link, and a file:// path or a link to Ibiko's own provider made Ibiko copy one of its own
+     * private files (its settings, its chats) into a chat, and from there to the model.
+     */
+    static boolean fromAnotherApp(Uri u, String ownPackage) {
+        if (u == null || !"content".equalsIgnoreCase(u.getScheme())) {
+            return false;
+        }
+        String authority = u.getAuthority();
+        return authority != null && !authority.equals("ai.ibiko.files") && !authority.startsWith(ownPackage + ".")
+                && !authority.equals(ownPackage);
+    }
+
     static String safeName(String name, int n) {
         String s = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
         s = s.replaceAll("^\\.+", "");
@@ -82,8 +96,8 @@ public final class ShareActivity extends Activity {
             dir.mkdirs();
             for (int i = 0; i < from.size() && i < MOST_FILES; i++) {
                 Uri u = from.get(i);
-                if (u == null) {
-                    continue;
+                if (u == null || !fromAnotherApp(u, getPackageName())) {
+                    continue; // only what another app hands over: never a file:// path or Ibiko's own files
                 }
                 File to = new File(dir, safeName(nameOf(u), i));
                 try (InputStream in = getContentResolver().openInputStream(u); FileOutputStream out = new FileOutputStream(to)) {

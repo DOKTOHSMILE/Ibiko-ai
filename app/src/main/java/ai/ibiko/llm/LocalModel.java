@@ -47,6 +47,8 @@ public final class LocalModel {
     private volatile List<Slot> chain = new ArrayList<Slot>();
     private volatile java.util.function.BooleanSupplier online = () -> true;
     private volatile RemoteBrain current;
+    /** Every API request being made now (workers ask at once); Stop cancels them all. */
+    private final java.util.Set<RemoteBrain> inFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private volatile String switchNote;
     /** Ibiko is answering: every call goes to the strong model. */
     public volatile boolean coding;
@@ -264,7 +266,13 @@ public final class LocalModel {
         turns.add(new String[] {"user", prompt == null ? "" : prompt});
         final int ticket = epoch.get();
         parkNative();
-        String answer = withTimeout(null, wrapped -> r.chat(system, turns, maxTokens, 0.4f, wrapped), true);
+        inFlight.add(r);
+        String answer;
+        try {
+            answer = withTimeout(null, wrapped -> r.chat(system, turns, maxTokens, 0.4f, wrapped), true, r, new String[1]);
+        } finally {
+            inFlight.remove(r);
+        }
         if (ticket != epoch.get()) {
             return null;
         }
@@ -837,6 +845,10 @@ public final class LocalModel {
 
     /** How long an API reply may go quiet between words before it counts as stuck. */
     static final long REMOTE_IDLE_MS = 120_000;
+    /** {@link #REMOTE_IDLE_MS}, shorter only in tests. */
+    static volatile long remoteIdleMs = REMOTE_IDLE_MS;
+    /** How long an API request may wait for the server's first byte (a gateway that doesn't stream answers all at once). */
+    static volatile long remoteFirstByteMs = 300_000;
 
     /**
      * {@code remote}: an API reply has no cap on writing. A large model writing a long answer took more than three
@@ -844,9 +856,20 @@ public final class LocalModel {
      */
     private String withTimeout(NativeLlm.Sink sink, java.util.function.Function<NativeLlm.Sink, String> call,
             boolean remote) {
+        return withTimeout(sink, call, remote, null, null);
+    }
+
+    /**
+     * As above for one API request among several at once: {@code own} is that request's copy. When it goes quiet only it
+     * is stopped (not every call, which ended the other workers' work too) and {@code why[0]} says why; and its clock
+     * runs whether or not a newer call started (only the newest's did, so an older stuck request waited out the
+     * ten-minute socket timeout).
+     */
+    private String withTimeout(NativeLlm.Sink sink, java.util.function.Function<NativeLlm.Sink, String> call,
+            boolean remote, final RemoteBrain own, final String[] why) {
         final int mine = replies.open();
         // silence between words, and a cap on writing. Reading the prompt has no clock: that wait is the work.
-        long idle = remote ? Math.max(REMOTE_IDLE_MS, watchIdleMs) : watchIdleMs > 0 ? watchIdleMs : IDLE_MS;
+        long idle = remote ? Math.max(remoteIdleMs, watchIdleMs) : watchIdleMs > 0 ? watchIdleMs : IDLE_MS;
         long cap = remote ? Long.MAX_VALUE / 4 : watchCapMs > 0 ? watchCapMs : 180_000;
         long read = watchReadMs > 0 ? watchReadMs : READ_MS;
         final ReplyWatch watch = new ReplyWatch(idle, cap, read, System.currentTimeMillis());
@@ -867,9 +890,23 @@ public final class LocalModel {
                 } catch (InterruptedException e) {
                     return;
                 }
-                if (watch.expired(System.currentTimeMillis()) && replies.mine(mine)) {
-                    String why = watch.reason(System.currentTimeMillis());
-                    problem = "cap".equals(why) ? "the reply took too long" : "the reply went quiet";
+                long now = System.currentTimeMillis();
+                if (own != null) {
+                    // an API request is alive while bytes arrive (keep-alive lines too); before the first byte a
+                    // gateway may still be working out the whole answer, so it gets longer
+                    long quiet = own.quietFor(now);
+                    if (quiet >= (own.heardAny() ? idle : Math.max(idle, remoteFirstByteMs))) {
+                        if (why != null) {
+                            why[0] = own.heardAny() ? "the reply went quiet" : "the server didn't start answering";
+                        }
+                        own.cancel(); // only this request; the other workers carry on
+                        return;
+                    }
+                    continue;
+                }
+                if (watch.expired(now) && replies.mine(mine)) {
+                    String reason = watch.reason(now);
+                    problem = "cap".equals(reason) ? "the reply took too long" : "the reply went quiet";
                     cancel();
                     return;
                 }
@@ -959,8 +996,10 @@ public final class LocalModel {
         parkNative(); // the on-device weights are not used for an API reply; leaving them loaded swapped the phone out
         for (Object[] attempt : tries) {
             final Slot sl = (Slot) attempt[0];
-            final RemoteBrain r = (RemoteBrain) attempt[1];
+            final RemoteBrain shared = (RemoteBrain) attempt[1];
+            final RemoteBrain r = shared.copy(); // its own request state: workers ask the same provider at once
             current = r;
+            inFlight.add(r);
             // a quick message trims the chat only on a small window; a big model reads it all (and from its cache)
             final boolean brief = tier == TaskSize.Tier.FAST && sl.window > 0 && sl.window < 32_000;
             r.effortFor(tier);
@@ -969,10 +1008,15 @@ public final class LocalModel {
             final int ticket = epoch.get();
             final int[] pieces = {0};
             final long began = System.currentTimeMillis();
-            problem = null;
-            String answer = withTimeout(counting(sink, pieces), wrapped -> r.chat(system, fitted, room, temperature, wrapped),
-                    true);
-            boolean timedOut = problem != null && problem.startsWith("the reply");
+            final String[] quiet = {null};
+            String answer;
+            try {
+                answer = withTimeout(counting(sink, pieces), wrapped -> r.chat(system, fitted, room, temperature, wrapped),
+                        true, r, quiet);
+            } finally {
+                inFlight.remove(r);
+            }
+            boolean timedOut = quiet[0] != null;
             if (ticket != epoch.get() && !timedOut) {
                 problem = "stopped"; // the user stopped it: nothing more is asked
                 return null;
@@ -989,10 +1033,10 @@ public final class LocalModel {
                 lesson(sl.name, lastAsked(turns), answer);
                 return answer;
             }
-            String why = timedOut ? problem : r.problem() == null ? "it sent nothing back" : r.problem();
+            String why = timedOut ? quiet[0] : r.problem() == null ? "it sent nothing back" : r.problem();
             usage.failure(System.currentTimeMillis());
             boolean credit = why.contains("(402") || why.contains("(429") || why.contains("credit") || why.contains("too many");
-            if (r == sl.brain) { // a provider rests when its main model fails (its fast model failing alone doesn't)
+            if (shared == sl.brain) { // a provider rests when its main model fails (its fast model failing alone doesn't)
                 sl.restUntil = System.currentTimeMillis() + (credit ? REST_LONG_MS : REST_MS);
             }
             if (!credit) {
@@ -1155,6 +1199,9 @@ public final class LocalModel {
         RemoteBrain r = current;
         if (r != null) {
             r.cancel();
+        }
+        for (RemoteBrain each : inFlight.toArray(new RemoteBrain[0])) {
+            each.cancel(); // every worker's request, not only the newest: they kept streaming (and spending) after Stop
         }
         epoch.incrementAndGet();
         long h = handle;
