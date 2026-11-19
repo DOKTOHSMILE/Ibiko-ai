@@ -290,6 +290,50 @@ public final class CampaignRunner extends BroadcastReceiver {
         fail(c, camp, it, r.said);
     }
 
+    /**
+     * A new picture for a post still to go out: the same words and the model's design, drawn fresh from a new seed,
+     * saved and kept. Off the main thread. The picture's file, or null when it couldn't be drawn.
+     */
+    public static File redraw(Context c, Campaign camp, Campaign.Item it) {
+        return redraw(c, camp, it, null);
+    }
+
+    /** As above, with {@code page} (a picture the model designed) in place of the formula's when given. */
+    public static File redraw(Context c, Campaign camp, Campaign.Item it, String page) {
+        if (it.headline.isEmpty()) {
+            String[] w = it.text.replaceAll("(?i)https?://\\S+|#\\w+", " ").trim().split("\\s+");
+            StringBuilder h = new StringBuilder();
+            for (int i = 0; i < w.length && i < 5; i++) {
+                h.append(i == 0 ? "" : " ").append(w[i]);
+            }
+            it.headline = h.toString().replaceAll("[.,!?:;]+$", "");
+        }
+        it.seed = DesignGen.freshSeed(it.id);
+        it.designed = page != null && !page.isEmpty();
+        it.imageHtml = it.designed ? page : CampaignPlanner.picture(it, it.product.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(it.product));
+        if (!it.imagePath.isEmpty()) {
+            new File(it.imagePath).delete();
+        }
+        it.imagePath = "";
+        File made = picture(c, camp, it);
+        CampaignStore st = store(c);
+        Campaign latest = st.get(camp.id);
+        Campaign.Item kept = latest == null ? null : item(latest, it.id);
+        if (kept != null) {
+            kept.headline = it.headline;
+            kept.seed = it.seed;
+            kept.imageHtml = it.imageHtml;
+            kept.designed = it.designed;
+            kept.imagePath = it.imagePath;
+            try {
+                st.put(latest);
+            } catch (IOException ignored) {
+                // drawn; kept with the next change
+            }
+        }
+        return made;
+    }
+
     /** {@link #picture}, for a share from outside this package. */
     public static File pictureOf(Context c, Campaign camp, Campaign.Item it) {
         return picture(c, camp, it);

@@ -63,7 +63,7 @@ public class StudioEditTest {
         for (Campaign.Item it : c.items) {
             shortened |= it.text.equals("Cook safe.");
             refill |= it.text.contains("Refill");
-            weekend |= it.text.equals("Weekend deals!") && it.imageHtml.contains("Deals");
+            weekend |= it.text.equals("Weekend deals!") && it.headline.equals("Deals") && it.imageHtml.toLowerCase().contains("deals");
         }
         assertTrue(shortened);
         assertFalse(refill);

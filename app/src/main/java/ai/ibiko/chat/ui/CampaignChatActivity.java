@@ -43,7 +43,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
     private String id;
     private LinearLayout thread, banner, chips;
     private ScrollView scroll;
-    private TextView title, subtitle;
+    private TextView title, subtitle, modelChip;
     private EditText box;
     private int shownEntries = -1;
     private final Runnable refresh = () -> {
@@ -80,6 +80,10 @@ public final class CampaignChatActivity extends AppCompatActivity {
         subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         names.addView(title);
         names.addView(subtitle);
+        modelChip = Ui.text(this, "", 12, Ui.ACCENT, true);
+        modelChip.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
+        modelChip.setOnClickListener(v -> pickModel());
+        names.addView(modelChip);
         head.addView(names, new LinearLayout.LayoutParams(0, -2, 1f));
         head.addView(iconButton(ai.ibiko.R.drawable.ic_more_vert, "Campaign options", v -> menu()),
                 new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
@@ -164,6 +168,9 @@ public final class CampaignChatActivity extends AppCompatActivity {
         List<String> nets = CampaignBoard.networks(c);
         subtitle.setText(state + (nets.isEmpty() ? "" : " · " + String.join(", ", nets)));
         banner(c, planning, planningLine, now);
+        CampaignStudio.Choice model = CampaignStudio.chosen(this);
+        modelChip.setText((model == null ? "Choose a model" : "Model: " + model.shown()) + "  \u25BE");
+        modelChip.setContentDescription("The model the studio uses: " + (model == null ? "none" : model.shown()) + ". Tap to change.");
 
         List<CampaignChat.Entry> entries = CampaignStudio.chat(this, c.id).all();
         boolean grew = entries.size() != shownEntries;
@@ -483,6 +490,40 @@ public final class CampaignChatActivity extends AppCompatActivity {
         Ui.press(card);
         card.setOnClickListener(v -> PostActions.menu(this, c, it, () -> fill(false)));
         return card;
+    }
+
+    /** The model the studio plans and edits with: any API model set up in AI providers. */
+    private void pickModel() {
+        final List<CampaignStudio.Choice> all = CampaignStudio.choices(this);
+        if (all.isEmpty()) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("No API model yet")
+                    .setMessage("The studio plans and writes with an API model. Add one (a key from OpenAI, Google, Anthropic,"
+                            + " DeepSeek or another) in AI providers, then pick it here.")
+                    .setPositiveButton("Open AI providers", (d, w) -> startActivity(new Intent(this, ProvidersActivity.class)))
+                    .setNegativeButton("Not now", null)
+                    .show();
+            return;
+        }
+        CampaignStudio.Choice now = CampaignStudio.chosen(this);
+        String[] labels = new String[all.size()];
+        int at = 0;
+        for (int i = 0; i < all.size(); i++) {
+            CampaignStudio.Choice ch = all.get(i);
+            labels[i] = ch.model + "  \u00B7  " + ch.provider.title;
+            if (now != null && ch.provider == now.provider && ch.model.equals(now.model)) {
+                at = i;
+            }
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Model for campaigns")
+                .setSingleChoiceItems(labels, at, (d, w) -> {
+                    CampaignStudio.choose(this, all.get(w));
+                    d.dismiss();
+                    fill(false);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void menu() {

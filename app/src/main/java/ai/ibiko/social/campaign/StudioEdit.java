@@ -21,7 +21,8 @@ public final class StudioEdit {
             + " brief's tone, within its network's length, with no made-up prices or facts. Reply with one JSON object only:"
             + " {\"reply\":\"one or two friendly sentences saying what you changed\",\"edit\":[{\"n\":3,\"text\":\"new words\"}],"
             + "\"add\":[{\"day\":2,\"time\":\"18:30\",\"account\":\"<id>\",\"theme\":\"...\",\"text\":\"...\",\"headline\":\"...\","
-            + "\"line\":\"...\"}],\"remove\":[5],\"pause\":false,\"resume\":false}. Leave out any part you don't use. If they only"
+            + "\"line\":\"...\",\"design\":{...}}],\"remove\":[5],\"pause\":false,\"resume\":false}. " + DesignGen.HOW
+            + " Leave out any part you don't use. If they only"
             + " ask a question, answer it in reply and change nothing.";
 
     /** What an instruction did. */
@@ -116,7 +117,6 @@ public final class StudioEdit {
         for (CampaignPlanner.Seat s : seats) {
             network.put(s.id, s.network);
         }
-        String brand = c.brief.business.replaceAll("[,.(].*$", "").trim();
         int serial = c.items.size();
         for (Object o : MiniJson.list(m.get("add"))) {
             if (d.added >= MOST_ADDED) {
@@ -139,7 +139,11 @@ public final class StudioEdit {
             int most = CampaignPlanner.maxChars(it.network);
             it.text = WhatsApp.withLink(text.length() > most ? text.substring(0, most - 1).trim() + "…" : text, c.brief.chat(), most);
             String headline = MiniJson.str(a.get("headline"), "");
-            it.imageHtml = CampaignPlanner.fill(null, headline.isEmpty() ? it.theme : headline, MiniJson.str(a.get("line"), ""), brand);
+            it.headline = headline.isEmpty() ? it.theme : headline;
+            it.line = MiniJson.str(a.get("line"), "");
+            it.design = DesignGen.Spec.of(a.get("design")).json();
+            it.seed = DesignGen.freshSeed(it.id);
+            it.imageHtml = CampaignPlanner.picture(it, "");
             it.at = Math.max(CampaignPlanner.at(c.startAt, day, minute, zone), System.currentTimeMillis() + 10 * 60_000L);
             c.items.add(it);
             d.newItems.add(it);

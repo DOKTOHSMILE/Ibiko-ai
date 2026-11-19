@@ -44,6 +44,41 @@ public final class CampaignFormActivity extends AppCompatActivity {
     private final java.util.Set<String> chosen = new java.util.LinkedHashSet<String>();
     private boolean drawn;
     private int nextId = ID_BASE;
+    /** When the campaign starts (its first day, and no post before this time). */
+    private long start;
+    private TextView startDay, startTime;
+
+    private void showStart() {
+        java.util.Date d = new java.util.Date(start);
+        startDay.setText(java.text.DateFormat.getDateInstance(java.text.DateFormat.FULL).format(d));
+        startTime.setText(java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(d));
+        startDay.setContentDescription("Starts on " + startDay.getText() + ". Tap to change the day.");
+        startTime.setContentDescription("Starts at " + startTime.getText() + ". Tap to change the time.");
+    }
+
+    private void pickDay() {
+        final java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(start);
+        android.app.DatePickerDialog d = new android.app.DatePickerDialog(this, (v, y, m, day) -> {
+            cal.set(y, m, day);
+            start = cal.getTimeInMillis();
+            showStart();
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH));
+        d.getDatePicker().setMinDate(System.currentTimeMillis() - 1000);
+        d.show();
+    }
+
+    private void pickTime() {
+        final java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(start);
+        new android.app.TimePickerDialog(this, (v, h, m) -> {
+            cal.set(java.util.Calendar.HOUR_OF_DAY, h);
+            cal.set(java.util.Calendar.MINUTE, m);
+            start = cal.getTimeInMillis();
+            showStart();
+        }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE),
+                android.text.format.DateFormat.is24HourFormat(this)).show();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -130,6 +165,31 @@ public final class CampaignFormActivity extends AppCompatActivity {
         pair.addView(labelled("Posts a day per account (1–" + CampaignPlanner.MOST_PER_DAY + ")", perDay), right);
         box.addView(pair, Ui.wide(this, 4));
 
+        // when the first post may go out: today at the next hour unless chosen
+        if (savedInstanceState != null && savedInstanceState.getLong("start", 0) > 0) {
+            start = savedInstanceState.getLong("start");
+        } else {
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.add(java.util.Calendar.HOUR_OF_DAY, 1);
+            cal.set(java.util.Calendar.MINUTE, 0);
+            cal.set(java.util.Calendar.SECOND, 0);
+            cal.set(java.util.Calendar.MILLISECOND, 0);
+            start = cal.getTimeInMillis();
+        }
+        TextView startsLabel = Ui.text(this, "Starts", 13, Ui.SUB, true);
+        box.addView(startsLabel, Ui.wide(this, 16));
+        LinearLayout when = new LinearLayout(this);
+        startDay = Ui.button(this, "", false);
+        startTime = Ui.button(this, "", false);
+        startDay.setOnClickListener(v -> pickDay());
+        startTime.setOnClickListener(v -> pickTime());
+        when.addView(startDay, new LinearLayout.LayoutParams(0, -2, 3f));
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 2f);
+        tl.leftMargin = Ui.dp(this, 12);
+        when.addView(startTime, tl);
+        box.addView(when, Ui.wide(this, 6));
+        showStart();
+
         box.addView(Ui.text(this, "Beyond posting", 15, Ui.TEXT, true), Ui.wide(this, 20));
         engage = check(box, "Answer comments on its posts", true);
         prospect = check(box, "Find people who need this, and draft a reply for each", true);
@@ -174,6 +234,7 @@ public final class CampaignFormActivity extends AppCompatActivity {
     @Override
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
+        out.putLong("start", start);
         out.putStringArrayList("chosen", new java.util.ArrayList<String>(chosen));
     }
 
@@ -254,7 +315,7 @@ public final class CampaignFormActivity extends AppCompatActivity {
         long now = System.currentTimeMillis();
         c.id = "c" + now;
         c.createdAt = now;
-        c.startAt = now;
+        c.startAt = Math.max(start, now); // a start already past begins now
         c.brief.business = words(business);
         c.brief.offer = words(offer);
         c.brief.audience = words(audience);

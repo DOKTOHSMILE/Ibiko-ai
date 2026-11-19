@@ -136,8 +136,17 @@ public final class CampaignPlanner {
     /** Calls at once on an API (the phone's own model takes one at a time). */
     public static final int WORKERS = 6;
 
-    private static final String POSTS_SYSTEM = "You write social media posts for a small business campaign: honest, useful,"
-            + " a clear call to action, no made-up facts, prices or reviews."
+    private static final String POSTS_SYSTEM = "You are a top social media copywriter for a small business. Every post"
+            + " stops the scroll: a first line that hooks (a bold claim, a question, a surprising fact, a relatable"
+            + " moment), then short lines with air between them, real value or a story, and one clear call to action."
+            + " Vary the format across posts: a quick tip list, a question to the reader, a mini story, myth versus fact,"
+            + " behind the scenes, a before and after, a straight offer. Sound like a person, warm and confident, never"
+            + " corporate filler (no \"in today's fast-paced world\", no \"unlock\", no \"elevate\"). Fit the network:"
+            + " X short and punchy (under 260 characters, at most one emoji, one or two hashtags); Facebook"
+            + " conversational, 50 to 120 words, 1 to 3 fitting emojis, ends with a question or the call to action;"
+            + " Instagram a caption of 60 to 130 words with emojis as bullets, the call to action, then 5 to 8 hashtags"
+            + " on their own line; LinkedIn professional storytelling, 100 to 180 words, short paragraphs, an insight,"
+            + " at most 2 emojis, 3 hashtags. Honest: no made-up facts, prices, numbers or reviews."
             + " Reply with one JSON object only, no prose.";
 
     private static final String TEMPLATE_SYSTEM = "You design one picture template for a campaign theme, as a single"
@@ -151,12 +160,14 @@ public final class CampaignPlanner {
             s.append(i + 1).append(". ").append(sl[0]).append(" (at most ").append(maxChars(sl[0])).append(" characters)")
                     .append(" | ").append(sl[1]).append(" | ").append(sl[2]).append('\n');
         }
-        s.append("\nEach post in the brief's tone, with a clear call to action")
+        s.append("\nEach post in the brief's tone, written for its network, with a clear call to action")
                 .append(brief.link.isEmpty() ? "" : " and the link")
                 .append(brief.chat().isEmpty() ? "" : "; where it fits, invite people to chat on WhatsApp with the WhatsApp chat link exactly as given")
-                .append(", at most 3 hashtags; no two alike.")
-                .append(" For each also a picture headline (at most 6 words) and a short line under it (at most 10 words).\n")
-                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\"}]}");
+                .append("; no two alike in opening or format.")
+                .append(" For each also a picture headline (3 to 6 punchy words, no business name) and a short line under it"
+                        + " (at most 9 words) that adds to the headline, not repeats it.\n")
+                .append(DesignGen.HOW).append('\n')
+                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\",\"design\":{...}}]}");
         return s.toString();
     }
 
@@ -344,7 +355,8 @@ public final class CampaignPlanner {
                 int cut = text.lastIndexOf(' ', most - 1);
                 text = text.substring(0, cut > most / 2 ? cut : most - 1).trim() + "\u2026";
             }
-            out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90)});
+            out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90),
+                    DesignGen.Spec.of(p.get("design")).json()});
         }
         return out;
     }
@@ -359,8 +371,10 @@ public final class CampaignPlanner {
     static final String CARD = "<!doctype html><html><head><style>body{margin:0;width:1080px;height:1080px;display:flex;"
             + "flex-direction:column;justify-content:center;padding:96px;box-sizing:border-box;background:linear-gradient(135deg,"
             + "#3b1f8f,#8b5cf6);color:#fff;font-family:sans-serif}h1{font-size:96px;line-height:1.05;margin:0 0 32px}"
-            + "p{font-size:44px;margin:0;opacity:.9}b{position:absolute;bottom:72px;font-size:34px;opacity:.85}</style></head>"
-            + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></body></html>";
+            + "p{font-size:44px;margin:0;opacity:.9}</style></head>"
+            + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></body></html>";
+
+
 
     /** The card for a post that shows a product photo, when the theme's template has no place for one. */
     static final String CARD_PHOTO = "<!doctype html><html><head><style>body{margin:0;width:1080px;height:1080px;"
@@ -369,7 +383,66 @@ public final class CampaignPlanner {
             + ".s{position:absolute;left:0;right:0;bottom:0;padding:72px 80px 64px;background:linear-gradient(transparent,"
             + "rgba(20,11,51,.92) 38%)}h1{font-size:84px;line-height:1.05;margin:0 0 20px}p{font-size:40px;margin:0 0 28px;"
             + "opacity:.92}b{font-size:32px;opacity:.85}</style></head><body><img src=\"{{PHOTO}}\"><div class=\"s\">"
-            + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></div></body></html>";
+            + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></body></html>";
+
+    /**
+     * Ibiko's image generator for every post: the model designs each post's own picture as a page (as it does for a
+     * picture asked for in the chat), side by side on an API. A design that doesn't come back keeps the formula's.
+     */
+    static void designAll(Campaign c, Brain brain, Progress progress, java.util.function.BooleanSupplier stop,
+            java.util.concurrent.ExecutorService pool) {
+        List<java.util.concurrent.Future<String>> asked = new ArrayList<java.util.concurrent.Future<String>>();
+        for (final Campaign.Item it : c.items) {
+            final String ask = designBrief(c, it);
+            asked.add(pool.submit(() -> CampaignImage.page(brain.ask(ai.ibiko.design.HtmlDraw.system(CampaignImage.SIDE, CampaignImage.SIDE)
+                    + " " + ai.ibiko.design.HtmlDraw.FOR_POSTS, ask, 5000))));
+        }
+        for (int i = 0; i < asked.size(); i++) {
+            if (stop != null && stop.getAsBoolean()) {
+                return;
+            }
+            say(progress, "Designing pictures " + (i + 1) + " of " + asked.size());
+            try {
+                String page = asked.get(i).get(5, java.util.concurrent.TimeUnit.MINUTES);
+                if (page != null && !page.isEmpty()) {
+                    c.items.get(i).imageHtml = page;
+                    c.items.get(i).designed = true;
+                }
+            } catch (Exception e) {
+                // the formula's picture stands
+            }
+        }
+    }
+
+    /** What the designer is told about one post's picture. */
+    public static String designBrief(Campaign c, Campaign.Item it) {
+        String words = it.text.replaceAll("\\s+", " ").trim();
+        StringBuilder s = new StringBuilder("Design the picture for this ").append(CampaignRunner.shown(it.network))
+                .append(" post.\nHeadline on the picture: ").append(it.headline)
+                .append("\nLine under it: ").append(it.line)
+                .append("\nTheme: ").append(it.theme)
+                .append("\nWhat the business does: ").append(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer)
+                .append("\nThe post: ").append(words.length() > 400 ? words.substring(0, 400) + "\u2026" : words);
+        if (!it.design.isEmpty() && !it.design.equals(new DesignGen.Spec().json())) {
+            s.append("\nYour design idea for it: ").append(it.design);
+        }
+        if (!it.product.isEmpty()) {
+            s.append("\nShow the product photo large, as <img src=\"").append(Catalog.PHOTO).append(Catalog.safe(it.product))
+                    .append("\"> with object-fit:cover; it is the real product.");
+        }
+        return s.toString();
+    }
+
+    /** A post's picture from its words, the model's design and its seed ({@code photo}: a product photo, or ""). */
+    public static String picture(Campaign.Item it, String photo) {
+        Object spec = null;
+        try {
+            spec = it.design.isEmpty() ? null : MiniJson.parse(it.design);
+        } catch (RuntimeException ignored) {
+            // the formula chooses
+        }
+        return DesignGen.make(it.seed, it.headline, it.line, it.theme, photo, CampaignImage.SIDE, CampaignImage.SIDE, DesignGen.Spec.of(spec));
+    }
 
     /** The template with this post's words in it (as text: nothing the brain wrote becomes markup). */
     static String fill(String template, String headline, String line, String brand) {
@@ -382,14 +455,20 @@ public final class CampaignPlanner {
      * ({@link Catalog#inline}).
      */
     static String fill(String template, String headline, String line, String brand, String photoId) {
+        return fill(template, headline, line, brand, photoId, "");
+    }
+
+    /** As above, with the theme shown as the picture's small tag. */
+    static String fill(String template, String headline, String line, String brand, String photoId, String theme) {
         String t = template == null || template.isEmpty() ? CARD : template;
         boolean photo = photoId != null && !photoId.isEmpty();
         if (photo && !t.contains("{{PHOTO}}")) {
             t = CARD_PHOTO;
         }
         String src = photo ? Catalog.PHOTO + Catalog.safe(photoId) : Catalog.BLANK;
-        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", esc(brand))
-                .replace("{{PHOTO}}", src);
+        // the business's name is not written on the picture: the post comes from its own account already
+        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", "")
+                .replace("{{THEME}}", esc(theme == null ? "" : theme)).replace("{{PHOTO}}", src);
     }
 
     static String esc(String s) {
@@ -433,8 +512,9 @@ public final class CampaignPlanner {
         final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(Math.max(1, workers));
         // on an API the campaign's picture design is made while the strategy is (it needs only the brief); the phone's
         // own model, one call at a time, uses the built-in cards instead of spending a long call on a design
-        final java.util.concurrent.Future<String> design = workers > 1
-                ? pool.submit(() -> template(brain.ask(TEMPLATE_SYSTEM, templatePrompt(c.brief, "the whole campaign"), 2500))) : null;
+        // the pictures use Ibiko's designed layouts (one a theme in turn): more polished than a design written in one
+        // call, and no call spent on it
+        final java.util.concurrent.Future<String> design = null;
         String reply;
         try {
             reply = brain.ask(OUTLINE_SYSTEM, outlinePrompt(c.brief, seats, c.days, c.perDay), 1500);
@@ -488,7 +568,34 @@ public final class CampaignPlanner {
                 try {
                     got = batches.get(b).get(10, java.util.concurrent.TimeUnit.MINUTES);
                 } catch (Exception e) {
-                    continue; // one batch the brain couldn't write: the rest of the plan stands
+                    got = new java.util.HashMap<Integer, String[]>();
+                }
+                // posts the brain left out or couldn't write (a busy server, a cut-off reply): asked for once more
+                List<Integer> missing = new ArrayList<Integer>();
+                for (int i = 0; i < asked.get(b).size(); i++) {
+                    if (!got.containsKey(i)) {
+                        missing.add(i);
+                    }
+                }
+                if (!missing.isEmpty() && (stop == null || !stop.getAsBoolean())) {
+                    List<String[]> again = new ArrayList<String[]>();
+                    for (int i : missing) {
+                        again.add(asked.get(b).get(i));
+                    }
+                    say(progress, "Writing posts again that didn't come back (" + missing.size() + ")");
+                    java.util.Map<Integer, String[]> second;
+                    try {
+                        second = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, again), 4000), again);
+                    } catch (RuntimeException e) {
+                        second = new java.util.HashMap<Integer, String[]>();
+                    }
+                    for (int k = 0; k < missing.size(); k++) {
+                        if (second.containsKey(k)) {
+                            got.put(missing.get(k), second.get(k));
+                        } else {
+                            c.unwritten++;
+                        }
+                    }
                 }
                 for (int i = 0; i < asked.get(b).size(); i++) {
                     String[] p = got.get(i);
@@ -503,6 +610,7 @@ public final class CampaignPlanner {
                     } catch (Exception e) {
                         tpl = "";
                     }
+
                     n++;
                     Campaign.Item it = new Campaign.Item();
                     it.id = c.id + "-" + n;
@@ -513,11 +621,18 @@ public final class CampaignPlanner {
                     Product shown = slot.product >= 0 ? c.brief.products.get(slot.product) : null;
                     it.product = shown == null ? "" : shown.id;
                     it.handoff = slot.account.startsWith(HANDOFF);
-                    it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand,
-                            shown == null || shown.photo.isEmpty() ? "" : shown.id);
+                    // the model designed the picture; the formula draws it fresh (no two alike)
+                    it.headline = p[1].isEmpty() ? slot.theme : p[1];
+                    it.line = p[2];
+                    it.design = p.length > 3 ? p[3] : "";
+                    it.seed = DesignGen.freshSeed(it.id);
+                    it.imageHtml = picture(it, shown == null || shown.photo.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(shown.id));
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }
+            }
+            if (workers > 1) {
+                designAll(c, brain, progress, stop, pool);
             }
         } finally {
             pool.shutdownNow();

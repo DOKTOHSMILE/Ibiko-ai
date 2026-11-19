@@ -151,6 +151,7 @@ public final class CampaignsActivity extends AppCompatActivity {
         final int leadCount = waitingLeads;
         quick.addView(chip(leadCount > 0 ? "Leads · " + leadCount : "Leads", false,
                 v -> startActivity(new Intent(this, SocialActivity.class).putExtra(SocialActivity.EXTRA_FOCUS, "leads"))), marginStart(8));
+        quick.addView(chip("Accounts", false, v -> startActivity(new Intent(this, SocialActivity.class))), marginStart(8));
         android.widget.HorizontalScrollView qs = new android.widget.HorizontalScrollView(this);
         qs.setHorizontalScrollBarEnabled(false);
         qs.addView(quick);
