@@ -84,9 +84,12 @@ public final class FileText {
         TreeMap<String, String> found = new TreeMap<String, String>();
         try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
             ZipEntry e;
-            while ((e = in.getNextEntry()) != null) {
+            long kept = 0;
+            while ((e = in.getNextEntry()) != null && found.size() < 500 && kept < 16_000_000) { // thousands of parts ran out of memory
                 if (e.getName().toLowerCase(Locale.US).matches(regex)) {
-                    found.put(e.getName(), read(in));
+                    String xml = read(in);
+                    kept += xml.length();
+                    found.put(e.getName(), xml);
                 }
             }
         }
@@ -97,10 +100,14 @@ public final class FileText {
         TreeMap<Integer, String> found = new TreeMap<Integer, String>();
         try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
             ZipEntry e;
-            while ((e = in.getNextEntry()) != null) {
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile("ppt/slides/slide(\\d+)\\.xml").matcher(e.getName());
+            long kept = 0;
+            // at most 500 slides and 16 MB of their text: each slide is capped, but thousands of them were not
+            while ((e = in.getNextEntry()) != null && found.size() < 500 && kept < 16_000_000) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("ppt/slides/slide(\\d{1,6})\\.xml").matcher(e.getName());
                 if (m.matches()) {
-                    found.put(Integer.parseInt(m.group(1)), read(in));
+                    String xml = read(in);
+                    kept += xml.length();
+                    found.put(Integer.parseInt(m.group(1)), xml);
                 }
             }
         }
@@ -124,9 +131,12 @@ public final class FileText {
         TreeMap<String, String> found = new TreeMap<String, String>();
         try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
             ZipEntry e;
-            while ((e = in.getNextEntry()) != null) {
+            long kept = 0;
+            while ((e = in.getNextEntry()) != null && found.size() < 500 && kept < 16_000_000) { // thousands of sheets ran out of memory
                 if (e.getName().matches("xl/worksheets/sheet\\d+\\.xml")) {
-                    found.put(e.getName(), read(in));
+                    String xml = read(in);
+                    kept += xml.length();
+                    found.put(e.getName(), xml);
                 }
             }
         }

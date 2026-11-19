@@ -54,6 +54,24 @@ public class LibraryTest {
     }
 
     @Test
+    public void aDamagedIndexLineLosesOnlyThatDrawing() throws Exception {
+        File dir = Files.createTempDirectory("lib").toFile();
+        DrawingLibrary lib = new DrawingLibrary(dir);
+        lib.save("Speedy", "car", "my red car", CAR.copy().fixFrame(), 1000);
+        lib.save("Tom", "cat", "", CAT, 2000);
+        File index = new File(dir, "index.tsv");
+        String kept = new String(Files.readAllBytes(index.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(index.toPath(), (kept + "Broken\tx\ty\tz\tnot-a-number\t../../escape.solid\n")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        DrawingLibrary again = new DrawingLibrary(dir);
+        assertNotNull(again.named("Speedy")); // a bad line dropped the whole index, and the next save lost every drawing
+        assertNotNull(again.named("Tom"));
+        assertNull(again.named("Broken"));
+        again.save("Rex", "cat", "", CAT, 3000);
+        assertNotNull(new DrawingLibrary(dir).named("Speedy"));
+    }
+
+    @Test
     public void savesFindsAndExplainsAClash() throws Exception {
         File dir = Files.createTempDirectory("lib").toFile();
         DrawingLibrary lib = new DrawingLibrary(dir);

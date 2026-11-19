@@ -37,6 +37,6 @@ public final class TemporalSpatialAnalyzer {
         if(e.matches("\\d+ (?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)"))return "duration-unspecified-direction";
         if(e.equals("today"))return today;if(e.equals("tonight")||e.contains("morning")||e.contains("afternoon")||e.contains("evening"))return today+" (time-of-day unspecified)";
         return date(c);}
-    private static int amount(String s){Matcher m=Pattern.compile("\\d+").matcher(s);return m.find()?Integer.parseInt(m.group()):0;}
+    private static int amount(String s){Matcher m=Pattern.compile("\\d+").matcher(s);return m.find()&&m.group().length()<=9?Integer.parseInt(m.group()):0;} // "in 99999999999 seconds" threw
     private static String date(Calendar c){return new SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(new Date(c.getTimeInMillis()));}
 }
