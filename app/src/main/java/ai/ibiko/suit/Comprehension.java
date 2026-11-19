@@ -227,6 +227,10 @@ public final class Comprehension {
         if (t.matches(".*\\b(fix|implement|refactor)\\b.*") && t.matches(".*\\b(bug|code|class|function|java|app|screen|button)\\b.*")) {
             return FunctionCode.WK;
         }
+        if (t.matches(".*\\b(audit\\w*|inspect\\w*|review\\w*|scan\\w*|analy[sz]\\w*|debug\\w*|go(?:ing)? through|check\\w*)\\b.*")
+                && t.matches(".*\\b(codebase|code ?base|project|repo|repos|repository|files?|functions?|app|source|codes?)\\b.*")) {
+            return FunctionCode.WK; // "audit the entire project codebase", "inspect the files for broken functions"
+        }
         if (t.matches(".*\\b(story|essay|poem|chapter)\\b.*") && !t.matches(".*\\b(bug|repo|class|function)\\b.*")) {
             return FunctionCode.WP;
         }

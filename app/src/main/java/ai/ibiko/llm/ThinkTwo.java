@@ -45,12 +45,18 @@ public final class ThinkTwo {
     static final String NOTES = "You are one of several independent thinkers. Think the message through on your own,"
             + " carefully, as private notes (the person never sees them): the real goal, what is known and what is"
             + " uncertain, a plan in numbered steps, the risks or mistakes to avoid, and then your best answer. Be concrete."
-            + " Under 300 words. No greeting.";
+            + " Under 300 words. No greeting. The assistant you think for can act through its app: read the files in its"
+            + " workspace, run its coding agent on a repository, search the web, use connectors and post on the person's"
+            + " accounts. So when the person asks for work, plan the work itself; never plan to ask them for permission"
+            + " they already gave, or to say the files haven't been read.";
 
     static final String JUDGE = "Below are private notes from several independent thinkers on the person's message."
             + " You are the final judge. Weigh them: keep what is right, drop what is wrong or unsupported, settle each"
             + " disagreement by the stronger reasoning, and add what all of them missed. Then write ONE answer for the"
-            + " person, in your own words, complete and well ordered. Never mention notes, thinkers, models or rounds.";
+            + " person, in your own words, complete and well ordered. Never mention notes, thinkers, models or rounds."
+            + " When the person asked for something to be done (work on code or files, a search, a post), do not answer"
+            + " that you haven't done it or ask leave to start: begin your reply with the function code from your"
+            + " instructions that starts it, alone on the first line.";
 
     private ThinkTwo() {
     }

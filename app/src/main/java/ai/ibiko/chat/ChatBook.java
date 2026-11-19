@@ -392,6 +392,35 @@ public final class ChatBook {
         save();
     }
 
+    /**
+     * A new chat of its own (a campaign's, say), named {@code title}; it becomes the chat on screen only when
+     * {@code show} (work going on in the open chat is never pulled away from it).
+     */
+    public synchronized Section openOwn(String title, String persona, boolean show) {
+        String before = currentId;
+        Section s = openIn(title, persona, null);
+        if (!show && before != null) {
+            currentId = before;
+            save();
+        }
+        return s;
+    }
+
+    /** A message on the chat {@code sectionId}, whichever chat is on screen; false when that chat is gone. */
+    public synchronized boolean addTo(String sectionId, String role, String kind, String body, String persona) {
+        if (body == null || body.trim().isEmpty()) {
+            return false;
+        }
+        for (Section s : sections) {
+            if (s.id.equals(sectionId) && !s.archived) {
+                s.messages.add(new Message(role, kind == null ? "text" : kind, body, persona));
+                save();
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Splits a reply on fenced code blocks. A fenced HTML page is its own message. */
     public static List<Message> blocks(String role, String persona, String text) {
         List<Message> out = new ArrayList<Message>();

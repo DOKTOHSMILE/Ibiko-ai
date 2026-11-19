@@ -24,6 +24,10 @@ public final class Campaign {
         public String business = "", offer = "", audience = "", goal = "", tone = "", link = "";
         /** The business's WhatsApp: a number with its country code, or a wa.me link. */
         public String whatsapp = "";
+        /** The catalog products this campaign features, as they were when it was planned. */
+        public final List<Product> products = new ArrayList<Product>();
+        /** What earlier campaigns showed works (themes, times), for the brain; set when planning. */
+        public String lessons = "";
 
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -34,6 +38,12 @@ public final class Campaign {
             m.put("tone", tone);
             m.put("link", link);
             m.put("whatsapp", whatsapp);
+            List<Object> ps = new ArrayList<Object>();
+            for (Product p : products) {
+                ps.add(p.json());
+            }
+            m.put("products", ps);
+            m.put("lessons", lessons);
             return m;
         }
 
@@ -47,6 +57,10 @@ public final class Campaign {
             b.tone = MiniJson.str(m.get("tone"), "");
             b.link = MiniJson.str(m.get("link"), "");
             b.whatsapp = MiniJson.str(m.get("whatsapp"), "");
+            for (Object p : MiniJson.list(m.get("products"))) {
+                b.products.add(Product.of(p));
+            }
+            b.lessons = MiniJson.str(m.get("lessons"), "");
             return b;
         }
 
@@ -60,6 +74,13 @@ public final class Campaign {
             line(s, "Tone", tone);
             line(s, "Link", link);
             line(s, "WhatsApp chat link", chat());
+            if (!products.isEmpty()) {
+                s.append("Products (use these exact names and prices; never make up a price):\n");
+                for (int i = 0; i < products.size(); i++) {
+                    s.append("P").append(i + 1).append(". ").append(products.get(i).line()).append('\n');
+                }
+            }
+            line(s, "What worked in earlier campaigns", lessons);
             return s.toString().trim();
         }
 
@@ -81,6 +102,16 @@ public final class Campaign {
         public String id = "", account = "", network = "", text = "", imageHtml = "", imagePath = "", result = "", theme = "";
         public long at;
         public State state = State.PLANNED;
+        /** What the network's rules say about it ({@link PlatformRules#said}); "" when nothing. */
+        public String risk = "";
+        /** The person chose to post it although its network bans what it says. */
+        public boolean riskOk;
+        /** The catalog product it shows ({@link Product#id}), or "". */
+        public String product = "";
+        /** A network Ibiko can't post on itself (Instagram, LinkedIn): offered to the person to share when due. */
+        public boolean handoff;
+        /** Whether the post was seen on the network after posting: 1 seen, -1 looked for and not there, 0 not checked yet. */
+        public int checked;
 
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -94,6 +125,11 @@ public final class Campaign {
             m.put("imagePath", imagePath);
             m.put("state", state.name());
             m.put("result", result);
+            m.put("risk", risk);
+            m.put("riskOk", riskOk);
+            m.put("product", product);
+            m.put("handoff", handoff);
+            m.put("checked", (double) checked);
             return m;
         }
 
@@ -110,6 +146,11 @@ public final class Campaign {
             i.imagePath = MiniJson.str(m.get("imagePath"), "");
             i.state = state(MiniJson.str(m.get("state"), "PLANNED"));
             i.result = MiniJson.str(m.get("result"), "");
+            i.risk = MiniJson.str(m.get("risk"), "");
+            i.riskOk = Boolean.TRUE.equals(m.get("riskOk"));
+            i.product = MiniJson.str(m.get("product"), "");
+            i.handoff = Boolean.TRUE.equals(m.get("handoff"));
+            i.checked = (int) MiniJson.num(m.get("checked"), 0);
             return i;
         }
 
@@ -137,6 +178,10 @@ public final class Campaign {
     public boolean autoPitch = false;
     /** When each post goes out, a notification offers it to share to WhatsApp Status or a group in one tap. */
     public boolean whatsappShare = false;
+    /** Networks Ibiko prepares posts for and the person shares from the app (Instagram, LinkedIn). */
+    public final List<String> handoff = new ArrayList<String>();
+    /** The chat that is this campaign's own: its brief, its planning and its plan (a chat id), or "". */
+    public String chat = "";
     public final List<String> themes = new ArrayList<String>();
     /** What to search for: posts by people who may need the offer ("need a logo designer in Lagos"). */
     public final List<String> searches = new ArrayList<String>();
@@ -184,6 +229,8 @@ public final class Campaign {
         m.put("prospect", prospect);
         m.put("autoPitch", autoPitch);
         m.put("whatsappShare", whatsappShare);
+        m.put("handoff", new ArrayList<Object>(handoff));
+        m.put("chat", chat);
         m.put("themes", new ArrayList<Object>(themes));
         m.put("searches", new ArrayList<Object>(searches));
         List<Object> its = new ArrayList<Object>();
@@ -214,6 +261,8 @@ public final class Campaign {
         c.prospect = !Boolean.FALSE.equals(m.get("prospect"));
         c.autoPitch = Boolean.TRUE.equals(m.get("autoPitch"));
         c.whatsappShare = Boolean.TRUE.equals(m.get("whatsappShare"));
+        c.handoff.addAll(MiniJson.strings(m.get("handoff")));
+        c.chat = MiniJson.str(m.get("chat"), "");
         c.themes.addAll(MiniJson.strings(m.get("themes")));
         c.searches.addAll(MiniJson.strings(m.get("searches")));
         for (Object i : MiniJson.list(m.get("items"))) {

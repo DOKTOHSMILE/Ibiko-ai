@@ -338,7 +338,11 @@ final class LocalAsk {
                     carry ? act.lastReply() : null);
             java.util.List<ai.ibiko.llm.ThinkTwo.Thinker> thinkers = pageTools.round() && act.model.remoteOn()
                     ? act.model.thinkers() : java.util.Collections.<ai.ibiko.llm.ThinkTwo.Thinker>emptyList();
-            if (!thinkers.isEmpty() && (carry || ai.ibiko.llm.ThinkTwo.worth(english))) {
+            // work to be done (an audit, a fix, files to read, a search, a post) is started by the brain's code, not
+            // talked over: the private round wrote polite answers about not having read the files, and the work never began
+            String about = carry && act.activeQuestion != null ? act.activeQuestion : english;
+            boolean work = ai.ibiko.suit.Comprehension.of(about).want != null;
+            if (!thinkers.isEmpty() && !work && (carry || ai.ibiko.llm.ThinkTwo.worth(english))) {
                 final int room = Math.max(length, 800);
                 act.handler.post(() -> {
                     if (act.alive(id) && act.chatPane != null) {
@@ -385,6 +389,13 @@ final class LocalAsk {
             raw = foldSteer(id, system, english, context, length, raw, sink);
             tags.flush();
             ai.ibiko.llm.BrainOrder wrote = acts ? ai.ibiko.llm.BrainOrder.leading(raw) : null;
+            if (acts && wrote == null && ai.ibiko.llm.BrainOrder.stalls(raw)
+                    && ai.ibiko.suit.Comprehension.of(carry && act.activeQuestion != null ? act.activeQuestion : english).want
+                            == ai.ibiko.suit.FunctionCode.WK) {
+                // work was asked for and the brain only said it hadn't started ("tell me to go ahead"): it starts now
+                wrote = ai.ibiko.llm.BrainOrder.leading("\u00A7WK");
+                raw = "\u00A7WK\nStarting on it now.";
+            }
             if (wrote != null && !act.model.remoteOn()
                     && !ai.ibiko.llm.CodeFit.fits(wrote, question + " " + english)) {
                 // a small model on the device picked an action the words don't ask for (plan mode for "Hello", a share
@@ -406,7 +417,8 @@ final class LocalAsk {
                 if (ai.ibiko.chat.ui.UsageActivity.learningOn(act.prefs)) {
                     act.hub.worker.execute(() -> act.brainBox().learn(q, line));
                 } // Ibiko's own brain learns how this became an action
-                raw = ai.ibiko.llm.BrainOrder.withoutOrder(raw);
+                // a sentence saying the action is already done is dropped: Ibiko says what really happened after it runs
+                raw = ai.ibiko.llm.BrainOrder.noClaim(ai.ibiko.llm.BrainOrder.withoutOrder(raw), order.kind);
             }
             String back = null;
             if (lang != null && raw != null && act.alive(id)) {

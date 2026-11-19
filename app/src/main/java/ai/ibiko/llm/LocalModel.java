@@ -91,6 +91,23 @@ public final class LocalModel {
     /** True while a native call is inside {@link #withTimeout}, including the time spent reading the prompt. */
     private volatile boolean inCall;
 
+    /**
+     * Calls made on this thread are background work (a campaign's planning, comments and leads), not the chat's: they
+     * never show as the chat working, never turn Send into Stop, and never end the chat's call when they finish.
+     */
+    private static final ThreadLocal<Boolean> BACKGROUND = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /** Runs {@code work} as background work (see {@link #BACKGROUND}). */
+    public static <T> T inBackground(java.util.function.Supplier<T> work) {
+        boolean was = BACKGROUND.get();
+        BACKGROUND.set(Boolean.TRUE);
+        try {
+            return work.get();
+        } finally {
+            BACKGROUND.set(was);
+        }
+    }
+
     public boolean working() {
         // a call stopped with cancel() is over for the screen at once, though its thread may take a while to unwind
         // (a network read giving up): Stop turns back into Send then, not when the old call finally returns
@@ -906,8 +923,11 @@ public final class LocalModel {
         long read = watchReadMs > 0 ? watchReadMs : READ_MS;
         final ReplyWatch watch = new ReplyWatch(idle, cap, read, System.currentTimeMillis());
         final int ticket = epoch.get();
-        callTicket = ticket;
-        inCall = true;
+        final boolean background = BACKGROUND.get();
+        if (!background) {
+            callTicket = ticket;
+            inCall = true; // the chat is working (a background call never says so)
+        }
         NativeLlm.Sink wrapped = text -> {
             if (ticket != epoch.get()) {
                 return false;
@@ -936,7 +956,8 @@ public final class LocalModel {
                     }
                     continue;
                 }
-                if (watch.expired(now) && replies.mine(mine)) {
+                // a stuck background call on the phone's model is ended too (it holds the model); an API one ends above
+                if (watch.expired(now) && replies.mine(mine) && (!background || !remote)) {
                     String reason = watch.reason(now);
                     problem = "cap".equals(reason) ? "the reply took too long" : "the reply went quiet";
                     cancel();
@@ -951,7 +972,9 @@ public final class LocalModel {
         } catch (RuntimeException e) {
             return null;
         } finally {
-            inCall = false;
+            if (!background) {
+                inCall = false;
+            }
             watch.finish();
             watchdog.interrupt();
         }

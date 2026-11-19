@@ -20,6 +20,11 @@ public final class Prospector {
 
         /** The account's notifications (mentions and replies) as text with {@code LINK url} lines; null when unread. */
         String notifications(String account);
+
+        /** Every notification of the account (reactions and shares too), for counting results; null when unread. */
+        default String activity(String account) {
+            return notifications(account);
+        }
     }
 
     /** A post on a page: its words and its address. */

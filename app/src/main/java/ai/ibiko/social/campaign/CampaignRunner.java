@@ -37,6 +37,16 @@ public final class CampaignRunner extends BroadcastReceiver {
         return new CampaignStore(new File(c.getFilesDir(), "campaigns"));
     }
 
+    /** How people responded to the campaigns' posts. */
+    public static Results results(Context c) {
+        return new Results(new File(c.getFilesDir(), "campaigns"));
+    }
+
+    /** The business's products and their photos. */
+    public static Catalog catalog(Context c) {
+        return new Catalog(new File(c.getFilesDir(), "catalog"));
+    }
+
     @Override
     public void onReceive(Context c, Intent intent) {
         final PendingResult later = goAsync(); // posting waits for the page: off the main thread
@@ -44,6 +54,9 @@ public final class CampaignRunner extends BroadcastReceiver {
         new Thread(() -> {
             try {
                 run(app, System.currentTimeMillis());
+                LeadSender.remind(app, System.currentTimeMillis()); // pitches waiting for a follow-up
+            } catch (RuntimeException e) {
+                // the next alarm tries again
             } finally {
                 later.finish();
             }
@@ -59,7 +72,6 @@ public final class CampaignRunner extends BroadcastReceiver {
             if (camp.status != Campaign.Status.ACTIVE) {
                 continue;
             }
-            boolean changed = false;
             for (Campaign.Item it : camp.planned()) {
                 if (it.at > now) {
                     break; // the rest are later
@@ -68,31 +80,163 @@ public final class CampaignRunner extends BroadcastReceiver {
                     more = true; // this account posted this run: its next one waits for the next run
                     continue;
                 }
+                // the person may have edited, let through or taken out this post since the run began: as it is now
+                Campaign latest = store(c).get(camp.id);
+                Campaign.Item fresh = latest == null ? null : item(latest, it.id);
+                if (latest == null || latest.status != Campaign.Status.ACTIVE) {
+                    break; // deleted or paused meanwhile
+                }
+                if (fresh == null || fresh.state != Campaign.State.PLANNED) {
+                    continue;
+                }
+                it.text = fresh.text;
+                it.riskOk = fresh.riskOk;
                 usedThisRun.add(it.account);
                 postOne(c, camp, it, now);
-                changed = true;
-                if (camp.whatsappShare && it.state == Campaign.State.POSTED) {
-                    ai.ibiko.chat.ui.WhatsAppShareActivity.offer(c, camp, it);
+                keep(c, camp.id, it);
+                if (camp.whatsappShare && it.state == Campaign.State.POSTED && !it.handoff) {
+                    ai.ibiko.chat.ui.PostShareActivity.offer(c, camp, it);
                 }
             }
-            if (camp.planned().isEmpty()) {
-                camp.status = Campaign.Status.DONE;
-                changed = true;
-                tell(c, camp.id.hashCode(), camp.name + ": the campaign is done", camp.progress());
-            }
-            if (changed) {
+            Campaign latest = store(c).get(camp.id);
+            if (latest != null && latest.status == Campaign.Status.ACTIVE && latest.planned().isEmpty()) {
+                latest.status = Campaign.Status.DONE;
                 try {
-                    store.put(camp);
+                    store(c).put(latest);
                 } catch (IOException e) {
-                    // kept in memory for this run; the next run tries again
+                    // marked done next run
                 }
+                tell(c, camp.id.hashCode(), camp.name + ": the campaign is done", latest.progress());
             }
         }
         arm(c, more ? now + GAP_MS : 0);
     }
 
+    /** A post due while the phone is offline waits this long, then tries again. */
+    static final long OFFLINE_WAIT_MS = 10 * 60_000L;
+
+    /** True when the phone has a working internet connection (or it can't be told: then the post is tried). */
+    static boolean online(Context c) {
+        try {
+            android.net.ConnectivityManager cm = c.getSystemService(android.net.ConnectivityManager.class);
+            if (cm == null) {
+                return true;
+            }
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
+    /**
+     * What the check after posting found: seen on the network (posted, checked), not there (said plainly, and not
+     * posted again so nothing is doubled), or not known yet (looked for again later).
+     */
+    static void checked(Context c, Campaign camp, Campaign.Item it, Boolean seen, String account, String network, String said) {
+        if (Boolean.TRUE.equals(seen)) {
+            it.state = Campaign.State.POSTED;
+            it.checked = 1;
+            it.result = "Posted and checked: it's on " + network + " (" + account + ").";
+        } else if (Boolean.FALSE.equals(seen)) {
+            it.state = Campaign.State.FAILED;
+            it.checked = -1;
+            it.result = "Ibiko pressed Post, but the post isn't on your " + network + " profile. Look there; it won't be"
+                    + " posted again by itself, so nothing is doubled. Ibiko looks once more later.";
+            tell(c, it.id.hashCode(), camp.name + ": a post isn't showing on " + network, it.result + "\n\n" + it.text);
+        } else {
+            it.state = Campaign.State.POSTED;
+            it.checked = 0;
+            it.result = said + " Not checked yet: Ibiko looks for it on your profile at its next round.";
+        }
+    }
+
+    /**
+     * Looks again for posts of {@code camp} not yet seen on their network (posted in the last two days): one found
+     * is marked posted and checked; one still missing stays as it is. Switches to each post's account to look.
+     * Returns how many changed.
+     */
+    public static int recheck(Context c, Campaign camp) {
+        long now = System.currentTimeMillis();
+        int changed = 0;
+        for (Campaign.Item it : camp.items) {
+            boolean open = it.state == Campaign.State.POSTED && it.checked == 0
+                    || it.state == Campaign.State.FAILED && it.checked == -1;
+            if (!open || it.handoff || now - it.at > 2 * 24 * 3_600_000L) {
+                continue;
+            }
+            final SocialAccounts.Account a = SocialWeb.accounts(c).get(it.account);
+            if (a == null || !a.signedIn) {
+                continue;
+            }
+            final String text = it.text;
+            Boolean seen = LeadSender.as(c, a, () -> PostCheck.look(c, a.platform, text), null);
+            if (Boolean.TRUE.equals(seen)) {
+                it.state = Campaign.State.POSTED;
+                it.checked = 1;
+                it.result = "Posted and checked: it's on " + a.platform.shown + " (" + a.label + ").";
+                keep(c, camp.id, it);
+                changed++;
+            } else if (Boolean.FALSE.equals(seen) && it.checked == 0) {
+                it.checked = -1;
+                it.state = Campaign.State.FAILED;
+                it.result = "Ibiko pressed Post, but the post isn't on your " + a.platform.shown + " profile. Look there;"
+                        + " it won't be posted again by itself, so nothing is doubled.";
+                keep(c, camp.id, it);
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    static Campaign.Item item(Campaign c, String id) {
+        for (Campaign.Item i : c.items) {
+            if (i.id.equals(id)) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * What happened to one post, saved into the campaign as it is now (not this run's copy, so the person's edits to
+     * other posts made meanwhile are kept).
+     */
+    static void keep(Context c, String campaign, Campaign.Item done) {
+        CampaignStore st = store(c);
+        Campaign latest = st.get(campaign);
+        Campaign.Item it = latest == null ? null : item(latest, done.id);
+        if (it == null) {
+            return; // the campaign or the post was removed meanwhile
+        }
+        it.state = done.state;
+        it.result = done.result;
+        it.checked = done.checked;
+        it.at = done.at;
+        it.imagePath = done.imagePath;
+        try {
+            st.put(latest);
+        } catch (IOException e) {
+            // posted all the same; the action log has it
+        }
+    }
+
     /** Posts one item from its own account and records what happened. */
     static void postOne(Context c, Campaign camp, Campaign.Item it, long now) {
+        if (!it.riskOk && PlatformRules.banned(it.network, it.text)) {
+            // the network bans what it says (it may have been edited since the review): held, not posted
+            fail(c, camp, it, "held back: " + PlatformRules.said(PlatformRules.check(it.network, it.text))
+                    + ". Edit it, or choose to post it anyway, under Social accounts › Campaigns.");
+            return;
+        }
+        if (it.handoff) {
+            // a network Ibiko can't post on itself: the post, its picture drawn, is offered to the person to share
+            picture(c, camp, it);
+            ai.ibiko.chat.ui.PostShareActivity.offerDue(c, camp, it);
+            it.state = Campaign.State.POSTED;
+            it.result = "Offered to you to share on " + shown(it.network) + " (you tap Share)";
+            return;
+        }
         SocialAccounts accounts = SocialWeb.accounts(c);
         SocialAccounts.Account a = accounts.get(it.account);
         if (a == null || !a.signedIn) {
@@ -100,6 +244,11 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         Platform net = a.platform;
+        if (!online(c)) {
+            it.at = now + OFFLINE_WAIT_MS; // everything is ready on the phone: it goes out when the internet is back
+            it.result = "waiting: no internet on the phone";
+            return;
+        }
         String paused = SocialWeb.limits(c).pausedWhy(a.id, now);
         if (paused != null) {
             it.at = now + LIMIT_WAIT_MS; // the site asked for a check: this account rests, the post waits
@@ -112,6 +261,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         SocialPoster.Result r;
+        Boolean seen = null;
         synchronized (SocialWeb.SWITCH) { // switch, post, switch back: nothing else posts or switches meanwhile
             SocialAccounts.Account before = accounts.inUse(net);
             boolean switched = before == null || !before.id.equals(a.id);
@@ -121,6 +271,9 @@ public final class CampaignRunner extends BroadcastReceiver {
             }
             try {
                 r = SocialPoster.post(c, net, it.text, null, null, picture);
+                if (r.posted) {
+                    seen = PostCheck.verify(c, net, it.text); // pressing Post is not proof: it is looked for
+                }
             } finally {
                 if (switched && before != null) {
                     SocialWeb.switchTo(c, before.id); // the account the person had in use comes back
@@ -128,8 +281,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             }
         }
         if (r.posted) {
-            it.state = Campaign.State.POSTED;
-            it.result = r.said;
+            checked(c, camp, it, seen, a.label, net.shown, r.said);
             return;
         }
         if (r.said.startsWith("Not posted:")) {
@@ -155,11 +307,24 @@ public final class CampaignRunner extends BroadcastReceiver {
             return kept;
         }
         File out = new File(new File(new File(c.getFilesDir(), "campaigns"), safe(camp.id)), safe(it.id) + ".jpg");
-        File made = CampaignImage.render(c, it.imageHtml, out);
+        File made = CampaignImage.render(c, catalog(c).inline(it.imageHtml), out);
         if (made != null) {
             it.imagePath = made.getPath();
         }
         return made;
+    }
+
+    /** A network's name for the person ("instagram" → "Instagram"). */
+    public static String shown(String network) {
+        String n = network == null ? "" : network.trim().toLowerCase(java.util.Locale.ROOT);
+        switch (n) {
+            case "x":
+                return "X";
+            case "linkedin":
+                return "LinkedIn";
+            default:
+                return n.isEmpty() ? "" : Character.toUpperCase(n.charAt(0)) + n.substring(1);
+        }
     }
 
     static String safe(String s) {

@@ -226,8 +226,26 @@ public enum FunctionCode {
      */
     public static Call parse(String reply) {
         int at = codeLine(reply);
-        return at < 0 ? null : parseLine(reply.trim().split("\n", -1)[at].trim());
+        if (at >= 0) {
+            return parseLine(reply.trim().split("\n", -1)[at].trim());
+        }
+        // a brain sometimes ends its sentence with the code ("Let me find the zip file. \u00A7FZ"): still the code
+        String[] lines = reply == null ? new String[0] : reply.trim().split("\n", -1);
+        for (int i = 0; i < lines.length && i < LOOK; i++) {
+            java.util.regex.Matcher m = TRAILING.matcher(lines[i]);
+            if (m.find()) {
+                Call c = parseLine(m.group(1).trim());
+                if (c != null) {
+                    return c;
+                }
+            }
+        }
+        return null;
     }
+
+    /** A code after words on the same line: "\u00A7" and two capitals, after a space, with its arguments to the end. */
+    private static final java.util.regex.Pattern TRAILING = java.util.regex.Pattern.compile(
+            "\\s(\u00A7[A-Z]{2}(?![A-Za-z0-9])[^\\n]*)$");
 
     /** How far down a reply a code is still looked for: a brain sometimes writes a short sentence first. */
     static final int LOOK = 4;
@@ -282,8 +300,12 @@ public enum FunctionCode {
 
     /** The text with every code-shaped line taken out: what the conversation may show. */
     public static String hidden(String text) {
-        return text == null ? null : SHAPED.matcher(text).replaceAll("");
+        return text == null ? null : TRAILED.matcher(SHAPED.matcher(text).replaceAll("")).replaceAll("");
     }
+
+    /** A code at the end of a line of words (as {@link #TRAILING}), taken out of what is shown. */
+    private static final java.util.regex.Pattern TRAILED = java.util.regex.Pattern.compile(
+            "(?m)[ \\t]+\u00A7[A-Z]{2}(?![A-Za-z0-9])[^\\n]*$");
 
     /** True when a reply's text so far starts like a code (so the line can be held back while it streams). */
     public static boolean startsLikeCode(String soFar) {

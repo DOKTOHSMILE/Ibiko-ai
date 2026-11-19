@@ -47,4 +47,52 @@ public class CampaignRunnerTest {
         CampaignRunner.run(ctx, now + 3_700_000);
         assertEquals("nothing left to post", Campaign.Status.DONE, CampaignRunner.store(ctx).get("run").status);
     }
+
+    @Test
+    public void aPostItsNetworkBansIsHeldUntilThePersonLetsItThrough() throws Exception {
+        Context ctx = RuntimeEnvironment.getApplication();
+        long now = 1_800_000_000_000L;
+        Campaign c = campaign("rules", Campaign.Status.ACTIVE, now - 1000);
+        c.items.get(0).text = "Stun guns and tasers in stock, order now";
+        CampaignRunner.store(ctx).put(c);
+        CampaignRunner.run(ctx, now);
+        Campaign.Item it = CampaignRunner.store(ctx).get("rules").items.get(0);
+        assertEquals(Campaign.State.FAILED, it.state);
+        assertTrue(it.result, it.result.startsWith("held back") && it.result.contains("weapons"));
+    }
+
+    @Test
+    public void anInstagramPostIsHandedToThePersonNotPosted() throws Exception {
+        Context ctx = RuntimeEnvironment.getApplication();
+        long now = 1_800_000_000_000L;
+        Campaign c = campaign("ig", Campaign.Status.ACTIVE, now - 1000);
+        Campaign.Item it = c.items.get(0);
+        it.account = CampaignPlanner.HANDOFF + "instagram";
+        it.network = "instagram";
+        it.handoff = true;
+        CampaignRunner.store(ctx).put(c);
+        CampaignRunner.run(ctx, now);
+        Campaign.Item after = CampaignRunner.store(ctx).get("ig").items.get(0);
+        assertEquals(Campaign.State.POSTED, after.state);
+        assertTrue(after.result, after.result.contains("Instagram") && after.result.contains("you tap Share"));
+    }
+
+    @Test
+    public void whatAPostDidIsSavedIntoTheCampaignAsItIsNow() throws Exception {
+        Context ctx = RuntimeEnvironment.getApplication();
+        long now = 1_800_000_000_000L;
+        Campaign c = campaign("merge", Campaign.Status.ACTIVE, now - 1000, now + 60_000);
+        CampaignRunner.store(ctx).put(c);
+        // the person edits the second post while the run (holding its own copy) posts the first
+        Campaign edited = CampaignRunner.store(ctx).get("merge");
+        edited.items.get(1).text = "Edited meanwhile";
+        CampaignRunner.store(ctx).put(edited);
+        Campaign.Item first = c.items.get(0);
+        first.state = Campaign.State.POSTED;
+        first.result = "Posted";
+        CampaignRunner.keep(ctx, "merge", first);
+        Campaign back = CampaignRunner.store(ctx).get("merge");
+        assertEquals(Campaign.State.POSTED, back.items.get(0).state);
+        assertEquals("the edit is kept", "Edited meanwhile", back.items.get(1).text);
+    }
 }

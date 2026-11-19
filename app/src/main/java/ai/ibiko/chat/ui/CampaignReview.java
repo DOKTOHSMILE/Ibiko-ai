@@ -1,7 +1,6 @@
 package ai.ibiko.chat.ui;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.view.Gravity;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -10,10 +9,13 @@ import ai.ibiko.social.SocialAccounts;
 import ai.ibiko.social.SocialWeb;
 import ai.ibiko.social.campaign.Campaign;
 import ai.ibiko.social.campaign.CampaignRunner;
+import ai.ibiko.social.campaign.PlatformRules;
 
 /**
- * A planned campaign, to read before anything runs: every post with its time, account and picture, then Approve and
- * start, or Discard. Shown from the chat when a plan is ready, and from Social accounts for a plan waiting there.
+ * A planned campaign, to read before anything runs: every post with its time, account and picture, and a warning on
+ * each post its network's rules are against. Tap a post to see its picture, edit its words or take it out. Then
+ * Approve and start, or Discard. Shown from the chat when a plan is ready, and from Social accounts for a plan
+ * waiting there.
  */
 public final class CampaignReview {
     private CampaignReview() {
@@ -22,6 +24,13 @@ public final class CampaignReview {
     /** Shows the plan; {@code done} runs after Approve or Discard (to redraw a list). */
     public static void show(final Activity a, final Campaign c, final Runnable done) {
         Ui.init(a);
+        final android.app.Dialog[] sheet = {null};
+        final Runnable again = () -> {
+            if (sheet[0] != null) {
+                sheet[0].dismiss();
+            }
+            show(a, c, done);
+        };
         LinearLayout list = new LinearLayout(a);
         list.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(a, 16);
@@ -31,47 +40,79 @@ public final class CampaignReview {
                 + (c.themes.isEmpty() ? "" : "\nThemes: " + String.join(" · ", c.themes))
                 + (c.searches.isEmpty() || !c.prospect ? "" : "\nFinds people searching: " + String.join(" · ", c.searches))
                 + "\n\nNothing is posted until you approve. Posts go out by themselves at these times, from these accounts,"
-                + " within each account's daily limits.", 13, Ui.SUB, false);
+                + " within each account's daily limits" + (c.handoff.isEmpty() ? "." : "; posts for "
+                + String.join(" and ", shownAll(c)) + " are handed to you to share when due.")
+                + " Tap a post to see its picture, edit it or take it out.", 13, Ui.SUB, false);
         about.setPadding(0, 0, 0, Ui.dp(a, 8));
         list.addView(about);
+        final int held = PostActions.held(c);
+        if (held > 0) {
+            TextView warn = Ui.text(a, held + (held == 1 ? " post says" : " posts say") + " something its network doesn't allow"
+                    + " (marked below). Posted, it can be taken down and the account restricted. These are held back"
+                    + " unless you edit them or choose to post them anyway.", 13, warn(a), false);
+            warn.setPadding(0, 0, 0, Ui.dp(a, 4));
+            list.addView(warn);
+            TextView drop = Ui.text(a, "Take out the " + held + " flagged " + (held == 1 ? "post" : "posts"), 14, Ui.ACCENT, true);
+            drop.setMinHeight(Ui.dp(a, 48));
+            drop.setGravity(Gravity.CENTER_VERTICAL);
+            Ui.press(drop);
+            drop.setOnClickListener(v -> {
+                c.items.removeIf(it -> it.state == Campaign.State.PLANNED && !it.riskOk && PlatformRules.banned(it.network, it.text));
+                PostActions.save(a, c, again);
+            });
+            list.addView(drop);
+        }
         SocialAccounts accounts = SocialWeb.accounts(a);
         for (final Campaign.Item it : c.items) {
             SocialAccounts.Account acc = accounts.get(it.account);
             LinearLayout row = new LinearLayout(a);
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(0, Ui.dp(a, 10), 0, Ui.dp(a, 10));
-            row.addView(Ui.text(a, when.format(new java.util.Date(it.at)) + " · "
-                    + (acc == null ? it.network : acc.label + " (" + acc.platform.shown + ")"), 13, Ui.SUB, false));
+            String where = it.handoff ? CampaignRunner.shown(it.network) + " (you share it)"
+                    : acc == null ? CampaignRunner.shown(it.network) : acc.label + " (" + acc.platform.shown + ")";
+            row.addView(Ui.text(a, when.format(new java.util.Date(it.at)) + " · " + where, 13, Ui.SUB, false));
             row.addView(Ui.text(a, it.text, 14, Ui.TEXT, false), Ui.wide(a, 2));
-            if (!it.imageHtml.isEmpty()) {
-                row.addView(Ui.text(a, "Tap to see its picture", 13, Ui.ACCENT, false), Ui.wide(a, 4));
-                Ui.press(row);
-                row.setOnClickListener(v -> a.startActivity(new Intent(a, HtmlViewActivity.class)
-                        .putExtra(HtmlViewActivity.EXTRA_HTML, it.imageHtml)));
+            String risk = PlatformRules.said(PlatformRules.check(it.network, it.text));
+            if (!risk.isEmpty()) {
+                boolean banned = PlatformRules.banned(it.network, it.text);
+                row.addView(Ui.text(a, (banned && !it.riskOk ? "Held back. " : it.riskOk ? "You chose to post it. " : "") + risk, 12,
+                        banned ? warn(a) : Ui.SUB, false), Ui.wide(a, 4));
             }
+            if (!it.product.isEmpty()) {
+                ai.ibiko.social.campaign.Product p = null;
+                for (ai.ibiko.social.campaign.Product q : c.brief.products) {
+                    if (q.id.equals(it.product)) {
+                        p = q;
+                    }
+                }
+                if (p != null) {
+                    row.addView(Ui.text(a, "Shows " + p.name + (p.price.isEmpty() ? "" : " · " + p.price), 12, Ui.SUB, false), Ui.wide(a, 2));
+                }
+            }
+            row.addView(Ui.text(a, "Tap for its picture, to edit or take it out", 13, Ui.ACCENT, false), Ui.wide(a, 4));
+            Ui.press(row);
+            row.setOnClickListener(v -> PostActions.menu(a, c, it, again));
             list.addView(row);
         }
-        final android.app.Dialog[] sheet = {null};
         TextView start = Ui.text(a, "Approve and start", 16, Ui.ON_CORAL, true);
         start.setBackground(Ui.round(a, Ui.CORAL, 0, 24));
         start.setGravity(Gravity.CENTER);
         start.setMinHeight(Ui.dp(a, 48));
         start.setOnClickListener(v -> {
-            if (sheet[0] != null) {
-                sheet[0].dismiss();
+            if (c.items.isEmpty()) {
+                android.widget.Toast.makeText(a, "There are no posts left in this plan.", android.widget.Toast.LENGTH_SHORT).show();
+                return;
             }
-            android.widget.Toast.makeText(a, "Starting “" + c.name + "”: drawing its pictures…", android.widget.Toast.LENGTH_LONG).show();
-            final android.content.Context app = a.getApplicationContext();
-            new Thread(() -> {
-                String why = CampaignRunner.start(app, c);
-                a.runOnUiThread(() -> {
-                    android.widget.Toast.makeText(a, why == null ? "“" + c.name + "” is running: " + c.progress() : why,
-                            android.widget.Toast.LENGTH_LONG).show();
-                    if (done != null) {
-                        done.run();
-                    }
-                });
-            }, "ibiko-campaign-start").start();
+            if (held > 0) {
+                new androidx.appcompat.app.AlertDialog.Builder(a)
+                        .setMessage(held + (held == 1 ? " flagged post stays" : " flagged posts stay") + " held back and won't go out"
+                                + " unless you edit them or choose to post them anyway. Start the rest?")
+                        .setPositiveButton("Start", (d, w) -> begin(a, c, sheet[0], done))
+                        .setNegativeButton("Back", null)
+                        .show();
+                return;
+            }
+            begin(a, c, sheet[0], done);
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.topMargin = Ui.dp(a, 12);
@@ -97,5 +138,36 @@ public final class CampaignReview {
         ScrollView scroll = new ScrollView(a);
         scroll.addView(list);
         sheet[0] = BottomSheet.showView(a, c.name.isEmpty() ? "Your campaign" : c.name, scroll);
+    }
+
+    /** The warning colour, readable in light and dark. */
+    static int warn(android.content.Context a) {
+        return a.getColor(ai.ibiko.R.color.brainstorm);
+    }
+
+    private static java.util.List<String> shownAll(Campaign c) {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        for (String n : c.handoff) {
+            out.add(CampaignRunner.shown(n));
+        }
+        return out;
+    }
+
+    private static void begin(final Activity a, final Campaign c, android.app.Dialog sheet, final Runnable done) {
+        if (sheet != null) {
+            sheet.dismiss();
+        }
+        android.widget.Toast.makeText(a, "Starting “" + c.name + "”: drawing its pictures…", android.widget.Toast.LENGTH_LONG).show();
+        final android.content.Context app = a.getApplicationContext();
+        new Thread(() -> {
+            String why = CampaignRunner.start(app, c);
+            a.runOnUiThread(() -> {
+                android.widget.Toast.makeText(a, why == null ? "“" + c.name + "” is running: " + c.progress() : why,
+                        android.widget.Toast.LENGTH_LONG).show();
+                if (done != null) {
+                    done.run();
+                }
+            });
+        }, "ibiko-campaign-start").start();
     }
 }
