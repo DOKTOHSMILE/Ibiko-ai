@@ -967,9 +967,10 @@ public final class GitHubGit {
     /** True for github.com and its download hosts (codeload), never for anywhere else a redirect might point. */
     static boolean githubHost(String url) {
         try {
-            String host = new java.net.URL(url).getHost();
-            if (host == null) {
-                return false;
+            java.net.URL u = new java.net.URL(url);
+            String host = u.getHost();
+            if (host == null || !"https".equalsIgnoreCase(u.getProtocol())) {
+                return false; // the token goes only over https
             }
             host = host.toLowerCase(java.util.Locale.US);
             return "github.com".equals(host) || host.endsWith(".github.com");
@@ -1152,9 +1153,15 @@ public final class GitHubGit {
         Changes c = new Changes();
         Map<String, File> local = new TreeMap<String, File>();
         walk(dir, dir, local);
+        // what .gitignore leaves out is never "added": every untracked file was pushed, node_modules, build output and
+        // an ignored .env with its keys too. A file already tracked stays tracked, as in git.
+        GitIgnore ignore = GitIgnore.of(dir);
         for (Map.Entry<String, File> e : local.entrySet()) {
             String was = r.files.get(e.getKey());
             if (was == null) {
+                if (ignore.ignored(e.getKey(), false)) {
+                    continue;
+                }
                 c.added.add(e.getKey());
             } else if (!was.equals(blobSha(Files.readAllBytes(e.getValue().toPath())))) {
                 c.modified.add(e.getKey());
@@ -1177,6 +1184,9 @@ public final class GitHubGit {
             if (k.getName().equals(RECORD) || k.getName().equals(".git") || k.getName().equals(GitOp.FILE)
                     || k.getName().equals(GitOp.FILE + ".tmp")) {
                 continue;
+            }
+            if (java.nio.file.Files.isSymbolicLink(k.toPath())) {
+                continue; // a link is not followed: one that loops never ended the walk
             }
             if (k.isDirectory()) {
                 walk(base, k, out);
