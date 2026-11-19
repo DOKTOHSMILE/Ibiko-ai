@@ -55,7 +55,8 @@ final class Attachments {
         for (String path : changed) {
             java.io.File f = new java.io.File(workspace, path);
             String top = path.contains("/") ? path.substring(0, path.indexOf('/')) : "";
-            if (!f.isFile() || (!top.isEmpty() && new java.io.File(workspace, top + "/" + ai.ibiko.connect.GitHubGit.RECORD).isFile())) {
+            if (!f.isFile() || java.nio.file.Files.isSymbolicLink(f.toPath()) // a link could hand out Ibiko's own files
+                    || !ai.ibiko.agent.SourceRead.within(workspace, f) || (!top.isEmpty() && new java.io.File(workspace, top + "/" + ai.ibiko.connect.GitHubGit.RECORD).isFile())) {
                 continue; // inside a clone: that's the diff
             }
             try {

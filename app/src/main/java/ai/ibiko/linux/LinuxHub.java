@@ -228,6 +228,9 @@ public final class LinuxHub {
     }
 
     /** Reads what {@code out} has past {@code seen[0]} into {@code bytes}; true when something was read. */
+    /** The most of one command's output kept; the rest is skipped and the cut is said. */
+    static final int MOST_OUT = 4 << 20;
+
     private static boolean readMore(File out, long[] seen, java.io.ByteArrayOutputStream bytes) throws java.io.IOException {
         if (!out.isFile()) {
             return false;
@@ -235,6 +238,10 @@ public final class LinuxHub {
         try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(out, "r")) {
             if (raf.length() <= seen[0]) {
                 return false;
+            }
+            if (bytes.size() >= MOST_OUT) {
+                seen[0] = raf.length(); // past the cap: what is written is skipped, so "yes" can't fill the memory
+                return true;
             }
             raf.seek(seen[0]);
             byte[] buf = new byte[(int) Math.min(65536, raf.length() - seen[0])];
@@ -340,8 +347,11 @@ public final class LinuxHub {
             // read to the end
         }
         String text = new String(bytes.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+        if (seen[0] > bytes.size()) {
+            text = text + "\n[output cut: only the first " + (MOST_OUT >> 20) + " MB of " + (seen[0] >> 20) + " MB is shown]";
+        }
         if (ended) {
-            String code = new String(java.nio.file.Files.readAllBytes(status.toPath()), java.nio.charset.StandardCharsets.UTF_8).trim();
+            String code = LinuxCwd.small(status);
             if (!code.equals("0") && !code.isEmpty()) {
                 text = text + (text.endsWith("\n") || text.isEmpty() ? "" : "\n") + "[exit " + code + "]";
             }

@@ -895,10 +895,7 @@ public final class TerminalActivity extends AppCompatActivity {
             }
             String folder = "";
             try {
-                if (cwdFile.isFile()) {
-                    folder = new String(java.nio.file.Files.readAllBytes(cwdFile.toPath()),
-                            java.nio.charset.StandardCharsets.UTF_8).trim();
-                }
+                folder = ai.ibiko.linux.LinuxCwd.small(cwdFile);
             } catch (Exception ignored) {
                 folder = "";
             }
@@ -1026,12 +1023,7 @@ public final class TerminalActivity extends AppCompatActivity {
     }
 
     private String readSmall(String name) {
-        try {
-            byte[] bytes = java.nio.file.Files.readAllBytes(new File(LinuxRoot.root(this), name).toPath());
-            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8).trim();
-        } catch (Exception e) {
-            return "";
-        }
+        return ai.ibiko.linux.LinuxCwd.small(new File(LinuxRoot.root(this), name));
     }
 
     private void startShell(ProotSession opened) {
@@ -1236,7 +1228,7 @@ public final class TerminalActivity extends AppCompatActivity {
             return;
         }
         log.append(more);
-        if (capturing && chatNow != null) {
+        if (capturing && chatNow != null && chatNow.out.length() < 4_000_000) { // a flood of output can't fill the memory
             chatNow.out.append(more);
         }
         if (log.length() > 180000) {

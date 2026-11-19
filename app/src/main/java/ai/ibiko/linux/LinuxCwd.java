@@ -14,14 +14,30 @@ public final class LinuxCwd {
             return "/root";
         }
         try {
-            File file = new File(rootfs, "root/.ibiko_cwd");
-            if (!file.isFile()) {
-                return "/root";
-            }
-            String text = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
+            String text = small(new File(rootfs, "root/.ibiko_cwd"));
             return text.startsWith("/") ? text : "/root";
         } catch (Exception e) {
             return "/root";
+        }
+    }
+
+    /**
+     * A status or folder file the guest writes, read at most 4 KB and never through a link: a command inside Linux can
+     * replace it with a link to a huge file, and a whole read froze or crashed the app.
+     */
+    public static String small(File f) {
+        if (f == null || !f.isFile() || Files.isSymbolicLink(f.toPath())) {
+            return "";
+        }
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) {
+            byte[] buf = new byte[4096];
+            int n = 0, r;
+            while (n < buf.length && (r = in.read(buf, n, buf.length - n)) > 0) {
+                n += r;
+            }
+            return new String(buf, 0, n, StandardCharsets.UTF_8).trim();
+        } catch (Exception e) {
+            return "";
         }
     }
 
