@@ -187,7 +187,7 @@ public final class GitHubGit {
             File zip = new File(dir.getParentFile(), "." + dir.getName() + ".zip");
             try {
                 if (zips.download(API + "/repos/" + repo + "/zipball/" + r.head, headers(), zip)) {
-                    int n = unzip(zip, dir, r, maxFileBytes);
+                    int n = unzip(zip, dir, r, maxFileBytes, maxFiles);
                     r.write(dir);
                     return "Cloned " + repo + " (" + branch + ", " + n + " files) into " + dir.getName()
                             + "/. It is on the device now: read, edit and push it any time.";
@@ -340,7 +340,7 @@ public final class GitHubGit {
         Changes mine = changes(dir, r);
         String tree = treeOf(r.repo, head);
         Map<String, String> remote = files(r.repo, tree);
-        List<String> updated = new ArrayList<String>(), conflicts = new ArrayList<String>();
+        List<String> updated = new ArrayList<String>(), conflicts = new ArrayList<String>(), skipped = new ArrayList<String>();
         Map<String, String> next = new TreeMap<String, String>();
         for (Map.Entry<String, String> e : remote.entrySet()) {
             String path = e.getKey(), sha = e.getValue();
@@ -351,6 +351,12 @@ public final class GitHubGit {
             }
             byte[] bytes = blob(r.repo, sha);
             if (bytes == null) {
+                // too large to bring in: it stays as it was, recorded as it was. Dropping it from the record made the
+                // old copy look new, and the next push sent it over GitHub's newer version
+                if (was != null) {
+                    next.put(path, was);
+                }
+                skipped.add(path);
                 continue;
             }
             File f = inside(dir, path);
@@ -367,6 +373,12 @@ public final class GitHubGit {
             updated.add(path);
         }
         for (String path : r.files.keySet()) {
+            if (tooLarge.contains(path)) {
+                // grown too large to list, not deleted: deleting the phone's copy lost the file here
+                next.put(path, r.files.get(path));
+                skipped.add(path);
+                continue;
+            }
             if (!remote.containsKey(path)) {
                 if (mine.touched(path)) {
                     conflicts.add(path + " (deleted upstream)");
@@ -388,6 +400,10 @@ public final class GitHubGit {
         if (!conflicts.isEmpty()) {
             out.append("\nConflicts (your version kept, theirs saved beside it as .theirs; merge them, delete the .theirs files, then push):\n")
                     .append(String.join("\n", conflicts));
+        }
+        if (!skipped.isEmpty()) {
+            out.append("\nChanged on GitHub but too large to bring to the phone (left as they were; don't edit them here):\n")
+                    .append(String.join("\n", cap(skipped)));
         }
         return out.toString();
     }
@@ -789,7 +805,7 @@ public final class GitHubGit {
                 throw new IOException("resolve the conflict markers in " + p + " and delete its .theirs file before pushing");
             }
         }
-        String branch = toBranch == null || toBranch.trim().isEmpty() ? r.branch : toBranch.trim();
+        String branch = toBranch == null || toBranch.trim().isEmpty() ? r.branch : cleanBranch(toBranch);
         GitOp.open(dir, "push to " + branch);
         try {
             String done = pushOnto(dir, r, c, message, branch);
@@ -811,18 +827,21 @@ public final class GitHubGit {
         Map<String, String> next = new TreeMap<String, String>(r.files);
         List<String> up = new ArrayList<String>(c.added);
         up.addAll(c.modified);
+        // each file keeps its mode on GitHub: every one went up as a plain file (100644), so a script that was
+        // edited (gradlew, build.sh) lost its executable bit and the build broke
+        Map<String, String> modes = c.modified.isEmpty() ? new HashMap<String, String>() : modes(r.repo, r.tree);
         for (String path : up) {
             byte[] bytes = Files.readAllBytes(inside(dir, path).toPath());
             Map<String, Object> b = new LinkedHashMap<String, Object>();
             b.put("content", Base64.getEncoder().encodeToString(bytes));
             b.put("encoding", "base64");
             String sha = MiniJson.str(post("/repos/" + r.repo + "/git/blobs", b).get("sha"), "");
-            entries.add(entry(path, sha));
+            entries.add(entry(path, sha, modes.get(path)));
             next.put(path, sha);
             base(dir, path, bytes); // pushed: the diff starts again from here
         }
         for (String path : c.deleted) {
-            entries.add(entry(path, null));
+            entries.add(entry(path, null, null));
             next.remove(path);
             base(dir, path, null);
         }
@@ -889,6 +908,11 @@ public final class GitHubGit {
      * whole into memory, so one large file in a repository (a model, a video) ran the phone out of memory.
      */
     static int unzip(File zip, File dir, Record r, long most) throws IOException {
+        return unzip(zip, dir, r, most, Integer.MAX_VALUE);
+    }
+
+    /** As above, stopping past {@code mostFiles} files, as the tree clone stops: a huge repository filled the phone. */
+    static int unzip(File zip, File dir, Record r, long most, int mostFiles) throws IOException {
         int n = 0;
         try (java.util.zip.ZipInputStream in = new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(new java.io.FileInputStream(zip)))) {
             java.util.zip.ZipEntry e;
@@ -902,6 +926,9 @@ public final class GitHubGit {
                 }
                 File f = inside(dir, path);
                 f.getParentFile().mkdirs();
+                if (n >= mostFiles) {
+                    throw new IOException("the repository has more than " + mostFiles + " files, the most a clone takes on the phone");
+                }
                 if (e.getSize() > most) {
                     continue; // too large for the phone: left out, as the tree clone leaves it out
                 }
@@ -1191,12 +1218,20 @@ public final class GitHubGit {
     }
 
     /** Every file (path → blob id) in a tree, up to {@link #maxFiles}. */
+    /** The paths the last listing left out as too large: still there on GitHub, not gone. */
+    private final Set<String> tooLarge = new HashSet<String>();
+
     private Map<String, String> files(String repo, String tree) throws IOException {
         Map<String, Object> m = get("/repos/" + repo + "/git/trees/" + tree + "?recursive=1");
         Map<String, String> out = new TreeMap<String, String>();
+        tooLarge.clear();
         for (Object o : MiniJson.list(m.get("tree"))) {
             Map<String, Object> e = MiniJson.obj(o);
-            if (!"blob".equals(MiniJson.str(e.get("type"), "")) || MiniJson.num(e.get("size"), 0) > maxFileBytes) {
+            if (!"blob".equals(MiniJson.str(e.get("type"), ""))) {
+                continue;
+            }
+            if (MiniJson.num(e.get("size"), 0) > maxFileBytes) {
+                tooLarge.add(MiniJson.str(e.get("path"), ""));
                 continue;
             }
             if (out.size() >= maxFiles) {
@@ -1216,10 +1251,23 @@ public final class GitHubGit {
         return Base64.getMimeDecoder().decode(content);
     }
 
-    private static Map<String, Object> entry(String path, String sha) {
+    /** Each file's mode in a tree ("100755" for an executable), for the files that aren't plain. */
+    private Map<String, String> modes(String repo, String tree) throws IOException {
+        Map<String, String> out = new HashMap<String, String>();
+        for (Object o : MiniJson.list(get("/repos/" + repo + "/git/trees/" + tree + "?recursive=1").get("tree"))) {
+            Map<String, Object> e = MiniJson.obj(o);
+            String mode = MiniJson.str(e.get("mode"), "");
+            if ("blob".equals(MiniJson.str(e.get("type"), "")) && "100755".equals(mode)) {
+                out.put(MiniJson.str(e.get("path"), ""), mode);
+            }
+        }
+        return out;
+    }
+
+    static Map<String, Object> entry(String path, String sha, String mode) {
         Map<String, Object> e = new LinkedHashMap<String, Object>();
         e.put("path", path);
-        e.put("mode", "100644");
+        e.put("mode", "100755".equals(mode) ? "100755" : "100644");
         e.put("type", "blob");
         e.put("sha", sha); // null deletes it
         return e;
