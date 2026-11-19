@@ -182,6 +182,19 @@
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
+            android:name=".chat.ui.CampaignsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Ibiko" />
+        <activity
+            android:name=".chat.ui.CampaignChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Ibiko" />
+        <activity
+            android:name=".chat.ui.CampaignActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Ibiko" />
+        <activity
             android:name=".chat.ui.CatalogActivity"
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />

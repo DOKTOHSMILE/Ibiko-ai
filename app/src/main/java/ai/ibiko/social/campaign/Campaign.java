@@ -102,16 +102,14 @@ public final class Campaign {
         public String id = "", account = "", network = "", text = "", imageHtml = "", imagePath = "", result = "", theme = "";
         public long at;
         public State state = State.PLANNED;
-        /** What the network's rules say about it ({@link PlatformRules#said}); "" when nothing. */
-        public String risk = "";
-        /** The person chose to post it although its network bans what it says. */
-        public boolean riskOk;
         /** The catalog product it shows ({@link Product#id}), or "". */
         public String product = "";
         /** A network Ibiko can't post on itself (Instagram, LinkedIn): offered to the person to share when due. */
         public boolean handoff;
         /** Whether the post was seen on the network after posting: 1 seen, -1 looked for and not there, 0 not checked yet. */
         public int checked;
+        /** The post's own address on the network, when the check found it. */
+        public String url = "";
 
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -125,11 +123,10 @@ public final class Campaign {
             m.put("imagePath", imagePath);
             m.put("state", state.name());
             m.put("result", result);
-            m.put("risk", risk);
-            m.put("riskOk", riskOk);
             m.put("product", product);
             m.put("handoff", handoff);
             m.put("checked", (double) checked);
+            m.put("url", url);
             return m;
         }
 
@@ -146,11 +143,10 @@ public final class Campaign {
             i.imagePath = MiniJson.str(m.get("imagePath"), "");
             i.state = state(MiniJson.str(m.get("state"), "PLANNED"));
             i.result = MiniJson.str(m.get("result"), "");
-            i.risk = MiniJson.str(m.get("risk"), "");
-            i.riskOk = Boolean.TRUE.equals(m.get("riskOk"));
             i.product = MiniJson.str(m.get("product"), "");
             i.handoff = Boolean.TRUE.equals(m.get("handoff"));
             i.checked = (int) MiniJson.num(m.get("checked"), 0);
+            i.url = MiniJson.str(m.get("url"), "");
             return i;
         }
 

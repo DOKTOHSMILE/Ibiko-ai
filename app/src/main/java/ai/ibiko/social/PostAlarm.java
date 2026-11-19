@@ -115,7 +115,11 @@ public final class PostAlarm extends BroadcastReceiver {
         if (net != null && SocialPoster.ready(c, net) && android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
             SocialPoster.Result r = SocialPoster.post(c, net, p.text);
             if (r.posted) {
-                tell(c, p, net.shown + ": " + r.said);
+                // pressing Post isn't proof: the post is looked for, and its link given when found
+                ai.ibiko.social.campaign.PostCheck.Seen seen = ai.ibiko.social.campaign.PostCheck.verify(c, net, p.text);
+                tell(c, p, net.shown + ": " + (seen.yes() ? "posted and checked" + (seen.url == null ? "" : ": " + seen.url)
+                        : seen.no() ? "Post was pressed, but it isn't on your profile. Look there; it won't be posted again."
+                        : r.said));
                 return;
             }
         }

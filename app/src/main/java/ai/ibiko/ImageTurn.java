@@ -23,7 +23,8 @@ final class ImageTurn {
         final java.io.File out = new java.io.File(a.chatSpace(), ai.ibiko.main.ChatSpace.IMAGES); // deleted with its chat
         final java.util.List<ai.ibiko.llm.ImageMaker.Source> sources = ai.ibiko.llm.ImageMaker.sources(
                 new ai.ibiko.llm.ProviderStore(a), a.prefs.getString("image_model", ""));
-        final boolean design = ai.ibiko.design.SvgDraw.designish(what) || sources.isEmpty();
+        // drawn from HTML unless a photograph-like picture is asked for and an image model can make it
+        final boolean design = !ai.ibiko.design.HtmlDraw.wantsPhoto(what) || sources.isEmpty();
         a.hub.worker.execute(() -> {
             Made m = draw(what, sources, design, out);
             a.handler.post(() -> {
@@ -78,6 +79,7 @@ final class ImageTurn {
         Made m = new Made();
         String seen = imagine(what); // the brain only imagines; the generator below makes the picture
         if (!design) {
+            // a photo-like picture: an image model on the pilot's own providers makes it best
             ai.ibiko.llm.ImageMaker.Result r = ai.ibiko.llm.ImageMaker.make(sources, seen, out, ai.ibiko.llm.ImageMaker.WEB);
             m.file = r.file;
             m.by = r.made;
@@ -86,18 +88,38 @@ final class ImageTurn {
         if (m.file != null) {
             return m;
         }
-        String sys = ai.ibiko.design.SvgDraw.SYSTEM;
-        String ask = ai.ibiko.design.SvgDraw.brief(what) + (seen.equals(what) ? "" : "\nAs imagined: " + seen);
-        String reply = a.model.remoteTask(sys, ask, 3000);
+        // a design, or no image model: the brain designs it as a web page and the phone's browser engine draws it
+        int[] size = ai.ibiko.design.HtmlDraw.shape(what);
+        String sys = ai.ibiko.design.HtmlDraw.system(size[0], size[1]);
+        String ask = ai.ibiko.design.HtmlDraw.brief(what, seen);
+        String reply = a.model.remoteTask(sys, ask, 6000);
         boolean local = reply == null;
         if (local) {
-            reply = a.model.task(sys, ask, 1800, null);
+            reply = a.model.task(sys, ask, 3000, null);
         }
-        m.file = ai.ibiko.design.SvgDraw.save(reply, out, 1024);
+        String page = ai.ibiko.social.campaign.CampaignImage.page(reply);
+        if (!page.isEmpty()) {
+            java.io.File file = new java.io.File(out, "design-" + System.currentTimeMillis() + ".jpg");
+            m.file = ai.ibiko.social.campaign.CampaignImage.render(a, page, file, size[0], size[1]);
+        }
         if (m.file != null) {
-            m.by = "Ibiko's design board (drawn by " + (local ? "the on-device brain" : "the API brain") + ")";
+            m.by = "Ibiko's design studio (designed by " + (local ? "the on-device brain" : "the API brain") + ")"
+                    + (sources.isEmpty() && !ai.ibiko.design.SvgDraw.designish(what)
+                    ? ". It's drawn as an illustration; for photo-real pictures, add an OpenAI or Gemini key in AI providers" : "");
+            m.error = null;
+            return m;
+        }
+        // the page didn't draw: the simpler SVG board, as before
+        String svgAsk = ai.ibiko.design.SvgDraw.brief(what) + (seen.equals(what) ? "" : "\nAs imagined: " + seen);
+        String svg = a.model.remoteTask(ai.ibiko.design.SvgDraw.SYSTEM, svgAsk, 3000);
+        if (svg == null) {
+            svg = a.model.task(ai.ibiko.design.SvgDraw.SYSTEM, svgAsk, 1800, null);
+        }
+        m.file = ai.ibiko.design.SvgDraw.save(svg, out, 1024);
+        if (m.file != null) {
+            m.by = "Ibiko's design board";
         } else if (m.error == null) {
-            m.error = "I couldn't draw that design: the brain didn't return a drawing I can read. Try again or describe it"
+            m.error = "I couldn't draw that picture: the brain didn't return a design I can draw. Try again or describe it"
                     + " more simply.";
         }
         return m;

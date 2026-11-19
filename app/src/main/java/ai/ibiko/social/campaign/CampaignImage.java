@@ -33,6 +33,11 @@ public final class CampaignImage {
 
     /** Draws {@code html} into {@code out} (a JPEG); the file, or null when the page couldn't be drawn. */
     public static File render(Context context, String html, File out) {
+        return render(context, html, out, SIDE, SIDE);
+    }
+
+    /** As above, {@code width} by {@code height} pixels (a story, a banner). */
+    public static File render(Context context, final String html, File out, final int width, final int height) {
         if (html == null || html.isEmpty()) {
             return null;
         }
@@ -57,9 +62,9 @@ public final class CampaignImage {
                 s.setDomStorageEnabled(false);
                 w.setVerticalScrollBarEnabled(false);
                 w.setHorizontalScrollBarEnabled(false);
-                w.measure(android.view.View.MeasureSpec.makeMeasureSpec(SIDE, android.view.View.MeasureSpec.EXACTLY),
-                        android.view.View.MeasureSpec.makeMeasureSpec(SIDE, android.view.View.MeasureSpec.EXACTLY));
-                w.layout(0, 0, SIDE, SIDE);
+                w.measure(android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
+                        android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY));
+                w.layout(0, 0, width, height);
                 w.setInitialScale(100);
                 w.setWebViewClient(new WebViewClient() {
                     @Override
@@ -82,7 +87,7 @@ public final class CampaignImage {
                     public void onPageFinished(WebView view, String url) {
                         main.postDelayed(() -> {
                             try {
-                                Bitmap b = Bitmap.createBitmap(SIDE, SIDE, Bitmap.Config.ARGB_8888);
+                                Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
                                 Canvas c = new Canvas(b);
                                 c.drawColor(0xFFFFFFFF); // a page with no background draws on white, not black
                                 view.draw(c);
@@ -98,7 +103,7 @@ public final class CampaignImage {
                         }, SETTLE_MS);
                     }
                 });
-                w.loadDataWithBaseURL("https://ibiko.local/", fit(html), "text/html", "utf-8", null);
+                w.loadDataWithBaseURL("https://ibiko.local/", fit(html, width, height), "text/html", "utf-8", null);
             } catch (RuntimeException e) {
                 done.countDown();
             }
@@ -140,6 +145,17 @@ public final class CampaignImage {
         }
     }
 
+    /**
+     * A brain's reply made into a picture page: the HTML document taken out of any prose or code fence, without
+     * scripts, frames, forms or event handlers. Empty when the reply holds no page.
+     */
+    public static String page(String reply) {
+        String r = reply == null ? "" : reply.replaceAll("(?s)<think>.*?(</think>|$)", "");
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?is)(<!doctype html.*?</html>|<html.*?</html>)").matcher(r);
+        String h = m.find() ? m.group(1) : r.replaceAll("(?s)^.*?```(?:html)?\\s*", "").replaceAll("(?s)```.*$", "");
+        return CampaignPlanner.picture(h);
+    }
+
     private static boolean slow;
 
     /** WebView draws only what is on screen unless this is set before the first one is made. */
@@ -170,8 +186,12 @@ public final class CampaignImage {
 
     /** The page held to the picture's square: a viewport of exactly its width, no margin or scrolling. */
     static String fit(String html) {
-        String head = "<meta name=\"viewport\" content=\"width=" + SIDE + ", initial-scale=1\">"
-                + "<style>html,body{margin:0;width:" + SIDE + "px;height:" + SIDE + "px;overflow:hidden}</style>";
+        return fit(html, SIDE, SIDE);
+    }
+
+    static String fit(String html, int width, int height) {
+        String head = "<meta name=\"viewport\" content=\"width=" + width + ", initial-scale=1\">"
+                + "<style>html,body{margin:0;width:" + width + "px;height:" + height + "px;overflow:hidden}</style>";
         int at = html.toLowerCase(java.util.Locale.US).indexOf("<head>");
         return at >= 0 ? html.substring(0, at + 6) + head + html.substring(at + 6) : head + html;
     }

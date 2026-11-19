@@ -74,6 +74,5 @@ public class CatalogTest {
         assertEquals("P9 isn't in the brief", "", ig.product);
         assertTrue(ig.handoff);
         assertFalse(fb.handoff);
-        assertNotNull(fb.risk);
     }
 }

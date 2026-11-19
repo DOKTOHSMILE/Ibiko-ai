@@ -90,7 +90,6 @@ public final class CampaignRunner extends BroadcastReceiver {
                     continue;
                 }
                 it.text = fresh.text;
-                it.riskOk = fresh.riskOk;
                 usedThisRun.add(it.account);
                 postOne(c, camp, it, now);
                 keep(c, camp.id, it);
@@ -133,12 +132,14 @@ public final class CampaignRunner extends BroadcastReceiver {
      * What the check after posting found: seen on the network (posted, checked), not there (said plainly, and not
      * posted again so nothing is doubled), or not known yet (looked for again later).
      */
-    static void checked(Context c, Campaign camp, Campaign.Item it, Boolean seen, String account, String network, String said) {
-        if (Boolean.TRUE.equals(seen)) {
+    static void checked(Context c, Campaign camp, Campaign.Item it, PostCheck.Seen seen, String account, String network, String said) {
+        if (seen != null && seen.yes()) {
             it.state = Campaign.State.POSTED;
             it.checked = 1;
-            it.result = "Posted and checked: it's on " + network + " (" + account + ").";
-        } else if (Boolean.FALSE.equals(seen)) {
+            it.url = seen.url == null ? "" : seen.url;
+            it.result = "Posted and checked: it's on " + network + " (" + account + ")"
+                    + (it.url.isEmpty() ? "." : ": " + it.url);
+        } else if (seen != null && seen.no()) {
             it.state = Campaign.State.FAILED;
             it.checked = -1;
             it.result = "Ibiko pressed Post, but the post isn't on your " + network + " profile. Look there; it won't be"
@@ -170,14 +171,16 @@ public final class CampaignRunner extends BroadcastReceiver {
                 continue;
             }
             final String text = it.text;
-            Boolean seen = LeadSender.as(c, a, () -> PostCheck.look(c, a.platform, text), null);
-            if (Boolean.TRUE.equals(seen)) {
+            PostCheck.Seen seen = LeadSender.as(c, a, () -> PostCheck.look(c, a.platform, text), null);
+            if (seen != null && seen.yes()) {
                 it.state = Campaign.State.POSTED;
                 it.checked = 1;
-                it.result = "Posted and checked: it's on " + a.platform.shown + " (" + a.label + ").";
+                it.url = seen.url == null ? "" : seen.url;
+                it.result = "Posted and checked: it's on " + a.platform.shown + " (" + a.label + ")"
+                        + (it.url.isEmpty() ? "." : ": " + it.url);
                 keep(c, camp.id, it);
                 changed++;
-            } else if (Boolean.FALSE.equals(seen) && it.checked == 0) {
+            } else if (seen != null && seen.no() && it.checked == 0) {
                 it.checked = -1;
                 it.state = Campaign.State.FAILED;
                 it.result = "Ibiko pressed Post, but the post isn't on your " + a.platform.shown + " profile. Look there;"
@@ -212,6 +215,7 @@ public final class CampaignRunner extends BroadcastReceiver {
         it.state = done.state;
         it.result = done.result;
         it.checked = done.checked;
+        it.url = done.url;
         it.at = done.at;
         it.imagePath = done.imagePath;
         try {
@@ -223,12 +227,6 @@ public final class CampaignRunner extends BroadcastReceiver {
 
     /** Posts one item from its own account and records what happened. */
     static void postOne(Context c, Campaign camp, Campaign.Item it, long now) {
-        if (!it.riskOk && PlatformRules.banned(it.network, it.text)) {
-            // the network bans what it says (it may have been edited since the review): held, not posted
-            fail(c, camp, it, "held back: " + PlatformRules.said(PlatformRules.check(it.network, it.text))
-                    + ". Edit it, or choose to post it anyway, under Social accounts › Campaigns.");
-            return;
-        }
         if (it.handoff) {
             // a network Ibiko can't post on itself: the post, its picture drawn, is offered to the person to share
             picture(c, camp, it);
@@ -261,7 +259,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         SocialPoster.Result r;
-        Boolean seen = null;
+        PostCheck.Seen seen = null;
         synchronized (SocialWeb.SWITCH) { // switch, post, switch back: nothing else posts or switches meanwhile
             SocialAccounts.Account before = accounts.inUse(net);
             boolean switched = before == null || !before.id.equals(a.id);
@@ -312,6 +310,21 @@ public final class CampaignRunner extends BroadcastReceiver {
             it.imagePath = made.getPath();
         }
         return made;
+    }
+
+    /** Deletes a campaign with its leads and results; posts already out stay on the networks. */
+    public static void delete(Context c, Campaign camp) {
+        try {
+            store(c).remove(camp.id);
+            LeadSender.store(c).forget(camp.id);
+            Results r = results(c);
+            r.forget(camp);
+            r.save();
+            CampaignStudio.chat(c, camp.id).delete();
+        } catch (IOException ignored) {
+            // the list shows what was kept
+        }
+        arm(c, 0);
     }
 
     /** A network's name for the person ("instagram" → "Instagram"). */

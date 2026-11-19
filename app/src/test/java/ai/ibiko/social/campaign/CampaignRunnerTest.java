@@ -49,19 +49,6 @@ public class CampaignRunnerTest {
     }
 
     @Test
-    public void aPostItsNetworkBansIsHeldUntilThePersonLetsItThrough() throws Exception {
-        Context ctx = RuntimeEnvironment.getApplication();
-        long now = 1_800_000_000_000L;
-        Campaign c = campaign("rules", Campaign.Status.ACTIVE, now - 1000);
-        c.items.get(0).text = "Stun guns and tasers in stock, order now";
-        CampaignRunner.store(ctx).put(c);
-        CampaignRunner.run(ctx, now);
-        Campaign.Item it = CampaignRunner.store(ctx).get("rules").items.get(0);
-        assertEquals(Campaign.State.FAILED, it.state);
-        assertTrue(it.result, it.result.startsWith("held back") && it.result.contains("weapons"));
-    }
-
-    @Test
     public void anInstagramPostIsHandedToThePersonNotPosted() throws Exception {
         Context ctx = RuntimeEnvironment.getApplication();
         long now = 1_800_000_000_000L;
