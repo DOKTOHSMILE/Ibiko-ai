@@ -36,6 +36,9 @@ public final class Zips {
         if (f.getCanonicalPath().equals(skip.getCanonicalPath()) || ".git".equals(f.getName())) {
             return 0;
         }
+        if (!isRoot && java.nio.file.Files.isSymbolicLink(f.toPath())) {
+            return 0; // a link is left out: it could pull in files from outside the folder, or loop forever
+        }
         if (f.isDirectory()) {
             int n = 0;
             File[] kids = f.listFiles();

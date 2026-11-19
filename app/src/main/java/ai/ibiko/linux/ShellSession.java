@@ -603,8 +603,8 @@ public final class ShellSession {
             if (match(glob, f.getName()) && !f.isDirectory()) {
                 hits.add(rel);
             }
-            if (f.isDirectory()) {
-                walk(f, glob, hits);
+            if (f.isDirectory() && !java.nio.file.Files.isSymbolicLink(f.toPath())) {
+                walk(f, glob, hits); // a link isn't followed: a looping one recursed until the app crashed
             }
         }
     }
@@ -702,7 +702,7 @@ public final class ShellSession {
             return;
         }
         for (File f : kids) {
-            if (f.isDirectory()) {
+            if (f.isDirectory() && !java.nio.file.Files.isSymbolicLink(f.toPath())) {
                 hunt(f, depth + 1, base, found);
             } else if (f.getName().toLowerCase(Locale.US).equals(base)) {
                 found.add(f);

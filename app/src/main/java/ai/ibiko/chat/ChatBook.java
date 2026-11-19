@@ -1052,7 +1052,7 @@ public final class ChatBook {
         try {
             Object parsed = MiniJson.parse(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
             if (!(parsed instanceof Map)) {
-                return;
+                throw new IllegalStateException("not a chat book"); // kept aside below, never written over
             }
             Map<?, ?> root = (Map<?, ?>) parsed;
             Object notes = root.get("shared");
@@ -1222,7 +1222,12 @@ public final class ChatBook {
             // written beside, then moved over in one step: a crash or a reader mid-write never sees half a file
             // (a half file read back as no chats, and the next save then wrote that emptiness over everything)
             File part = new File(file.getPath() + ".part");
-            Files.write(part.toPath(), MiniJson.write(root).getBytes(StandardCharsets.UTF_8));
+            // on the storage before it replaces the book: after a sudden power cut an unsynced file could come back
+            // empty, and the history with it
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                out.write(MiniJson.write(root).getBytes(StandardCharsets.UTF_8));
+                out.getFD().sync();
+            }
             try {
                 Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
                         java.nio.file.StandardCopyOption.ATOMIC_MOVE);

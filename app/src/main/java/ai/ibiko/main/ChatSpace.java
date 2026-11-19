@@ -91,8 +91,16 @@ public final class ChatSpace {
         }
         return null;
     }
+    /** The chat folder {@code dir} is in, or null. The path is resolved first: "chats/A/../B/x" is in B, not A. */
     public static File chatOf(File dir) {
         File cur = dir;
+        if (cur != null) {
+            try {
+                cur = cur.getCanonicalFile();
+            } catch (IOException e) {
+                cur = cur.getAbsoluteFile().toPath().normalize().toFile();
+            }
+        }
         while (cur != null && cur.getParentFile() != null) {
             File p = cur.getParentFile();
             if (CHATS.equals(p.getName()) && p.getParentFile() != null && "ibiko".equals(p.getParentFile().getName())) {

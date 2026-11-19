@@ -81,6 +81,9 @@ public final class SourceRead {
         File base = root;
         if (folder != null && !folder.trim().isEmpty() && !folder.trim().equals(".")) {
             base = new File(root, folder.trim());
+            if (!within(root, base)) {
+                return "That folder is outside the workspace."; // "../../shared_prefs" searched the app's own files
+            }
             if (!base.isDirectory()) {
                 return "No such folder: " + folder;
             }
@@ -154,6 +157,16 @@ public final class SourceRead {
         return new BufferedReader(new InputStreamReader(Files.newInputStream(file.toPath()), dec));
     }
 
+    /** Whether {@code f}, every link followed, is {@code root} or inside it. */
+    static boolean within(File root, File f) {
+        try {
+            String r = root.getCanonicalPath(), p = f.getCanonicalPath();
+            return p.equals(r) || p.startsWith(r + File.separator);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     private static void collect(File dir, List<File> out) {
         if (out.size() >= FILES) {
             return;
@@ -171,6 +184,9 @@ public final class SourceRead {
             if (name.equals(".git") || name.equals("node_modules") || name.equals("build") || name.equals(".gradle")
                     || name.equals(".ibiko-git.json")) {
                 continue;
+            }
+            if (java.nio.file.Files.isSymbolicLink(k.toPath())) {
+                continue; // a link could lead out of the workspace, or loop
             }
             if (k.isDirectory()) {
                 collect(k, out);

@@ -19,15 +19,36 @@ public final class Approval {
             + "|dismiss|lock|unlock|transfer|assign|label|submit|cancel|rerun|trigger|dispatch|enable|disable|share|schedule"
             + "|like|follow|unfollow|block|mute|pin|unpin|tag|commit)(?=$|[._\\-\\s/A-Z]|s\\b|_)");
 
-    /** A connector call ("github.create_issue {...}") that changes something and so asks first. */
+    /** Ibiko's own connector tools that only read. */
+    static final java.util.Set<String> READS = new java.util.HashSet<String>(java.util.Arrays.asList(
+            "web.search", "docs.search", "docs.read", "calendar.week", "github.repos", "github.search", "github.issues",
+            "github.file", "notion.search", "gmail.inbox", "gmail.search", "gmail.read", "social.search", "social.trending",
+            "social.open"));
+
+    /** Words in a tool's name that mean it only reads. */
+    static final Pattern READING = Pattern.compile("(?i)(^|[._\\-\\s/])(get|list|search|read|find|fetch|view|show|describe"
+            + "|query|lookup|count|status|info|inspect|browse|retrieve|check)(?=$|[._\\-\\s/]|s\\b|_)");
+
+    /**
+     * A connector call ("github.create_issue {...}") that may change something, and so asks first. Only a call known to
+     * read goes ahead: Ibiko's own reading tools, or a tool whose name says it reads and nothing that changes. A list
+     * of changing words let anything it didn't name through without a yes: gmail.draft (writes into Gmail), and an MCP
+     * server's execute_sql, deploy, insert, drop, restart or revoke.
+     */
     public static boolean changes(String call) {
         if (call == null) {
             return false;
         }
         String name = call.trim().split("\\s+", 2)[0];
+        if (READS.contains(name.toLowerCase(Locale.US))) {
+            return false;
+        }
         // camelCase ("createIssue") is read as words too
         String words = name.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase(Locale.US);
-        return CHANGES.matcher(words).find();
+        if (CHANGES.matcher(words).find()) {
+            return true;
+        }
+        return !READING.matcher(words).find(); // a tool whose name doesn't say it reads asks first
     }
 
     /** What the pilot is asked, in words. */

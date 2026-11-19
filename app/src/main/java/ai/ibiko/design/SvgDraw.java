@@ -102,6 +102,9 @@ public final class SvgDraw {
 
     /** Draws the SVG to a square picture {@code size} pixels across; null when it can't be read. */
     public static Bitmap render(String svg, int size) {
+        if (svg == null || svg.contains("<!DOCTYPE") || svg.contains("<!ENTITY") || svg.contains("<!doctype")) {
+            return null; // the model's SVG never needs a DTD; nested entities could expand to gigabytes ("billion laughs")
+        }
         try {
             javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
             f.setNamespaceAware(false);

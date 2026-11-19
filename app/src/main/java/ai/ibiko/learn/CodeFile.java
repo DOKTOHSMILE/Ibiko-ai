@@ -124,6 +124,9 @@ public final class CodeFile {
         File[] in = dir == null ? null : dir.listFiles();
         int n = 0;
         for (File f : in == null ? new File[0] : in) {
+            if (java.nio.file.Files.isSymbolicLink(f.toPath())) {
+                continue; // run at every start: a looping link in a chat crashed the app each time it opened
+            }
             if (f.isDirectory()) {
                 if (!f.getName().equals("repos")) { // a chat's cloned repositories are the user's own files
                     n += upgradeAll(f);
@@ -150,7 +153,10 @@ public final class CodeFile {
             f.getParentFile().mkdirs();
         }
         File part = new File(f.getPath() + ".part");
-        Files.write(part.toPath(), encode(text));
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+            out.write(encode(text));
+            out.getFD().sync(); // on the storage before it replaces the old file (a power cut could leave it empty)
+        }
         try {
             Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
                     java.nio.file.StandardCopyOption.ATOMIC_MOVE);

@@ -31,6 +31,9 @@ public final class TarGz {
         try (GZIPOutputStream gz = new GZIPOutputStream(b)) {
             String root = folder.getCanonicalPath();
             for (File f : files) {
+                if (f.length() > most) {
+                    return null; // one file past the limit: too big, said before it is read whole into memory
+                }
                 String name = f.getCanonicalPath().substring(root.length() + 1).replace('\\', '/');
                 byte[] data = Files.readAllBytes(f.toPath());
                 if (!header(gz, name, data.length, f.canExecute(), f.lastModified())) {

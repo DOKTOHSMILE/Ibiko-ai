@@ -66,7 +66,7 @@ public final class CodingLessons {
         try {
             for (String line : new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).split("\n")) {
                 String[] p = line.split("\t", 3);
-                if (p.length == 3 && p[1].matches("\\d+")) {
+                if (p.length == 3 && p[1].matches("\\d{1,9}")) { // a longer number overflowed parseInt later
                     lessons.put(p[0], new String[]{p[1], p[2]});
                 }
             }

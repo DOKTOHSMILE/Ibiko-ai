@@ -374,7 +374,7 @@ public final class UsageActivity extends AppCompatActivity {
             return f.length();
         }
         long t = 0;
-        File[] kids = f.listFiles();
+        File[] kids = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles(); // a looping link crashed it
         if (kids != null) {
             for (File k : kids) {
                 t += size(k);

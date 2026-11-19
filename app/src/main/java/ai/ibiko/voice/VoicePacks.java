@@ -146,7 +146,7 @@ public final class VoicePacks {
     }
 
     private static void deleteTree(File f) {
-        File[] in = f.listFiles();
+        File[] in = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles(); // a link is not followed
         for (File c : in == null ? new File[0] : in) {
             deleteTree(c);
         }
@@ -276,7 +276,8 @@ public final class VoicePacks {
     }
 
     static void deleteAll(File f) {
-        File[] kids = f.listFiles();
+        // a link is removed, never followed: listing one deleted what it points to
+        File[] kids = java.nio.file.Files.isSymbolicLink(f.toPath()) ? null : f.listFiles();
         if (kids != null) {
             for (File k : kids) {
                 deleteAll(k);

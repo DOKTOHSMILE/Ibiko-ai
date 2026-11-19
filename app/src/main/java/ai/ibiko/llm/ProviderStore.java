@@ -477,7 +477,8 @@ public final class ProviderStore {
 
     // ------------------------------------------------------------ the keys, sealed with the Keystore
 
-    private static SecretKey secret() throws Exception {
+    /** Locked for the app: two threads making the key at once overwrote it, and keys sealed with the first were lost. */
+    private static synchronized SecretKey secret() throws Exception {
         KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
         ks.load(null);
         if (ks.containsAlias(KEY_ALIAS)) {
@@ -497,14 +498,23 @@ public final class ProviderStore {
         if (plain == null || plain.isEmpty()) {
             return "";
         }
-        try {
-            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-            c.init(Cipher.ENCRYPT_MODE, secret());
-            byte[] iv = c.getIV(), data = c.doFinal(plain.getBytes(StandardCharsets.UTF_8));
-            return Base64.encodeToString(iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(data, Base64.NO_WRAP);
-        } catch (Exception e) {
-            return ""; // never keep a key in the clear: without the Keystore, it isn't kept
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                c.init(Cipher.ENCRYPT_MODE, secret());
+                byte[] iv = c.getIV(), data = c.doFinal(plain.getBytes(StandardCharsets.UTF_8));
+                return Base64.encodeToString(iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(data, Base64.NO_WRAP);
+            } catch (Exception e) {
+                // a busy Keystore (early after boot) once more before giving up: the key was dropped without a word
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException stop) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
+        return ""; // never keep a key in the clear: without the Keystore, it isn't kept
     }
 
     public static String open(String sealed) {
