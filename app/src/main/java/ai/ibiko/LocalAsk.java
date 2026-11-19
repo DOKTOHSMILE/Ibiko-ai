@@ -263,7 +263,9 @@ final class LocalAsk {
                                     act.talk.setOwner(owner); // said as it is written, and kept under the message it will be
                                 }
                             }
-                            act.talk.queue(ivieVoice, sentence);
+                            if (!sentence.trim().startsWith("[button")) {
+                                act.talk.queue(ivieVoice, sentence); // the buttons line is for tapping, not for hearing
+                            }
                         }
 
                         @Override
@@ -530,7 +532,7 @@ final class LocalAsk {
                 } else {
                     // a reply that says it sent, saved or posted something when nothing was done says so plainly
                     body = ai.ibiko.gate.ClaimGuard.check(body, false);
-                    act.keepVoice(body); // the rest of the voice, under this reply, while the words go on screen
+                    act.keepVoice(ai.ibiko.chat.ReplyButtons.split(body).text); // the rest of the voice: the words, not the buttons
                     TurnLine said = new TurnLine(agent, "SAY", body);
                     if (spokeLive) {
                         act.spokenLive.add(said);

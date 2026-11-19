@@ -293,6 +293,7 @@ public final class ChatPane extends LinearLayout {
             msgs = new java.util.ArrayList<ChatBook.Message>(cur.messages);
         }
         thread.removeAllViews();
+        newestButtons = null; // found again below, only if the newest message is a reply with buttons
         openActions = null;
         StringBuilder reply = new StringBuilder(); // the whole of the assistant's turn, for its Copy and Listen
         int parts = 0; // how many parts of the turn have their own Listen
@@ -376,7 +377,11 @@ public final class ChatPane extends LinearLayout {
                     if (!"user".equals(m.role) && "text".equals(m.kind) && m.body != null && !m.body.trim().isEmpty()) {
                         // the reply in short parts, each with its own Copy and Listen, so any one part can be heard
                         // on its own (and a long report is never one huge block that is slow to lay out)
-                        for (String para : paragraphs(m.body)) {
+                        ai.ibiko.chat.ReplyButtons.Split sp = ai.ibiko.chat.ReplyButtons.split(m.body);
+                        if (i == msgs.size() - 1) {
+                            newestButtons = sp.buttons; // only the newest reply's choices are offered
+                        }
+                        for (String para : paragraphs(sp.text)) {
                             for (String piece : para.length() > CHUNK ? chunks(para, CHUNK) : java.util.Collections.singletonList(para)) {
                                 // the name once, over the first part of what they say
                                 shown = bubble(new ChatBook.Message(m.role, m.kind, piece, named ? "" : m.persona, m.language));
@@ -415,7 +420,7 @@ public final class ChatPane extends LinearLayout {
             }
             if (("text".equals(m.kind) || "code".equals(m.kind)) && m.body != null) {
                 reply.append(reply.length() == 0 ? "" : "\n\n").append("code".equals(m.kind) ? "```" + (m.language == null ? "" : m.language)
-                        + "\n" + m.body + "\n```" : m.body);
+                        + "\n" + m.body + "\n```" : ai.ibiko.chat.ReplyButtons.split(m.body).text); // Copy and Listen: the words only
             }
             listenAs = m.persona;
             ChatBook.Message after = i == msgs.size() - 1 ? null : msgs.get(i + 1);
@@ -451,6 +456,9 @@ public final class ChatPane extends LinearLayout {
                 turnBars.add(bar);
                 if (lastReply && stoppedReply(reply.toString())) {
                     thread.addView(retryButton()); // a reply that stopped: one tap asks again, always in view
+                }
+                if (lastReply && newestButtons != null && !newestButtons.isEmpty()) {
+                    thread.addView(replyButtons(newestButtons)); // the choices the reply offered, always in view
                 }
                 // Copy, Listen and the rest stay out of the way: a tap on the reply shows them, another hides them
                 tapGroup(new ArrayList<View>(turnParts), new ArrayList<View>(turnBars), "asked".equals(bar.getTag()));
@@ -1520,8 +1528,10 @@ public final class ChatPane extends LinearLayout {
             java.util.regex.Pattern.compile("(?s)(^|\\n)[*_`>\\s]*[\u00A7\u27E6][^\\n]*$");
 
     public void setLive(String text) {
-        // a command code is for Ibiko, not the conversation: never typed out, not even while the reply streams
-        String clean = text == null ? null : TRAILING_CODE.matcher(ai.ibiko.suit.FunctionCode.hidden(text)).replaceFirst("$1");
+        // a command code is for Ibiko, not the conversation: never typed out, not even while the reply streams; nor is
+        // the buttons line, which becomes buttons when the reply is done
+        String clean = text == null ? null : TRAILING_CODE.matcher(ai.ibiko.suit.FunctionCode.hidden(
+                ai.ibiko.chat.ReplyButtons.writing(text))).replaceFirst("$1");
         String t = clean == null || clean.trim().isEmpty() ? null : clean.trim();
         if (t != null && ai.ibiko.linux.CloneFolder.progressLines(t) >= 1) {
             t = ai.ibiko.linux.CloneFolder.quiet(t);
@@ -2486,6 +2496,44 @@ public final class ChatPane extends LinearLayout {
     /** "## Results", "**Steps:**": a line that only names what follows. */
     private static boolean isHeading(String para) {
         return !para.contains("\n") && (para.startsWith("#") || para.matches("^\\*\\*[^*]{1,60}\\*\\*:?$"));
+    }
+
+    /** The newest reply's buttons, found while drawing the chat. */
+    private List<String> newestButtons;
+
+    /** A reply's choices as buttons: a tap sends that choice as the person's next message. */
+    private View replyButtons(List<String> choices) {
+        android.widget.HorizontalScrollView sv = new android.widget.HorizontalScrollView(getContext());
+        sv.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(2), 0, dp(10));
+        for (final String c : choices) {
+            TextView b = new TextView(getContext());
+            b.setText(c);
+            b.setTextSize(14f);
+            b.setTextColor(getContext().getColor(R.color.accent));
+            b.setGravity(Gravity.CENTER);
+            b.setMinHeight(dp(40));
+            b.setPadding(dp(14), 0, dp(14), 0);
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setCornerRadius(dp(20));
+            bg.setStroke(dp(1), getContext().getColor(R.color.accent));
+            b.setBackground(new android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x33808080), bg, bg));
+            b.setContentDescription(c + ", reply button");
+            b.setOnClickListener(v -> {
+                newestButtons = null; // a choice is made: the buttons go with the next redraw
+                if (host != null) {
+                    host.onSend(c);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = dp(8);
+            row.addView(b, lp);
+        }
+        sv.addView(row);
+        return sv;
     }
 
     /** The Listen under the part drawn last (removed when the reply has only that part). */
