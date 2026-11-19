@@ -187,7 +187,7 @@ public final class GitHubGit {
             File zip = new File(dir.getParentFile(), "." + dir.getName() + ".zip");
             try {
                 if (zips.download(API + "/repos/" + repo + "/zipball/" + r.head, headers(), zip)) {
-                    int n = unzip(zip, dir, r);
+                    int n = unzip(zip, dir, r, maxFileBytes);
                     r.write(dir);
                     return "Cloned " + repo + " (" + branch + ", " + n + " files) into " + dir.getName()
                             + "/. It is on the device now: read, edit and push it any time.";
@@ -881,6 +881,14 @@ public final class GitHubGit {
 
     /** Unpacks GitHub's zip (its one top folder dropped) into the folder, recording each file's blob id. */
     static int unzip(File zip, File dir, Record r) throws IOException {
+        return unzip(zip, dir, r, MAX_FILE_BYTES);
+    }
+
+    /**
+     * As above; a file larger than {@code most} is left out, as the tree clone leaves it out. Each file was read
+     * whole into memory, so one large file in a repository (a model, a video) ran the phone out of memory.
+     */
+    static int unzip(File zip, File dir, Record r, long most) throws IOException {
         int n = 0;
         try (java.util.zip.ZipInputStream in = new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(new java.io.FileInputStream(zip)))) {
             java.util.zip.ZipEntry e;
@@ -894,10 +902,21 @@ public final class GitHubGit {
                 }
                 File f = inside(dir, path);
                 f.getParentFile().mkdirs();
+                if (e.getSize() > most) {
+                    continue; // too large for the phone: left out, as the tree clone leaves it out
+                }
                 java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
                 int got;
+                boolean tooBig = false;
                 while ((got = in.read(buf)) > 0) {
+                    if (bytes.size() + got > most) {
+                        tooBig = true; // the zip didn't say its size: stop once it passes the limit
+                        break;
+                    }
                     bytes.write(buf, 0, got);
+                }
+                if (tooBig) {
+                    continue;
                 }
                 byte[] all = bytes.toByteArray();
                 Files.write(f.toPath(), all);

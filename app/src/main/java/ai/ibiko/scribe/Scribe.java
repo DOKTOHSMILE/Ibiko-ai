@@ -522,7 +522,7 @@ public final class Scribe {
         if (s == null) {
             return "";
         }
-        return s.replaceAll("ghp_[A-Za-z0-9]+", "ghp_…")
+        return s.replaceAll("(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}", "$1…")
                 .replaceAll("sk-[A-Za-z0-9_\\-]{8,}", "sk-…")
                 .replaceAll("(?i)bearer [A-Za-z0-9._\\-]{8,}", "Bearer …");
     }

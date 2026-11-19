@@ -84,7 +84,7 @@ public final class GitOp {
         if (s == null) {
             return "";
         }
-        String t = s.replace('\n', ' ').replace('\r', ' ').replaceAll("ghp_[A-Za-z0-9]+", "ghp_…").trim();
+        String t = s.replace('\n', ' ').replace('\r', ' ').replaceAll("(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}", "$1…").trim();
         return t.length() > 240 ? t.substring(0, 240) : t;
     }
 }

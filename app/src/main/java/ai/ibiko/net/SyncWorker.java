@@ -87,25 +87,38 @@ public final class SyncWorker {
         if (!configured()) {
             return;
         }
-        if (running) {
-            again = true;
-            return;
+        synchronized (this) {
+            if (running) {
+                again = true; // a kick during a run: one more run
+                return;
+            }
+            running = true;
         }
-        running = true;
         io.execute(() -> {
+            int have = packVersion;
             try {
-                do {
-                    again = false;
-                    refreshPack(packVersion);
+                while (true) {
+                    synchronized (this) {
+                        again = false;
+                    }
+                    have = Math.max(have, refreshPack(have));
                     int sent = uploadLearning();
                     if (sent > 0 && uploads != null) {
                         uploads.onUploaded(sent);
                     }
                     uploadEpisodes();
                     pullProfile();
-                } while (again);
-            } finally {
-                running = false;
+                    synchronized (this) {
+                        if (!again) {
+                            running = false; // checked and cleared together: a kick now is never lost
+                            return;
+                        }
+                    }
+                }
+            } catch (RuntimeException e) {
+                synchronized (this) {
+                    running = false;
+                }
             }
         });
     }
@@ -114,7 +127,8 @@ public final class SyncWorker {
         io.shutdownNow();
     }
 
-    private void refreshPack(int have) {
+    /** The version now installed: {@code have}, or the newer pack's, so a second run doesn't fetch it again. */
+    private int refreshPack(int have) {
         String base = base();
         try {
             Map<String, Object> manifest = MiniJson.obj(MiniJson.parse(get(base + "/api/v1/knowledge/manifest", null)));
@@ -122,19 +136,21 @@ public final class SyncWorker {
             String sha = MiniJson.str(manifest.get("sha256"), "");
             String url = MiniJson.str(manifest.get("url"), "");
             if (version <= have || sha.length() != 64 || !url.startsWith("/")) {
-                return;
+                return have;
             }
             String json = get(base + url, null);
             if (!sha.equalsIgnoreCase(sha256(json))) {
-                return;
+                return have;
             }
             KnowledgePack pack = store.install(json, have);
             if (pack != null) {
                 packs.onNewPack(pack);
+                return pack.version;
             }
         } catch (IOException | IllegalArgumentException ignored) {
             // try again next time we come online
         }
+        return have;
     }
 
     /** Uploads pending learning; returns how many entries the server accepted. */

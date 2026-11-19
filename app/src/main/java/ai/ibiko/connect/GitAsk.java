@@ -52,7 +52,10 @@ public final class GitAsk {
         return "#!/bin/sh\n"
                 + "case \"$1\" in\n"
                 + "*[Uu]sername*) printf '%s\\n' 'x-access-token' ;;\n"
-                + "*) cat " + TOKEN_FILE + " ;;\n"
+                // the token only for a GitHub prompt: git falls back to ask-pass for a host the credential helper
+                // doesn't answer, so a clone or a submodule on another server was handed the GitHub token
+                + "*github.com*) cat " + TOKEN_FILE + " ;;\n"
+                + "*) exit 1 ;;\n"
                 + "esac\n";
     }
 

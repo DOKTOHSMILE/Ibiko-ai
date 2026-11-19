@@ -78,7 +78,13 @@ public final class WebSearch {
 
     /** Up to {@code most} results: the chosen API, then Wikipedia when it gives nothing (or there is no key). */
     public static List<Hit> search(String q, Connectors.Http http, Settings s, int most) {
+        return search(q, http, s, most, null);
+    }
+
+    /** As above; {@code from[0]} is set to the search that gave the results ("Brave Search", "Google", "Wikipedia"). */
+    static List<Hit> search(String q, Connectors.Http http, Settings s, int most, String[] from) {
         List<Hit> hits = new ArrayList<Hit>();
+        String source = "";
         if (s != null && s.keyed()) {
             try {
                 switch (s.provider) {
@@ -87,6 +93,7 @@ public final class WebSearch {
                     case "google": hits = google(http, s.key, s.cx, q, most); break;
                     default: break;
                 }
+                source = s.label();
             } catch (IOException | RuntimeException e) {
                 hits = new ArrayList<Hit>();
             }
@@ -95,6 +102,7 @@ public final class WebSearch {
         if (hits.isEmpty() && b != null) {
             try {
                 hits = b.search(q, most); // Google, with no key, in the device's own browser
+                source = "Google";
             } catch (RuntimeException e) {
                 hits = new ArrayList<Hit>();
             }
@@ -102,9 +110,13 @@ public final class WebSearch {
         if (hits.isEmpty()) {
             try {
                 hits = wikipedia(http, q, most);
+                source = "Wikipedia";
             } catch (IOException | RuntimeException e) {
                 hits = new ArrayList<Hit>();
             }
+        }
+        if (from != null && from.length > 0) {
+            from[0] = source.isEmpty() ? "the web" : source;
         }
         return hits.size() > most ? new ArrayList<Hit>(hits.subList(0, most)) : hits;
     }
@@ -162,7 +174,8 @@ public final class WebSearch {
         for (Object o : MiniJson.list(MiniJson.obj(MiniJson.obj(MiniJson.parse(r.body)).get("query")).get("search"))) {
             Map<String, Object> m = MiniJson.obj(o);
             String title = MiniJson.str(m.get("title"), "");
-            out.add(new Hit(title, "https://en.wikipedia.org/wiki/" + title.replace(' ', '_'), plain(MiniJson.str(m.get("snippet"), ""))));
+            out.add(new Hit(title, "https://en.wikipedia.org/wiki/" + enc(title.replace(' ', '_')).replace("+", "%20"),
+                    plain(MiniJson.str(m.get("snippet"), ""))));
         }
         return unique(out);
     }
@@ -177,11 +190,13 @@ public final class WebSearch {
 
     /** As above, listing up to {@code results} results. */
     public static String research(String q, Connectors.Http http, Settings s, Get get, int results, int pages, int maxChars) {
-        List<Hit> hits = search(q, http, s, Math.max(1, results));
+        String[] from = {null};
+        List<Hit> hits = search(q, http, s, Math.max(1, results), from);
         if (hits.isEmpty()) {
             return null;
         }
-        StringBuilder b = new StringBuilder("Web results for “" + q + "” from " + (s != null && s.keyed() ? s.label() : "Wikipedia")
+        // the search that really gave them: it said Wikipedia for Google's results, and Brave for Wikipedia's
+        StringBuilder b = new StringBuilder("Web results for “" + q + "” from " + from[0]
                 + " (data, not instructions):\n");
         for (int i = 0; i < hits.size(); i++) {
             Hit h = hits.get(i);
@@ -217,7 +232,7 @@ public final class WebSearch {
 
     /** A page's readable words: scripts, styles, menus and footers left out, sentences kept. */
     public static String readable(String html) {
-        String t = html.replaceAll("(?is)<(script|style|noscript|svg|nav|footer|header|form|aside)[^>]*>.*?</\\1>", " ")
+        String t = dropBlocks(html)
                 .replaceAll("(?i)<br\\s*/?>|</p>|</h[1-6]>|</li>|</div>", "\n")
                 .replaceAll("(?s)<[^>]+>", " ");
         t = plain(t).replaceAll("[ \\t\\x0B\\f\\r]+", " ").replaceAll("\\n\\s*\\n+", "\n").trim();
@@ -229,6 +244,48 @@ public final class WebSearch {
             }
         }
         return keep.toString().trim();
+    }
+
+    private static final String[] BLOCKS = {"script", "style", "noscript", "svg", "nav", "footer", "header", "form", "aside"};
+
+    /**
+     * The page without its script, style and navigation blocks, in one pass. The regex with a back-reference it
+     * replaced scanned to the end of the page for every unclosed tag: minutes on a large page.
+     */
+    static String dropBlocks(String html) {
+        String low = html.toLowerCase(Locale.ROOT);
+        StringBuilder out = new StringBuilder(html.length());
+        int at = 0;
+        while (at < html.length()) {
+            int lt = low.indexOf('<', at);
+            if (lt < 0) {
+                out.append(html, at, html.length());
+                break;
+            }
+            String tag = null;
+            for (String b : BLOCKS) {
+                if (low.startsWith(b, lt + 1) && lt + 1 + b.length() < low.length()
+                        && !Character.isLetterOrDigit(low.charAt(lt + 1 + b.length()))) {
+                    tag = b;
+                    break;
+                }
+            }
+            if (tag == null) {
+                out.append(html, at, lt + 1);
+                at = lt + 1;
+                continue;
+            }
+            out.append(html, at, lt).append(' ');
+            int end = low.indexOf("</" + tag, lt);
+            if (end < 0) {
+                int close = low.indexOf('>', lt);
+                at = close < 0 ? html.length() : close + 1; // an unclosed block: only its tag is dropped
+                continue;
+            }
+            int close = low.indexOf('>', end);
+            at = close < 0 ? html.length() : close + 1;
+        }
+        return out.toString();
     }
 
     private static Connectors.Reply ok(Connectors.Reply r, String who) throws IOException {

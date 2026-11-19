@@ -124,7 +124,7 @@ public final class GoogleWeb {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                         String to = request.getUrl().getHost();
-                        return to == null || !(to.endsWith("google.com") || to.contains(".google."));
+                        return to == null || !(to.equals("google.com") || to.endsWith(".google.com") || to.matches("(.+\\.)?google\\.[a-z.]{2,6}"));
                     }
 
                     @Override
