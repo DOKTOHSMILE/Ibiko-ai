@@ -62,7 +62,9 @@ public final class DrawingLibrary {
             if (index.exists()) {
                 for (String line : new String(Files.readAllBytes(index.toPath()), StandardCharsets.UTF_8).split("\n")) {
                     String[] f = line.split("\t", -1);
-                    if (f.length == 6) {
+                    // one damaged line is skipped, not the whole index: dropping it all let the next save write an
+                    // index with only the new drawing, and every other drawing was lost from the library
+                    if (f.length == 6 && f[4].matches("\\d{1,18}") && f[5].matches("d\\d{1,19}_\\d{1,9}\\.solid")) {
                         entries.put(key(f[0]), new Entry(f[0], f[1], f[2], f[3], Long.parseLong(f[4]), f[5]));
                     }
                 }
@@ -91,9 +93,7 @@ public final class DrawingLibrary {
     public Entry save(String name, String subject, String description, SolidSpec spec, long now) throws IOException {
         Entry old = named(name);
         String file = old != null ? old.file : "d" + now + "_" + entries.size() + ".solid";
-        try (FileOutputStream o = new FileOutputStream(new File(dir, file))) {
-            o.write(spec.save().getBytes(StandardCharsets.UTF_8));
-        }
+        ai.ibiko.learn.SafeFile.write(new File(dir, file), spec.save()); // whole or not at all
         Entry e = new Entry(clean(name), clean(subject == null ? "" : subject), clean(description == null ? "" : description),
                 clean(summarise(subject, spec)), now, file);
         entries.remove(key(name));
@@ -204,13 +204,7 @@ public final class DrawingLibrary {
             b.append(e.name).append('\t').append(e.subject).append('\t').append(e.description).append('\t').append(e.summary)
                     .append('\t').append(e.saved).append('\t').append(e.file).append('\n');
         }
-        File tmp = new File(dir, "index.tsv.tmp");
-        try (FileOutputStream o = new FileOutputStream(tmp)) {
-            o.write(b.toString().getBytes(StandardCharsets.UTF_8));
-        }
-        if (!tmp.renameTo(new File(dir, "index.tsv"))) {
-            throw new IOException("index not saved");
-        }
+        ai.ibiko.learn.SafeFile.write(new File(dir, "index.tsv"), b.toString()); // whole or not at all
     }
 
     private static String clean(String s) {

@@ -459,8 +459,16 @@ public final class Scribe {
         return v == null ? "" : v;
     }
 
+    /** The most of the step log kept: every step rewrites the record, so a job of hours made each step slower. */
+    static final int MOST_PROGRESS = 60_000;
+
     private void append(String name, String text) {
-        write(name, section(name) + text);
+        String all = section(name) + text;
+        if ("PROGRESS.md".equals(name) && all.length() > MOST_PROGRESS) {
+            int cut = all.indexOf('\n', all.length() - MOST_PROGRESS);
+            all = "(earlier steps trimmed)\n" + all.substring(cut < 0 ? all.length() - MOST_PROGRESS : cut + 1);
+        }
+        write(name, all);
     }
 
     /** Writes one section of the project's record; the whole record is the one file {@link #RECORD}. */
@@ -484,22 +492,12 @@ public final class Scribe {
                 b.append(MARK).append(n).append(" -->\n").append(body).append(body.endsWith("\n") ? "\n" : "\n\n");
             }
         }
-        File f = new File(projectDir, RECORD);
-        projectDir.mkdirs();
-        File tmp = new File(projectDir, RECORD + ".tmp");
-        try (FileOutputStream out = new FileOutputStream(tmp)) {
-            out.write(b.toString().getBytes(StandardCharsets.UTF_8));
-            out.getFD().sync();
+        // the old record was deleted before the rename, and a failed rename then deleted the new one too: the whole
+        // project record was lost. Written aside, synced, and moved over it instead
+        try {
+            ai.ibiko.learn.SafeFile.write(new File(projectDir, RECORD), b.toString());
         } catch (IOException e) {
-            tmp.delete();
-            return;
-        }
-        if (f.exists() && !f.delete()) {
-            tmp.delete();
-            return;
-        }
-        if (!tmp.renameTo(f)) {
-            tmp.delete();
+            // the record on disk is the last whole one
         }
     }
 
