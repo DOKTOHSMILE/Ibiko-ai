@@ -15,6 +15,8 @@ for f in world_facts.tsv country_more.tsv elements_more.tsv local_facts.tsv lexi
          WORLD_FACTS_LICENSE.txt MORE_FACTS_LICENSE.txt COMPREHENSION_LICENSE.txt; do
   cp "app/src/main/assets/knowledge/$f" "$OUT/src/main/assets/knowledge/$f"
 done
+# the encyclopedia (Simple English Wikipedia openings, CC BY-SA 4.0): its shards and licence
+cp -R app/src/main/assets/knowledge/encyclopedia "$OUT/src/main/assets/knowledge/encyclopedia"
 cat > "$OUT/build.gradle" <<'GRADLE'
 // Ibiko 1: a language brain as an Android library. Entry point: ai.ibiko.ibiko1.Ibiko1Model.
 plugins {
