@@ -205,6 +205,9 @@ public final class DocsLookup {
     /** A file from the cache, or downloaded and kept. */
     private static String cached(File cacheDir, String name, String url, int maxBytes, Fetch fetch) {
         File f = cacheDir == null ? null : new File(cacheDir, name);
+        if (f != null && !SourceRead.within(cacheDir, f)) {
+            f = null; // a page name from the index that climbs out ("../..") is never written outside the cache
+        }
         try {
             if (f != null && f.isFile() && f.length() > 0) {
                 return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
