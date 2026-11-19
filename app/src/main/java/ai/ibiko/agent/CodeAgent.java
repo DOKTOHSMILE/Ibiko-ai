@@ -1949,7 +1949,15 @@ public final class CodeAgent {
         return reads.done(kind, sig, nextStepLine());
     }
 
+    /** The tools that only look: everything else may change files, so cached searches and listings are dropped. */
+    private static final java.util.Set<String> LOOKS = new java.util.HashSet<String>(java.util.Arrays.asList(
+            "list_files", "read_file", "search", "fetch", "docs", "status", "diff", "log", "branches", "workers"));
+
     private String carryOut(Call c) throws IOException {
+        if (!LOOKS.contains(c.name) && !(c.name.equals("git") && LOOKS.contains(c.a("action").toLowerCase(Locale.US)))) {
+            // a search cached before "git pull", an unzip or a code generator gave the old files' lines afterwards
+            reads.staleSearches();
+        }
         placePaths(c);
         String wrongLang = tongue().blocked(c.a("path"), c.name);
         if (wrongLang != null) {
