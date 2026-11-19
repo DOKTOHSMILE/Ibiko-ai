@@ -54,9 +54,11 @@ std::string from_java(JNIEnv * env, jstring s) {
     std::string out;
     for (jsize i = 0; i < n; ++i) {
         uint32_t cp = c[i];
-        if (cp >= 0xD800 && cp < 0xDC00 && i + 1 < n) {
+        if (cp >= 0xD800 && cp < 0xDC00 && i + 1 < n && c[i + 1] >= 0xDC00 && c[i + 1] < 0xE000) {
             cp = 0x10000 + ((cp - 0xD800) << 10) + (c[i + 1] - 0xDC00);
             ++i;
+        } else if (cp >= 0xD800 && cp < 0xE000) {
+            cp = 0xFFFD; // a lone half of a pair: any character after a high one was taken as its pair, making bad UTF-8
         }
         if (cp < 0x80) out += (char) cp;
         else if (cp < 0x800) { out += (char) (0xC0 | (cp >> 6)); out += (char) (0x80 | (cp & 0x3F)); }
