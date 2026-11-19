@@ -244,6 +244,24 @@ public final class CampaignStudio {
         }, "ibiko-campaign-plan").start();
     }
 
+    /**
+     * A new picture for one post from the image generator: the studio's model designs it afresh; when it can't, the
+     * formula draws a fresh one. Off the main thread. The picture's file, or null.
+     */
+    public static File newPicture(Context ctx, Campaign camp, Campaign.Item it) {
+        Context app = ctx.getApplicationContext();
+        CampaignPlanner.Brain brain = brain(app);
+        if (brain != null) {
+            String page = CampaignImage.page(brain.ask(ai.ibiko.design.HtmlDraw.system(CampaignImage.SIDE, CampaignImage.SIDE)
+                    + " " + ai.ibiko.design.HtmlDraw.FOR_POSTS + " Make it different from the picture it had.",
+                    CampaignPlanner.designBrief(camp, it), 5000));
+            if (!page.isEmpty()) {
+                return CampaignRunner.redraw(app, camp, it, page);
+            }
+        }
+        return CampaignRunner.redraw(app, camp, it, null);
+    }
+
     private static void save(Context app, Campaign c) {
         try {
             CampaignRunner.store(app).put(c);
@@ -300,12 +318,12 @@ public final class CampaignStudio {
                     return;
                 }
                 StudioEdit.Done d = StudioEdit.apply(now, reply, seats, zone);
-                for (Campaign.Item it : d.newItems) {
-                    CampaignRunner.pictureOf(app, now, it);
-                }
                 if (d.changed()) {
                     save(app, now);
                     CampaignRunner.arm(app, 0);
+                }
+                for (Campaign.Item it : d.newItems) {
+                    newPicture(app, now, it); // each added post's own picture, designed by the model
                 }
                 StringBuilder what = new StringBuilder(d.reply);
                 if (d.changed()) {

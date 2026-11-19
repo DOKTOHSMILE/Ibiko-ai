@@ -51,6 +51,12 @@ public final class HtmlDraw {
                 + " background. Reply with the HTML document only, starting <!doctype html>.";
     }
 
+    /** Added for a social media post's picture. */
+    public static final String FOR_POSTS = "It is a social media post's picture: put exactly the headline and the line given"
+            + " on it (no other words, no business or person's name, no logo text), large and readable at phone size, and"
+            + " make the visual tell the post's idea: an illustration, icons or a scene in inline SVG, not just text on a"
+            + " gradient. Different from a plain template: a designer's piece for this one post.";
+
     /** The ask as the designer gets it, with what the brain imagined when it differs. */
     public static String brief(String what, String imagined) {
         return "Design: " + what + (imagined == null || imagined.equals(what) ? "" : "\nAs imagined: " + imagined);

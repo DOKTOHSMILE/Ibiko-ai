@@ -121,7 +121,7 @@ public class CampaignTest {
         };
         assertNull(CampaignPlanner.build(c, SEATS, brain, null, null, TimeZone.getTimeZone("UTC"), 4));
         assertEquals("3 days, 2 a day, 2 accounts", 12, c.items.size());
-        assertEquals("the strategy and two batches of posts: no call spent on a design", 3, calls[0]);
+        assertEquals("the strategy, two batches of posts, and a picture designed for each of the 12 posts", 15, calls[0]);
         java.util.Set<String> themes = new java.util.HashSet<String>();
         for (int i = 0; i < c.items.size(); i++) {
             themes.add(c.items.get(i).theme);
@@ -158,5 +158,25 @@ public class CampaignTest {
         Files.write(new File(dir, "campaigns.json").toPath(), "{not json".getBytes("UTF-8"));
         assertTrue(new CampaignStore(dir).all().isEmpty());
         assertTrue("kept for a look", new File(dir, "campaigns.json.unreadable").isFile());
+    }
+
+    @Test
+    public void onAnApiEachPostGetsAPictureTheModelDesigned() {
+        Campaign c = brief();
+        final int[] designs = {0};
+        CampaignPlanner.Brain brain = (system, prompt, tokens) -> {
+            if (prompt.contains("Design the picture for this")) {
+                designs[0]++;
+                return "<!doctype html><html><body><svg viewBox=\"0 0 10 10\"><circle r=\"4\"/></svg><h1>model design "
+                        + designs[0] + "</h1></body></html>";
+            }
+            return fake().ask(system, prompt, tokens);
+        };
+        assertNull(CampaignPlanner.build(c, SEATS, brain, null, null, TimeZone.getTimeZone("UTC"), 4));
+        assertEquals("one design a post", c.items.size(), designs[0]);
+        for (Campaign.Item it : c.items) {
+            assertTrue(it.designed);
+            assertTrue(it.imageHtml.contains("model design"));
+        }
     }
 }

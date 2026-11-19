@@ -58,7 +58,7 @@ final class PostActions {
                         Toast.makeText(a, "Designing a fresh picture\u2026", Toast.LENGTH_SHORT).show();
                         final android.content.Context app = a.getApplicationContext();
                         new Thread(() -> {
-                            java.io.File made = CampaignRunner.redraw(app, c, it);
+                            java.io.File made = ai.ibiko.social.campaign.CampaignStudio.newPicture(app, c, it);
                             a.runOnUiThread(() -> {
                                 if (made == null) {
                                     Toast.makeText(a, "That picture couldn't be drawn. Try again.", Toast.LENGTH_SHORT).show();

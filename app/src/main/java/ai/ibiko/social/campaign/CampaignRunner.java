@@ -295,6 +295,11 @@ public final class CampaignRunner extends BroadcastReceiver {
      * saved and kept. Off the main thread. The picture's file, or null when it couldn't be drawn.
      */
     public static File redraw(Context c, Campaign camp, Campaign.Item it) {
+        return redraw(c, camp, it, null);
+    }
+
+    /** As above, with {@code page} (a picture the model designed) in place of the formula's when given. */
+    public static File redraw(Context c, Campaign camp, Campaign.Item it, String page) {
         if (it.headline.isEmpty()) {
             String[] w = it.text.replaceAll("(?i)https?://\\S+|#\\w+", " ").trim().split("\\s+");
             StringBuilder h = new StringBuilder();
@@ -304,7 +309,8 @@ public final class CampaignRunner extends BroadcastReceiver {
             it.headline = h.toString().replaceAll("[.,!?:;]+$", "");
         }
         it.seed = DesignGen.freshSeed(it.id);
-        it.imageHtml = CampaignPlanner.picture(it, it.product.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(it.product));
+        it.designed = page != null && !page.isEmpty();
+        it.imageHtml = it.designed ? page : CampaignPlanner.picture(it, it.product.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(it.product));
         if (!it.imagePath.isEmpty()) {
             new File(it.imagePath).delete();
         }
@@ -317,6 +323,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             kept.headline = it.headline;
             kept.seed = it.seed;
             kept.imageHtml = it.imageHtml;
+            kept.designed = it.designed;
             kept.imagePath = it.imagePath;
             try {
                 st.put(latest);

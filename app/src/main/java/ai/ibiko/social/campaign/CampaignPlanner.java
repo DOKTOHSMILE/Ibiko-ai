@@ -385,6 +385,54 @@ public final class CampaignPlanner {
             + "opacity:.92}b{font-size:32px;opacity:.85}</style></head><body><img src=\"{{PHOTO}}\"><div class=\"s\">"
             + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></body></html>";
 
+    /**
+     * Ibiko's image generator for every post: the model designs each post's own picture as a page (as it does for a
+     * picture asked for in the chat), side by side on an API. A design that doesn't come back keeps the formula's.
+     */
+    static void designAll(Campaign c, Brain brain, Progress progress, java.util.function.BooleanSupplier stop,
+            java.util.concurrent.ExecutorService pool) {
+        List<java.util.concurrent.Future<String>> asked = new ArrayList<java.util.concurrent.Future<String>>();
+        for (final Campaign.Item it : c.items) {
+            final String ask = designBrief(c, it);
+            asked.add(pool.submit(() -> CampaignImage.page(brain.ask(ai.ibiko.design.HtmlDraw.system(CampaignImage.SIDE, CampaignImage.SIDE)
+                    + " " + ai.ibiko.design.HtmlDraw.FOR_POSTS, ask, 5000))));
+        }
+        for (int i = 0; i < asked.size(); i++) {
+            if (stop != null && stop.getAsBoolean()) {
+                return;
+            }
+            say(progress, "Designing pictures " + (i + 1) + " of " + asked.size());
+            try {
+                String page = asked.get(i).get(5, java.util.concurrent.TimeUnit.MINUTES);
+                if (page != null && !page.isEmpty()) {
+                    c.items.get(i).imageHtml = page;
+                    c.items.get(i).designed = true;
+                }
+            } catch (Exception e) {
+                // the formula's picture stands
+            }
+        }
+    }
+
+    /** What the designer is told about one post's picture. */
+    public static String designBrief(Campaign c, Campaign.Item it) {
+        String words = it.text.replaceAll("\\s+", " ").trim();
+        StringBuilder s = new StringBuilder("Design the picture for this ").append(CampaignRunner.shown(it.network))
+                .append(" post.\nHeadline on the picture: ").append(it.headline)
+                .append("\nLine under it: ").append(it.line)
+                .append("\nTheme: ").append(it.theme)
+                .append("\nWhat the business does: ").append(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer)
+                .append("\nThe post: ").append(words.length() > 400 ? words.substring(0, 400) + "\u2026" : words);
+        if (!it.design.isEmpty() && !it.design.equals(new DesignGen.Spec().json())) {
+            s.append("\nYour design idea for it: ").append(it.design);
+        }
+        if (!it.product.isEmpty()) {
+            s.append("\nShow the product photo large, as <img src=\"").append(Catalog.PHOTO).append(Catalog.safe(it.product))
+                    .append("\"> with object-fit:cover; it is the real product.");
+        }
+        return s.toString();
+    }
+
     /** A post's picture from its words, the model's design and its seed ({@code photo}: a product photo, or ""). */
     public static String picture(Campaign.Item it, String photo) {
         Object spec = null;
@@ -582,6 +630,9 @@ public final class CampaignPlanner {
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }
+            }
+            if (workers > 1) {
+                designAll(c, brain, progress, stop, pool);
             }
         } finally {
             pool.shutdownNow();
