@@ -171,7 +171,7 @@ public final class Foresight {
             if (dir != null) {
                 dir.mkdirs();
             }
-            Files.write(file.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // whole or not at all: a crash mid-save cut it
         } catch (IOException e) {
             // kept in memory
         }

@@ -127,7 +127,7 @@ public final class LearningJob extends JobService {
 
     static void write(File f, List<String> lines) {
         try {
-            Files.write(f.toPath(), ai.ibiko.learn.CodeFile.encode(String.join("\n", lines) + (lines.isEmpty() ? "" : "\n")));
+            ai.ibiko.learn.CodeFile.write(f, String.join("\n", lines) + (lines.isEmpty() ? "" : "\n")); // whole or not at all: a crash mid-save cut it
         } catch (IOException ignored) {
             // tried again tomorrow
         }

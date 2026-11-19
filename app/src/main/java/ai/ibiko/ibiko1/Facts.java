@@ -551,7 +551,7 @@ public final class Facts {
             if (file.getParentFile() != null) {
                 file.getParentFile().mkdirs();
             }
-            Files.write(file.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // whole or not at all: a crash mid-save cut it
         } catch (IOException ignored) {
             // kept in memory for this run
         }

@@ -289,12 +289,7 @@ public final class Methods {
             if (dir != null) {
                 dir.mkdirs();
             }
-            File tmp = new File(file.getPath() + ".tmp");
-            Files.write(tmp.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
-            if (!tmp.renameTo(file)) {
-                Files.write(file.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
-                tmp.delete();
-            }
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // whole or not at all
         } catch (IOException e) {
             // kept in memory; written at the next change
         }

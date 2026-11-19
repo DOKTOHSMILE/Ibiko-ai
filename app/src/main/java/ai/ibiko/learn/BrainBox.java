@@ -561,7 +561,7 @@ public final class BrainBox {
             if (f.getParentFile() != null) {
                 f.getParentFile().mkdirs();
             }
-            Files.write(f.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
+            ai.ibiko.learn.CodeFile.write(f, b.toString()); // whole or not at all: a crash mid-save cut it
         } catch (IOException ignored) {
             // kept in memory for this run
         }
@@ -722,7 +722,7 @@ public final class BrainBox {
             if (f.getParentFile() != null) {
                 f.getParentFile().mkdirs();
             }
-            Files.write(f.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
+            ai.ibiko.learn.CodeFile.write(f, b.toString()); // whole or not at all: a crash mid-save cut it
         } catch (IOException ignored) {
             // kept in memory for this run
         }
@@ -811,12 +811,7 @@ public final class BrainBox {
             if (dir != null) {
                 dir.mkdirs();
             }
-            File tmp = new File(file.getPath() + ".tmp");
-            Files.write(tmp.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
-            if (!tmp.renameTo(file)) {
-                Files.write(file.toPath(), ai.ibiko.learn.CodeFile.encode(b.toString()));
-                tmp.delete();
-            }
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // whole or not at all
         } catch (IOException ignored) {
             // what was learned stays in memory for this run
         }

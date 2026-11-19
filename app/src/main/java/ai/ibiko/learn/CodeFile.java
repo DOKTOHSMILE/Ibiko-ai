@@ -152,16 +152,23 @@ public final class CodeFile {
         if (f.getParentFile() != null) {
             f.getParentFile().mkdirs();
         }
-        File part = new File(f.getPath() + ".part");
-        try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
-            out.write(encode(text));
-            out.getFD().sync(); // on the storage before it replaces the old file (a power cut could leave it empty)
-        }
+        // one part file per thread: two saves of the same file at once shared one part, and one could move the
+        // other's half-written bytes into place
+        File part = new File(f.getPath() + "." + Thread.currentThread().getId() + ".part");
         try {
-            Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-            Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                out.write(encode(text));
+                out.getFD().sync(); // on the storage before it replaces the old file (a power cut could leave it empty)
+            }
+            try {
+                Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(part.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException | RuntimeException e) {
+            part.delete();
+            throw e;
         }
     }
 
