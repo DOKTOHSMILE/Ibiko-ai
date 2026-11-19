@@ -47,14 +47,14 @@ public final class PhoneFileAccessManager {
         if (file == null || !file.isFile()) {
             return null;
         }
-        try {
-            byte[] all = Files.readAllBytes(file.toPath());
-            if (all.length > maxBytes) {
-                byte[] cut = new byte[maxBytes];
-                System.arraycopy(all, 0, cut, 0, maxBytes);
-                return cut;
+        // only what is kept is read: the whole file first (a video of gigabytes) ran out of memory
+        try (java.io.InputStream in = Files.newInputStream(file.toPath())) {
+            byte[] buf = new byte[(int) Math.min(Math.max(0, maxBytes), Math.max(0L, file.length()))];
+            int n = 0, r;
+            while (n < buf.length && (r = in.read(buf, n, buf.length - n)) > 0) {
+                n += r;
             }
-            return all;
+            return n == buf.length ? buf : java.util.Arrays.copyOf(buf, n);
         } catch (IOException e) {
             return null;
         }

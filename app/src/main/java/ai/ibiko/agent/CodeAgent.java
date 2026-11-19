@@ -1746,7 +1746,7 @@ public final class CodeAgent {
         if (kept != null) {
             try {
                 String rel = workspace.getCanonicalFile().toPath().relativize(kept.getCanonicalFile().toPath()).toString();
-                blueprint.resume(rel, new String(Files.readAllBytes(kept.toPath()), StandardCharsets.UTF_8));
+                blueprint.resume(rel, text(kept));
             } catch (IOException e) {
                 blueprint = new Blueprint();
             }
@@ -1859,7 +1859,7 @@ public final class CodeAgent {
                     todo.add(f);
                 } else if (f.getName().equalsIgnoreCase("PLAN.md") && (best == null || f.lastModified() > best.lastModified())) {
                     try {
-                        if (new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).contains("# Blueprint")) {
+                        if (text(f).contains("# Blueprint")) {
                             best = f;
                         }
                     } catch (IOException ignored) {
@@ -1881,10 +1881,10 @@ public final class CodeAgent {
             try {
                 File f = inside(c.a("path"));
                 if (f.isFile()) {
-                    said = blueprint.planned(c.a("path"), new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8));
+                    said = blueprint.planned(c.a("path"), text(f));
                     // the phase Ibiko moved it to (building started; or sent back for want of a goal or steps) goes in the
                     // file too, so a later run picks up where this one is
-                    String onDisk = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+                    String onDisk = text(f);
                     if (!onDisk.equals(blueprint.text())) {
                         Files.write(f.toPath(), blueprint.text().getBytes(StandardCharsets.UTF_8));
                     }
@@ -2009,7 +2009,7 @@ public final class CodeAgent {
                     dir.mkdirs();
                 }
                 boolean existed = f.exists();
-                String before = existed ? new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8) : "";
+                String before = existed ? text(f) : "";
                 if (existed && planFile(f)) {
                     String lost = Blueprint.kept(before, c.body);
                     if (lost != null) {
@@ -2041,7 +2041,7 @@ public final class CodeAgent {
                     host.step("Already edited " + show(c.a("path")) + " (cached)");
                     return again;
                 }
-                String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+                String text = text(f);
                 int at = text.indexOf(old);
                 if (old.isEmpty() || at < 0) {
                     return "The old text isn't in " + c.a("path") + ". Read the file and copy it exactly.";
@@ -2581,7 +2581,7 @@ public final class CodeAgent {
                 continue;
             }
             try {
-                String[] lines = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).split("\n", -1);
+                String[] lines = text(f).split("\n", -1);
                 for (int i = 0; i < lines.length && hits.size() < 60; i++) {
                     if (lines[i].contains(query)) {
                         hits.add(workspace.toPath().relativize(f.toPath()) + ":" + (i + 1) + ": " + clip(lines[i].trim(), 160));
@@ -2671,5 +2671,17 @@ public final class CodeAgent {
     static String clipResult(String s, int n) {
         String t = s == null ? "" : s;
         return t.contains(SHELL_CUT) ? t : clip(t, n);
+    }
+
+    /** The most of one file the agent reads or edits as text: a log of gigabytes read whole closed the app. */
+    static final long MOST_TEXT = 20L * 1024 * 1024;
+
+    /** A file's text, refused past {@link #MOST_TEXT}. */
+    static String text(File f) throws IOException {
+        if (f.length() > MOST_TEXT) {
+            throw new IOException(f.getName() + " is " + (f.length() >> 20) + " MB: too big to read or edit as text."
+                    + " Read parts of it with start and end lines, or search it.");
+        }
+        return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
     }
 }

@@ -522,13 +522,18 @@ public final class GitHubGit {
             String theirSha = got.files.get(path);
             boolean gone = mine.deleted.contains(path);
             byte[] working = null;
+            boolean large = false;
+            String largeSha = null;
             if (!gone) {
                 File onDisk = inside(dir, path);
-                if (onDisk.isFile()) {
+                if (onDisk.isFile() && onDisk.length() > MOST_PUSH) {
+                    large = true; // hashed a piece at a time, never held whole
+                    largeSha = mine.touched(path) ? blobSha(onDisk) : ourSha;
+                } else if (onDisk.isFile()) {
                     working = Files.readAllBytes(onDisk.toPath());
                 }
             }
-            String eff = gone || working == null ? null : mine.touched(path) ? blobSha(working) : ourSha;
+            String eff = large ? largeSha : gone || working == null ? null : mine.touched(path) ? blobSha(working) : ourSha;
             if (sameSha(eff, theirSha)) {
                 quietTheirs(dir, path);
                 continue;
@@ -559,6 +564,11 @@ public final class GitHubGit {
             byte[] baseBytes = baseSha == null ? new byte[0] : body(r.repo, baseSha, bodies);
             if (theirBytes == null) {
                 conflicts.add(path + " (deleted on " + got.branch + ")");
+                continue;
+            }
+            if (large) {
+                writeFile(dir, path + ".theirs", theirBytes);
+                conflicts.add(path + " (not merged as text)");
                 continue;
             }
             if (ourBytes == null) {
@@ -801,7 +811,8 @@ public final class GitHubGit {
         List<String> marked = new ArrayList<String>(c.added);
         marked.addAll(c.modified);
         for (String p : marked) {
-            if (conflictMarkers(Files.readAllBytes(inside(dir, p).toPath()))) {
+            File local = inside(dir, p);
+            if (local.length() <= MOST_PUSH && conflictMarkers(Files.readAllBytes(local.toPath()))) {
                 throw new IOException("resolve the conflict markers in " + p + " and delete its .theirs file before pushing");
             }
         }
@@ -831,7 +842,12 @@ public final class GitHubGit {
         // edited (gradlew, build.sh) lost its executable bit and the build broke
         Map<String, String> modes = c.modified.isEmpty() ? new HashMap<String, String>() : modes(r.repo, r.tree);
         for (String path : up) {
-            byte[] bytes = Files.readAllBytes(inside(dir, path).toPath());
+            File local = inside(dir, path);
+            if (local.length() > MOST_PUSH) {
+                throw new IOException(path + " is " + (local.length() >> 20) + " MB, too big to push from the phone (the most is "
+                        + (MOST_PUSH >> 20) + " MB); add it to .gitignore or remove it");
+            }
+            byte[] bytes = Files.readAllBytes(local.toPath());
             Map<String, Object> b = new LinkedHashMap<String, Object>();
             b.put("content", Base64.getEncoder().encodeToString(bytes));
             b.put("encoding", "base64");
@@ -1163,7 +1179,7 @@ public final class GitHubGit {
                     continue;
                 }
                 c.added.add(e.getKey());
-            } else if (!was.equals(blobSha(Files.readAllBytes(e.getValue().toPath())))) {
+            } else if (!was.equals(blobSha(e.getValue()))) {
                 c.modified.add(e.getKey());
             }
         }
@@ -1197,6 +1213,31 @@ public final class GitHubGit {
     }
 
     /** Git's id for a file's bytes: sha1 of "blob <length>\0" and the bytes. */
+    /** The most one file may be to go up: read whole and sent as base64, a bigger one ran out of memory. */
+    static final long MOST_PUSH = 50L * 1024 * 1024;
+
+    /** {@link #blobSha(byte[])} of a file, read a piece at a time (a large tracked file is never held whole). */
+    static String blobSha(File f) throws IOException {
+        try {
+            MessageDigest d = MessageDigest.getInstance("SHA-1");
+            d.update(("blob " + f.length() + "\0").getBytes(StandardCharsets.UTF_8));
+            try (java.io.InputStream in = Files.newInputStream(f.toPath())) {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    d.update(buf, 0, n);
+                }
+            }
+            StringBuilder hex = new StringBuilder();
+            for (byte b : d.digest()) {
+                hex.append(String.format("%02x", b & 0xff));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     public static String blobSha(byte[] bytes) {
         try {
             MessageDigest d = MessageDigest.getInstance("SHA-1");
