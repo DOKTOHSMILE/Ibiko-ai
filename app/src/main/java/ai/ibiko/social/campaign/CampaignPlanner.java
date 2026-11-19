@@ -62,7 +62,11 @@ public final class CampaignPlanner {
                 .append("\"slots\":[{\"day\":1,\"time\":\"09:30\",\"account\":\"<id>\",\"theme\":\"one of the themes\",")
                 .append("\"angle\":\"what this post says, in one line\"}]}\n")
                 .append("Give each account its own slots, at the hours its audience is active, varied (not every post the same")
-                .append(" time). Mix value, proof and offer posts; no two posts say the same thing.");
+                .append(" time). Mix value, proof and offer posts; no two posts say the same thing.")
+                .append(brief.products.isEmpty() ? "" : " Give each slot that shows a product its number, as \"product\":\"P1\";"
+                        + " spread the posts across the products.")
+                .append(brief.lessons.isEmpty() ? "" : " Lean on what worked in earlier campaigns.")
+                .append(' ').append(PlatformRules.FOR_THE_BRAIN);
         return s.toString();
     }
 
@@ -72,7 +76,8 @@ public final class CampaignPlanner {
     public static final int WORKERS = 4;
 
     private static final String POSTS_SYSTEM = "You write social media posts for a small business campaign: honest, useful,"
-            + " a clear call to action, no made-up facts, prices or reviews. Reply with one JSON object only, no prose.";
+            + " a clear call to action, no made-up facts, prices or reviews. " + PlatformRules.FOR_THE_BRAIN
+            + " Reply with one JSON object only, no prose.";
 
     private static final String TEMPLATE_SYSTEM = "You design one picture template for a campaign theme, as a single"
             + " self-contained HTML document. Reply with the HTML only.";
@@ -99,7 +104,21 @@ public final class CampaignPlanner {
         return brief.words() + "\n\nDesign the picture template for the theme \u201c" + theme + "\u201d: one HTML document,"
                 + " 1080 by 1080 pixels, its own <style> only (no script, no outside images; Google Fonts may be linked)."
                 + " Bold and readable, on-brand colours. Put these placeholders where the words go, exactly as written:"
-                + " {{HEADLINE}} (large), {{LINE}} (smaller, under it) and {{BRAND}} (the business name, small).";
+                + " {{HEADLINE}} (large), {{LINE}} (smaller, under it) and {{BRAND}} (the business name, small)."
+                + (hasPhotos(brief) ? " Also show the product photo large and clear, as <img src=\"{{PHOTO}}\"> with"
+                + " object-fit:cover in a fixed-size box; the words must stay readable beside or over it." : "");
+    }
+
+    /** A seat whose id starts with this is a network the person posts on from its app (Instagram, LinkedIn). */
+    public static final String HANDOFF = "handoff:";
+
+    static boolean hasPhotos(Campaign.Brief b) {
+        for (Product p : b.products) {
+            if (!p.photo.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The most characters a post may have on a network (X's limit; the others kept readable). */
@@ -112,6 +131,8 @@ public final class CampaignPlanner {
         int day;
         int minute;
         String account, theme, angle;
+        /** The product it shows (index into the brief's products), or -1. */
+        int product = -1;
     }
 
     /** The outline as the brain wrote it, checked. */
@@ -141,6 +162,11 @@ public final class CampaignPlanner {
 
     /** The outline, keeping only what checks out. Null when the reply holds no usable slot. */
     static Outline outline(String reply, List<Seat> seats, int days, int perDay) {
+        return outline(reply, seats, days, perDay, 0);
+    }
+
+    /** As above, for a brief with {@code products} products (a slot may name one, P1 to Pn). */
+    static Outline outline(String reply, List<Seat> seats, int days, int perDay, int products) {
         Map<String, Object> m = json(reply);
         if (m == null) {
             return null;
@@ -170,6 +196,12 @@ public final class CampaignPlanner {
             slot.account = MiniJson.str(s.get("account"), "");
             slot.theme = clip(MiniJson.str(s.get("theme"), ""), 80);
             slot.angle = clip(MiniJson.str(s.get("angle"), ""), 200);
+            java.util.regex.Matcher pm = java.util.regex.Pattern.compile("(?i)^\\s*p?(\\d{1,3})\\s*$")
+                    .matcher(MiniJson.str(s.get("product"), String.valueOf((long) MiniJson.num(s.get("product"), 0))));
+            slot.product = pm.matches() ? Integer.parseInt(pm.group(1)) - 1 : -1;
+            if (slot.product >= products) {
+                slot.product = -1; // a product that isn't in the brief
+            }
             if (slot.day < 1 || slot.day > days || slot.minute < 0 || !ids.contains(slot.account) || slot.angle.isEmpty()) {
                 continue; // a day past the end, a time that doesn't exist, an account not chosen
             }
@@ -237,10 +269,34 @@ public final class CampaignPlanner {
             + "p{font-size:44px;margin:0;opacity:.9}b{position:absolute;bottom:72px;font-size:34px;opacity:.85}</style></head>"
             + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></body></html>";
 
+    /** The card for a post that shows a product photo, when the theme's template has no place for one. */
+    static final String CARD_PHOTO = "<!doctype html><html><head><style>body{margin:0;width:1080px;height:1080px;"
+            + "position:relative;overflow:hidden;background:#140b33;color:#fff;font-family:sans-serif}"
+            + "img{position:absolute;inset:0;width:1080px;height:1080px;object-fit:cover}"
+            + ".s{position:absolute;left:0;right:0;bottom:0;padding:72px 80px 64px;background:linear-gradient(transparent,"
+            + "rgba(20,11,51,.92) 38%)}h1{font-size:84px;line-height:1.05;margin:0 0 20px}p{font-size:40px;margin:0 0 28px;"
+            + "opacity:.92}b{font-size:32px;opacity:.85}</style></head><body><img src=\"{{PHOTO}}\"><div class=\"s\">"
+            + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p><b>{{BRAND}}</b></div></body></html>";
+
     /** The template with this post's words in it (as text: nothing the brain wrote becomes markup). */
     static String fill(String template, String headline, String line, String brand) {
+        return fill(template, headline, line, brand, "");
+    }
+
+    /**
+     * As above, with the photo of product {@code photoId} ("" for none) in the template's {@code {{PHOTO}}} place, or
+     * on the photo card when the template has none. The photo itself goes in when the picture is drawn
+     * ({@link Catalog#inline}).
+     */
+    static String fill(String template, String headline, String line, String brand, String photoId) {
         String t = template == null || template.isEmpty() ? CARD : template;
-        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", esc(brand));
+        boolean photo = photoId != null && !photoId.isEmpty();
+        if (photo && !t.contains("{{PHOTO}}")) {
+            t = CARD_PHOTO;
+        }
+        String src = photo ? Catalog.PHOTO + Catalog.safe(photoId) : Catalog.BLANK;
+        return t.replace("{{HEADLINE}}", esc(headline)).replace("{{LINE}}", esc(line)).replace("{{BRAND}}", esc(brand))
+                .replace("{{PHOTO}}", src);
     }
 
     static String esc(String s) {
@@ -282,7 +338,7 @@ public final class CampaignPlanner {
         c.perDay = Math.max(1, Math.min(MOST_PER_DAY, c.perDay));
         say(progress, "Planning the campaign");
         String reply = brain.ask(OUTLINE_SYSTEM, outlinePrompt(c.brief, seats, c.days, c.perDay), 4000);
-        Outline o = outline(reply, seats, c.days, c.perDay);
+        Outline o = outline(reply, seats, c.days, c.perDay, c.brief.products.size());
         if (o == null) {
             return reply == null ? "The brain didn't answer." : "The brain's plan couldn't be read. Try again.";
         }
@@ -312,7 +368,8 @@ public final class CampaignPlanner {
             for (int at = 0; at < o.slots.size(); at += BATCH) {
                 final List<String[]> part = new ArrayList<String[]>();
                 for (Slot slot : o.slots.subList(at, Math.min(o.slots.size(), at + BATCH))) {
-                    part.add(new String[]{network.get(slot.account), slot.theme, slot.angle});
+                    part.add(new String[]{network.get(slot.account), slot.theme, slot.angle
+                            + (slot.product >= 0 ? " (shows P" + (slot.product + 1) + ": " + c.brief.products.get(slot.product).name + ")" : "")});
                 }
                 asked.add(part);
                 batches.add(pool.submit(() -> posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 3500), part)));
@@ -350,7 +407,12 @@ public final class CampaignPlanner {
                     it.network = network.get(slot.account);
                     it.theme = slot.theme;
                     it.text = WhatsApp.withLink(p[0], c.brief.chat(), maxChars(it.network));
-                    it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand);
+                    Product shown = slot.product >= 0 ? c.brief.products.get(slot.product) : null;
+                    it.product = shown == null ? "" : shown.id;
+                    it.handoff = slot.account.startsWith(HANDOFF);
+                    it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand,
+                            shown == null || shown.photo.isEmpty() ? "" : shown.id);
+                    it.risk = PlatformRules.said(PlatformRules.check(it.network, it.text + "\n" + p[1] + "\n" + p[2]));
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }

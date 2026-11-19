@@ -33,8 +33,14 @@ final class SocialCampaigns {
             a.note("Planning a campaign needs a brain: choose an API model or a downloaded one, then try again.");
             return;
         }
-        final List<CampaignPlanner.Seat> seats = seats(c);
+        final List<CampaignPlanner.Seat> seats = seats(c, true);
         final android.content.Context ctx = a.getApplicationContext();
+        try {
+            // what earlier campaigns showed works, for the brain to lean on
+            c.brief.lessons = CampaignRunner.results(ctx).lessons(CampaignRunner.store(ctx).all(), java.util.TimeZone.getDefault());
+        } catch (RuntimeException ignored) {
+            c.brief.lessons = "";
+        }
         final String title = clip(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer);
         c.name = title;
         try {
@@ -99,9 +105,17 @@ final class SocialCampaigns {
         ai.ibiko.chat.ui.CampaignReview.show(a, c, null);
     }
 
-    /** The chosen accounts, as the planner sees them (only signed-in accounts on networks Ibiko posts to itself). */
-    private List<CampaignPlanner.Seat> seats(Campaign c) {
+    /**
+     * The chosen accounts, as the planner sees them (only signed-in accounts on networks Ibiko posts to itself), and
+     * with {@code handoff} the networks the person posts on from the app (Instagram, LinkedIn).
+     */
+    private List<CampaignPlanner.Seat> seats(Campaign c, boolean handoff) {
         List<CampaignPlanner.Seat> out = new ArrayList<CampaignPlanner.Seat>();
+        if (handoff) {
+            for (String n : c.handoff) {
+                out.add(new CampaignPlanner.Seat(CampaignPlanner.HANDOFF + n, n, CampaignRunner.shown(n) + " (you tap Share)"));
+            }
+        }
         ai.ibiko.social.SocialAccounts all = ai.ibiko.social.SocialWeb.accounts(a);
         for (String id : c.accounts) {
             ai.ibiko.social.SocialAccounts.Account acc = all.get(id);
@@ -144,8 +158,8 @@ final class SocialCampaigns {
         }
         final java.util.List<Campaign> due = new ArrayList<Campaign>();
         for (Campaign c : CampaignRunner.store(a).all()) {
-            if (c.status == Campaign.Status.ACTIVE && (c.engage || c.prospect)) {
-                due.add(c);
+            if (c.status == Campaign.Status.ACTIVE) {
+                due.add(c); // results are counted for every running campaign; comments and leads when asked
             }
         }
         if (due.isEmpty() || a.model == null || !(a.model.ready() || a.model.remoteOn()) || a.model.working()) {
@@ -156,6 +170,7 @@ final class SocialCampaigns {
         final android.content.Context ctx = a.getApplicationContext();
         new Thread(() -> {
             try {
+                ai.ibiko.social.campaign.LeadSender.remind(ctx, System.currentTimeMillis());
                 int found = 0;
                 for (Campaign c : due) {
                     found += round(ctx, c);
@@ -175,10 +190,11 @@ final class SocialCampaigns {
 
     /** One campaign's round; how many leads now wait for the person. */
     private int round(android.content.Context ctx, Campaign c) {
-        List<CampaignPlanner.Seat> seats = seats(c);
+        List<CampaignPlanner.Seat> seats = seats(c, false);
         if (seats.isEmpty()) {
             return 0;
         }
+        count(ctx, c, seats);
         ai.ibiko.social.campaign.LeadStore store = ai.ibiko.social.campaign.LeadSender.store(ctx);
         ai.ibiko.social.campaign.Prospector.Reader reader = reader(ctx);
         CampaignPlanner.Brain brain = (system, prompt, tokens) -> a.model.task(system, prompt, tokens, null);
@@ -208,6 +224,48 @@ final class SocialCampaigns {
         return waiting;
     }
 
+    /** Days a post is still worth counting responses for (notifications pages show the recent ones). */
+    static final long COUNT_DAYS_MS = 14 * 24 * 3_600_000L;
+
+    /**
+     * Reads each account's notifications and counts how people responded to the campaign's posts from it; once a week
+     * the campaign's results are given in a notification.
+     */
+    private static void count(android.content.Context ctx, Campaign c, List<CampaignPlanner.Seat> seats) {
+        ai.ibiko.social.campaign.Results results = CampaignRunner.results(ctx);
+        ai.ibiko.social.campaign.Prospector.Reader reader = reader(ctx);
+        long now = System.currentTimeMillis();
+        boolean changed = false;
+        for (CampaignPlanner.Seat s : seats) {
+            List<Campaign.Item> posted = new ArrayList<Campaign.Item>();
+            for (Campaign.Item it : c.items) {
+                if (it.state == Campaign.State.POSTED && !it.handoff && s.id.equals(it.account) && now - it.at < COUNT_DAYS_MS) {
+                    posted.add(it);
+                }
+            }
+            if (!posted.isEmpty()) {
+                changed |= results.read(reader.activity(s.id), posted);
+            }
+        }
+        long last = results.summarizedAt(c.id);
+        if (last == 0) {
+            results.summarized(c.id, now); // the first week starts now
+            changed = true;
+        } else if (now - last >= 7 * 24 * 3_600_000L) {
+            results.summarized(c.id, now);
+            changed = true;
+            ai.ibiko.llm.ReplyNotice.show(ctx, "ibiko", "This week for “" + c.name + "”:\n"
+                    + results.summary(c, java.util.TimeZone.getDefault()));
+        }
+        if (changed) {
+            try {
+                results.save();
+            } catch (java.io.IOException ignored) {
+                // counted again next round
+            }
+        }
+    }
+
     private static void keep(ai.ibiko.social.campaign.LeadStore store, ai.ibiko.social.campaign.Lead l) {
         try {
             store.put(l);
@@ -235,6 +293,18 @@ final class SocialCampaigns {
                 final String url = acc.platform == ai.ibiko.social.Platform.X ? "https://x.com/notifications/mentions"
                         : "https://m.facebook.com/notifications.php";
                 return ai.ibiko.social.campaign.LeadSender.as(ctx, acc, () -> ai.ibiko.social.SocialWeb.open(ctx, url, 6000), null);
+            }
+
+            @Override
+            public String activity(String account) {
+                final ai.ibiko.social.SocialAccounts.Account acc = ai.ibiko.social.SocialWeb.accounts(ctx).get(account);
+                if (acc == null) {
+                    return null;
+                }
+                // every notification (likes and shares too), not only mentions
+                final String url = acc.platform == ai.ibiko.social.Platform.X ? "https://x.com/notifications"
+                        : "https://m.facebook.com/notifications.php";
+                return ai.ibiko.social.campaign.LeadSender.as(ctx, acc, () -> ai.ibiko.social.SocialWeb.open(ctx, url, 8000), null);
             }
         };
     }

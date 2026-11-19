@@ -82,7 +82,13 @@ public final class LeadStore {
         while (all.size() > MOST) {
             Lead drop = null;
             for (Lead o : all) {
-                if (o.state != Lead.State.NEW && (drop == null || o.at < drop.at)) {
+                if (o.state != Lead.State.NEW && o.state != Lead.State.SENT && (drop == null || o.at < drop.at)) {
+                    drop = o; // a dismissed or failed one first: a pitched person is followed up on
+                }
+            }
+            for (Lead o : all) {
+                if (drop == null && o.state == Lead.State.SENT || drop != null && drop.state == Lead.State.SENT
+                        && o.state == Lead.State.SENT && o.at < drop.at) {
                     drop = o;
                 }
             }

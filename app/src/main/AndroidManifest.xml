@@ -177,10 +177,14 @@
             android:exported="false"
             android:theme="@style/Theme.Ibiko" />
         <activity
-            android:name=".chat.ui.WhatsAppShareActivity"
+            android:name=".chat.ui.PostShareActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".chat.ui.CatalogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Ibiko" />
         <activity
             android:name=".chat.ui.CampaignFormActivity"
             android:exported="false"

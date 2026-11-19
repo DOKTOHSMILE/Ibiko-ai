@@ -37,6 +37,16 @@ public final class CampaignRunner extends BroadcastReceiver {
         return new CampaignStore(new File(c.getFilesDir(), "campaigns"));
     }
 
+    /** How people responded to the campaigns' posts. */
+    public static Results results(Context c) {
+        return new Results(new File(c.getFilesDir(), "campaigns"));
+    }
+
+    /** The business's products and their photos. */
+    public static Catalog catalog(Context c) {
+        return new Catalog(new File(c.getFilesDir(), "catalog"));
+    }
+
     @Override
     public void onReceive(Context c, Intent intent) {
         final PendingResult later = goAsync(); // posting waits for the page: off the main thread
@@ -44,6 +54,9 @@ public final class CampaignRunner extends BroadcastReceiver {
         new Thread(() -> {
             try {
                 run(app, System.currentTimeMillis());
+                LeadSender.remind(app, System.currentTimeMillis()); // pitches waiting for a follow-up
+            } catch (RuntimeException e) {
+                // the next alarm tries again
             } finally {
                 later.finish();
             }
@@ -59,7 +72,6 @@ public final class CampaignRunner extends BroadcastReceiver {
             if (camp.status != Campaign.Status.ACTIVE) {
                 continue;
             }
-            boolean changed = false;
             for (Campaign.Item it : camp.planned()) {
                 if (it.at > now) {
                     break; // the rest are later
@@ -68,31 +80,85 @@ public final class CampaignRunner extends BroadcastReceiver {
                     more = true; // this account posted this run: its next one waits for the next run
                     continue;
                 }
+                // the person may have edited, let through or taken out this post since the run began: as it is now
+                Campaign latest = store(c).get(camp.id);
+                Campaign.Item fresh = latest == null ? null : item(latest, it.id);
+                if (latest == null || latest.status != Campaign.Status.ACTIVE) {
+                    break; // deleted or paused meanwhile
+                }
+                if (fresh == null || fresh.state != Campaign.State.PLANNED) {
+                    continue;
+                }
+                it.text = fresh.text;
+                it.riskOk = fresh.riskOk;
                 usedThisRun.add(it.account);
                 postOne(c, camp, it, now);
-                changed = true;
-                if (camp.whatsappShare && it.state == Campaign.State.POSTED) {
-                    ai.ibiko.chat.ui.WhatsAppShareActivity.offer(c, camp, it);
+                keep(c, camp.id, it);
+                if (camp.whatsappShare && it.state == Campaign.State.POSTED && !it.handoff) {
+                    ai.ibiko.chat.ui.PostShareActivity.offer(c, camp, it);
                 }
             }
-            if (camp.planned().isEmpty()) {
-                camp.status = Campaign.Status.DONE;
-                changed = true;
-                tell(c, camp.id.hashCode(), camp.name + ": the campaign is done", camp.progress());
-            }
-            if (changed) {
+            Campaign latest = store(c).get(camp.id);
+            if (latest != null && latest.status == Campaign.Status.ACTIVE && latest.planned().isEmpty()) {
+                latest.status = Campaign.Status.DONE;
                 try {
-                    store.put(camp);
+                    store(c).put(latest);
                 } catch (IOException e) {
-                    // kept in memory for this run; the next run tries again
+                    // marked done next run
                 }
+                tell(c, camp.id.hashCode(), camp.name + ": the campaign is done", latest.progress());
             }
         }
         arm(c, more ? now + GAP_MS : 0);
     }
 
+    static Campaign.Item item(Campaign c, String id) {
+        for (Campaign.Item i : c.items) {
+            if (i.id.equals(id)) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * What happened to one post, saved into the campaign as it is now (not this run's copy, so the person's edits to
+     * other posts made meanwhile are kept).
+     */
+    static void keep(Context c, String campaign, Campaign.Item done) {
+        CampaignStore st = store(c);
+        Campaign latest = st.get(campaign);
+        Campaign.Item it = latest == null ? null : item(latest, done.id);
+        if (it == null) {
+            return; // the campaign or the post was removed meanwhile
+        }
+        it.state = done.state;
+        it.result = done.result;
+        it.at = done.at;
+        it.imagePath = done.imagePath;
+        try {
+            st.put(latest);
+        } catch (IOException e) {
+            // posted all the same; the action log has it
+        }
+    }
+
     /** Posts one item from its own account and records what happened. */
     static void postOne(Context c, Campaign camp, Campaign.Item it, long now) {
+        if (!it.riskOk && PlatformRules.banned(it.network, it.text)) {
+            // the network bans what it says (it may have been edited since the review): held, not posted
+            fail(c, camp, it, "held back: " + PlatformRules.said(PlatformRules.check(it.network, it.text))
+                    + ". Edit it, or choose to post it anyway, under Social accounts › Campaigns.");
+            return;
+        }
+        if (it.handoff) {
+            // a network Ibiko can't post on itself: the post, its picture drawn, is offered to the person to share
+            picture(c, camp, it);
+            ai.ibiko.chat.ui.PostShareActivity.offerDue(c, camp, it);
+            it.state = Campaign.State.POSTED;
+            it.result = "Offered to you to share on " + shown(it.network) + " (you tap Share)";
+            return;
+        }
         SocialAccounts accounts = SocialWeb.accounts(c);
         SocialAccounts.Account a = accounts.get(it.account);
         if (a == null || !a.signedIn) {
@@ -155,11 +221,24 @@ public final class CampaignRunner extends BroadcastReceiver {
             return kept;
         }
         File out = new File(new File(new File(c.getFilesDir(), "campaigns"), safe(camp.id)), safe(it.id) + ".jpg");
-        File made = CampaignImage.render(c, it.imageHtml, out);
+        File made = CampaignImage.render(c, catalog(c).inline(it.imageHtml), out);
         if (made != null) {
             it.imagePath = made.getPath();
         }
         return made;
+    }
+
+    /** A network's name for the person ("instagram" → "Instagram"). */
+    public static String shown(String network) {
+        String n = network == null ? "" : network.trim().toLowerCase(java.util.Locale.ROOT);
+        switch (n) {
+            case "x":
+                return "X";
+            case "linkedin":
+                return "LinkedIn";
+            default:
+                return n.isEmpty() ? "" : Character.toUpperCase(n.charAt(0)) + n.substring(1);
+        }
     }
 
     static String safe(String s) {

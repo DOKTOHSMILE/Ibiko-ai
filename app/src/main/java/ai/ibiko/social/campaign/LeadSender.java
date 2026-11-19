@@ -25,12 +25,50 @@ public final class LeadSender {
         return new LeadStore(new File(c.getFilesDir(), "campaigns"));
     }
 
+    /**
+     * Reminds the person of pitches that went out and haven't moved on (still Contacted or Talking after
+     * {@link Lead#FOLLOW_UP_MS}): one notification for all of them. Each lead is reminded twice at most.
+     */
+    public static synchronized int remind(Context c, long now) {
+        LeadStore store = store(c);
+        java.util.List<Lead> due = new java.util.ArrayList<Lead>();
+        for (Lead l : store.all()) {
+            if (l.dueFollowUp(now)) {
+                due.add(l);
+            }
+        }
+        if (due.isEmpty()) {
+            return 0;
+        }
+        StringBuilder who = new StringBuilder();
+        for (Lead l : due) {
+            l.followUpAt = l.remindedAt > 0 ? 0 : now + Lead.FOLLOW_UP_MS; // a second reminder, then no more
+            l.remindedAt = now;
+            try {
+                store.put(l);
+            } catch (IOException ignored) {
+                // reminded again next time
+            }
+            if (who.length() < 300) {
+                String s = l.snippet.replaceAll("\\s+", " ").trim();
+                who.append("• ").append(s.length() > 70 ? s.substring(0, 70) + "…" : s).append('\n');
+            }
+        }
+        ai.ibiko.llm.ReplyNotice.show(c, "ibiko", due.size() + (due.size() == 1 ? " person" : " people")
+                + " you pitched haven't moved on in 2 days. A short, friendly follow-up often wins the sale."
+                + " Open Social accounts › Leads to follow up or mark how it went.\n" + who.toString().trim());
+        return due.size();
+    }
+
     /** Sends {@code lead} (its reply as it stands, edited or not) and keeps what happened. */
     public static synchronized SocialPoster.Result send(Context c, Lead lead) {
         SocialPoster.Result r = post(c, lead);
         lead.state = r.posted ? Lead.State.SENT : Lead.State.FAILED;
         lead.result = r.said;
         lead.sentAt = System.currentTimeMillis();
+        if (r.posted && lead.kind == Lead.Kind.LEAD) {
+            lead.moveTo(Lead.Stage.CONTACTED, lead.sentAt); // a reminder to follow up if nothing comes of it
+        }
         try {
             store(c).put(lead);
         } catch (IOException ignored) {

@@ -21,7 +21,10 @@ import ai.ibiko.social.SocialWeb;
 import ai.ibiko.social.campaign.Campaign;
 import ai.ibiko.social.campaign.CampaignDraft;
 import ai.ibiko.social.campaign.CampaignPlanner;
+import ai.ibiko.social.campaign.CampaignRunner;
 import ai.ibiko.social.campaign.LeadSender;
+import ai.ibiko.social.campaign.PlatformRules;
+import ai.ibiko.social.campaign.Product;
 import ai.ibiko.social.campaign.WhatsApp;
 
 /**
@@ -36,7 +39,11 @@ public final class CampaignFormActivity extends AppCompatActivity {
     private final List<SocialAccounts.Account> usable = new ArrayList<SocialAccounts.Account>();
     private final List<CheckBox> picks = new ArrayList<CheckBox>();
     private EditText business, offer, audience, goal, tone, link, whatsapp, days, perDay;
-    private CheckBox engage, prospect, autoPitch, whatsappShare;
+    private CheckBox engage, prospect, autoPitch, whatsappShare, instagram, linkedin;
+    private LinearLayout productsBox;
+    /** The products ticked (by id): kept while the list is drawn again after a visit to Products. */
+    private final java.util.Set<String> chosen = new java.util.LinkedHashSet<String>();
+    private boolean drawn;
     private int nextId = ID_BASE;
 
     @Override
@@ -88,10 +95,29 @@ public final class CampaignFormActivity extends AppCompatActivity {
 
         box.addView(Ui.text(this, "Post from", 15, Ui.TEXT, true), Ui.wide(this, 20));
         if (usable.isEmpty()) {
-            box.addView(Ui.text(this, "Sign in to a Facebook or X account on Social accounts first.", 14, Ui.SUB, false), Ui.wide(this, 4));
+            box.addView(Ui.text(this, "Ibiko posts by itself from Facebook and X accounts signed in on Social accounts. None is"
+                    + " yet; you can still plan posts for Instagram or LinkedIn below.", 14, Ui.SUB, false), Ui.wide(this, 4));
         }
         for (SocialAccounts.Account a : usable) {
             picks.add(check(box, a.label + " (" + a.platform.shown + ")", a.inUse));
+        }
+        box.addView(Ui.text(this, "Also plan posts for these, which you share from their app when each is due (Ibiko"
+                + " notifies you, opens the app with the picture and copies the words):", 13, Ui.SUB, false), Ui.wide(this, 8));
+        instagram = check(box, "Instagram", false);
+        linkedin = check(box, "LinkedIn", false);
+
+        box.addView(Ui.text(this, "Products to feature", 15, Ui.TEXT, true), Ui.wide(this, 20));
+        productsBox = new LinearLayout(this);
+        productsBox.setOrientation(LinearLayout.VERTICAL);
+        box.addView(productsBox);
+        TextView manage = Ui.text(this, "Add or change products", 14, Ui.ACCENT, false);
+        manage.setMinHeight(Ui.dp(this, 48));
+        manage.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.press(manage);
+        manage.setOnClickListener(v -> startActivity(new android.content.Intent(this, CatalogActivity.class)));
+        box.addView(manage);
+        if (savedInstanceState != null && savedInstanceState.getStringArrayList("chosen") != null) {
+            chosen.addAll(savedInstanceState.getStringArrayList("chosen"));
         }
 
         box.addView(Ui.text(this, "How long and how often", 15, Ui.TEXT, true), Ui.wide(this, 20));
@@ -111,6 +137,8 @@ public final class CampaignFormActivity extends AppCompatActivity {
         autoPitch = check(box, "Send those replies without asking (up to " + LeadSender.MOST_AUTO_PITCHES + " a day)", false);
         prospect.setOnCheckedChangeListener((b, on) -> autoPitch.setEnabled(on));
         whatsappShare = check(box, "When a post goes out, offer it to share to my WhatsApp Status or groups", false);
+        drawn = true;
+        products();
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -134,6 +162,47 @@ public final class CampaignFormActivity extends AppCompatActivity {
 
         setContentView(root);
         Ui.fitInsets(root);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (drawn) {
+            products(); // back from Products: new ones show, ticks stay
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putStringArrayList("chosen", new java.util.ArrayList<String>(chosen));
+    }
+
+    /** The catalog's products, each to tick; a line to add some when there are none. */
+    private void products() {
+        productsBox.removeAllViews();
+        java.util.List<Product> all = CampaignRunner.catalog(this).all();
+        if (all.isEmpty()) {
+            productsBox.addView(Ui.text(this, "No products yet. Add them with their photos and prices, and the posts show the"
+                    + " real thing at the real price.", 13, Ui.SUB, false), Ui.wide(this, 4));
+            return;
+        }
+        for (final Product p : all) {
+            CheckBox cb = new CheckBox(this);
+            cb.setSaveEnabled(false); // drawn again on return: the ticks live in "chosen"
+            cb.setText(p.name + (p.price.isEmpty() ? "" : " · " + p.price));
+            cb.setTextColor(Ui.TEXT);
+            cb.setMinHeight(Ui.dp(this, 48));
+            cb.setChecked(chosen.contains(p.id));
+            cb.setOnCheckedChangeListener((b, on) -> {
+                if (on) {
+                    chosen.add(p.id);
+                } else {
+                    chosen.remove(p.id);
+                }
+            });
+            productsBox.addView(cb);
+        }
     }
 
     /** A named box for long answers: starts {@code lines} tall and grows as the words do. */
@@ -205,6 +274,19 @@ public final class CampaignFormActivity extends AppCompatActivity {
         c.prospect = prospect.isChecked();
         c.autoPitch = prospect.isChecked() && autoPitch.isChecked();
         c.whatsappShare = whatsappShare.isChecked();
+        if (instagram.isChecked()) {
+            c.handoff.add("instagram");
+        }
+        if (linkedin.isChecked()) {
+            c.handoff.add("linkedin");
+        }
+        ai.ibiko.social.campaign.Catalog catalog = CampaignRunner.catalog(this);
+        for (String id : chosen) {
+            Product p = catalog.get(id);
+            if (p != null) {
+                c.brief.products.add(p);
+            }
+        }
         if (!c.brief.whatsapp.isEmpty() && WhatsApp.link(c.brief.whatsapp, null) == null) {
             whatsapp.setError("Write the number with its country code, e.g. +234 803 123 4567, or paste a wa.me link");
             whatsapp.requestFocus();
@@ -215,10 +297,37 @@ public final class CampaignFormActivity extends AppCompatActivity {
             business.requestFocus();
             return; // what was typed stays
         }
-        if (c.accounts.isEmpty()) {
-            Toast.makeText(this, "Choose at least one account to post from.", Toast.LENGTH_LONG).show();
+        if (c.accounts.isEmpty() && c.handoff.isEmpty()) {
+            Toast.makeText(this, "Choose at least one account to post from, or Instagram or LinkedIn.", Toast.LENGTH_LONG).show();
             return;
         }
+        java.util.List<String> networks = new java.util.ArrayList<String>(c.handoff);
+        for (int i = 0; i < picks.size(); i++) {
+            if (picks.get(i).isChecked()) {
+                networks.add(usable.get(i).platform == Platform.X ? "x" : "facebook");
+            }
+        }
+        java.util.List<PlatformRules.Flag> flags = PlatformRules.brief(c.brief, networks);
+        if (flags.isEmpty()) {
+            hand(c);
+            return;
+        }
+        StringBuilder why = new StringBuilder();
+        for (PlatformRules.Flag f : flags) {
+            why.append("• ").append(Character.toUpperCase(f.why.charAt(0))).append(f.why.substring(1)).append(".\n");
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Before you plan")
+                .setMessage(why + "\nPosts that break these rules can be taken down and the account restricted, which stops every"
+                        + " campaign on it. Ibiko will keep those items out of posts there and build them around your other"
+                        + " products, and flag any post that still breaks a rule for you to check. WhatsApp Status is yours"
+                        + " to share as you see fit.")
+                .setPositiveButton("Plan it", (d, w) -> hand(c))
+                .setNegativeButton("Change the brief", null)
+                .show();
+    }
+
+    private void hand(Campaign c) {
         CampaignDraft.offer(c);
         setResult(RESULT_OK);
         finish();
