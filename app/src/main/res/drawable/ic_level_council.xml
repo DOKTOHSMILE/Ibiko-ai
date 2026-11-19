@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ibiko icon: Council, every model thinks and the strongest judges (three linked thinkers), two-tone in the app's
+     colour (@color/icon_brand). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="18dp" android:height="18dp"
+    android:viewportWidth="960" android:viewportHeight="960">
+    <path android:fillColor="@color/icon_brand" android:fillAlpha="0.26"
+        android:pathData="M480,170m-110,0a110,110 0,1 1,220 0a110,110 0,1 1,-220 0M220,700m-110,0a110,110 0,1 1,220 0a110,110 0,1 1,-220 0M740,700m-110,0a110,110 0,1 1,220 0a110,110 0,1 1,-220 0" />
+    <path android:strokeColor="@color/icon_brand" android:strokeWidth="56" android:strokeLineJoin="round"
+        android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M480,170m-110,0a110,110 0,1 1,220 0a110,110 0,1 1,-220 0M220,700m-110,0a110,110 0,1 1,220 0a110,110 0,1 1,-220 0M740,700m-110,0a110,110 0,1 1,220 0a110,110 0,1 1,-220 0M420,268L282,600M540,268L678,600M330,700L630,700" />
+</vector>

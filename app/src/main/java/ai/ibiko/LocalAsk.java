@@ -338,8 +338,21 @@ final class LocalAsk {
                     ? act.model.thinkers() : java.util.Collections.<ai.ibiko.llm.ThinkTwo.Thinker>emptyList();
             if (!thinkers.isEmpty() && (carry || ai.ibiko.llm.ThinkTwo.worth(english))) {
                 final int room = Math.max(length, 800);
-                raw = ai.ibiko.llm.ThinkTwo.run((t, sys, prompt) -> act.model.askThinker(t, sys, prompt, room),
-                        thinkers, subject, context, system, () -> !act.alive(id));
+                act.handler.post(() -> {
+                    if (act.alive(id) && act.chatPane != null) {
+                        act.chatPane.brainstorm(true); // Council at work: its own words and colour on the live line
+                    }
+                });
+                try {
+                    raw = ai.ibiko.llm.ThinkTwo.run((t, sys, prompt) -> act.model.askThinker(t, sys, prompt, room),
+                            thinkers, subject, context, system, () -> !act.alive(id));
+                } finally {
+                    act.handler.post(() -> {
+                        if (act.chatPane != null) {
+                            act.chatPane.brainstorm(false);
+                        }
+                    });
+                }
                 if (raw != null) {
                     sink.onText(raw);
                 }

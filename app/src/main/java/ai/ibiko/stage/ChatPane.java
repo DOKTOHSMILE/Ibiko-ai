@@ -745,14 +745,58 @@ public final class ChatPane extends LinearLayout {
         return liveBlock;
     }
 
+    /** Council at work: the live line says Brainstorming and pulses in its own colour until the round ends. */
+    private boolean brainstorming;
+    private android.animation.ValueAnimator pulse;
+    private int liveColor;
+
+    public void brainstorm(boolean on) {
+        if (brainstorming == on) {
+            return;
+        }
+        brainstorming = on;
+        if (pulse != null) {
+            pulse.cancel();
+            pulse = null;
+        }
+        if (liveNow != null && !on && liveColor != 0) {
+            liveNow.setTextColor(liveColor);
+        }
+        showLive();
+    }
+
+    private void pulseNow() {
+        if (liveNow == null || pulse != null) {
+            return;
+        }
+        if (liveColor == 0) {
+            liveColor = liveNow.getCurrentTextColor();
+        }
+        pulse = android.animation.ValueAnimator.ofObject(new android.animation.ArgbEvaluator(),
+                getContext().getColor(R.color.accent), getContext().getColor(R.color.brainstorm));
+        pulse.setDuration(1100);
+        pulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        pulse.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+        pulse.addUpdateListener(an -> {
+            if (liveNow != null) {
+                liveNow.setTextColor((Integer) an.getAnimatedValue());
+            }
+        });
+        pulse.start();
+    }
+
     /** The live line's words, the face and the timer. No new views. */
     private void showLive() {
         if (liveNow == null) {
             return;
         }
-        String now = !steps.isEmpty() ? ai.ibiko.agent.StepDetail.words(steps.get(steps.size() - 1))
+        String now = brainstorming && steps.isEmpty() ? "Brainstorming"
+                : !steps.isEmpty() ? ai.ibiko.agent.StepDetail.words(steps.get(steps.size() - 1))
                 : thinkingText != null ? stripTimer(thinkingText) : "Working";
         type(now);
+        if (brainstorming) {
+            pulseNow();
+        }
         if (liveFace != null) {
             liveFace.setMood(moodNow());
         }

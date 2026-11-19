@@ -73,6 +73,8 @@ final class ThinkBar {
             boolean on = level > 0;
             think.setSelected(on);
             think.setText(tools.thinkLabel());
+            think.setCompoundDrawablesRelativeWithIntrinsicBounds(ai.ibiko.suit.ChatTools.ICONS[level], 0,
+                    R.drawable.ic_chevron_down, 0); // each level its own icon
             think.setTextColor(a.getColor(on ? R.color.accent : R.color.text_secondary));
             android.graphics.drawable.Drawable[] d = think.getCompoundDrawablesRelative();
             int tint = a.getColor(on ? R.color.accent : R.color.icon);
@@ -89,8 +91,9 @@ final class ThinkBar {
             int now = a.chatTools(a.stage == null ? "ibiko" : a.stage.agent()).think();
             androidx.appcompat.widget.PopupMenu menu = new androidx.appcompat.widget.PopupMenu(a, think);
             for (int i = 0; i < ai.ibiko.suit.ChatTools.LEVELS.length; i++) {
-                menu.getMenu().add(0, i, i, ai.ibiko.suit.ChatTools.LEVELS[i]);
+                menu.getMenu().add(0, i, i, ai.ibiko.suit.ChatTools.LEVELS[i]).setIcon(ai.ibiko.suit.ChatTools.ICONS[i]);
             }
+            menu.setForceShowIcon(true); // the icon beside each level, as on the button
             menu.getMenu().setGroupCheckable(0, true, true);
             android.view.MenuItem current = menu.getMenu().findItem(now);
             if (current != null) {

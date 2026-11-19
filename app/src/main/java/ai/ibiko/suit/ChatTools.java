@@ -147,6 +147,10 @@ public final class ChatTools {
     public static final String[] ABOUT = {"A direct answer, fast.", "Plans, checks and revises before answering (slower).",
             "Every model thinks it through, then the strongest judges and answers (slowest, uses several API calls)."};
 
+    /** Each level's icon: a bolt, stacked layers, three linked thinkers. */
+    public static final int[] ICONS = {ai.ibiko.R.drawable.ic_level_swift, ai.ibiko.R.drawable.ic_level_deep,
+            ai.ibiko.R.drawable.ic_level_council};
+
     /** A level's name (0, 1 or 2). */
     public static String levelName(int level) {
         return LEVELS[Math.max(0, Math.min(2, level))];
