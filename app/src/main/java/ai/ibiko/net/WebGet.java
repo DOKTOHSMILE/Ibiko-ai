@@ -15,18 +15,74 @@ public final class WebGet {
 
     public static final String AGENT = "Ibiko/0.23 (https://github.com/DOKTOHSMILE/Dvine-ai-frontend)";
 
+    /**
+     * Whether every address {@code host} names is on the public internet. A page Ibiko read, or the model, could ask
+     * for a page on the phone's own network (a router's admin page, a local server), so loopback, private, link-local,
+     * carrier-grade and unique-local addresses are refused. An address that can't be looked up is left to the
+     * connection itself, which fails on it.
+     */
+    static boolean publicHost(String host) {
+        if (host == null || host.isEmpty() || host.equalsIgnoreCase("localhost") || host.toLowerCase(java.util.Locale.US).endsWith(".local")) {
+            return false;
+        }
+        java.net.InetAddress[] all;
+        try {
+            all = java.net.InetAddress.getAllByName(host);
+        } catch (java.net.UnknownHostException | SecurityException e) {
+            return true;
+        }
+        for (java.net.InetAddress a : all) {
+            if (!publicAddress(a)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean publicAddress(java.net.InetAddress a) {
+        if (a.isLoopbackAddress() || a.isSiteLocalAddress() || a.isLinkLocalAddress() || a.isAnyLocalAddress()
+                || a.isMulticastAddress()) {
+            return false;
+        }
+        byte[] b = a.getAddress();
+        if (b.length == 4) {
+            int x = b[0] & 0xff, y = b[1] & 0xff;
+            return !(x == 100 && y >= 64 && y < 128) && x != 0; // carrier-grade NAT 100.64/10, and 0/8
+        }
+        return (b[0] & 0xfe) != 0xfc; // IPv6 unique-local fc00::/7
+    }
+
     public static byte[] get(String url, int timeoutMs, int maxBytes) {
         if (url == null || !url.startsWith("https://")) {
             return null;
         }
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(url).openConnection();
-            c.setConnectTimeout(timeoutMs);
-            c.setReadTimeout(timeoutMs);
-            c.setRequestProperty("User-Agent", AGENT);
-            if (c.getResponseCode() != 200) {
-                return null;
+            String at = url;
+            for (int hop = 0; ; hop++) {
+                if (!publicHost(new URL(at).getHost())) {
+                    return null; // a page or the model can't send Ibiko to the phone's own network
+                }
+                c = (HttpURLConnection) new URL(at).openConnection();
+                c.setInstanceFollowRedirects(false); // each hop is checked here: auto-follow skipped the check
+                c.setConnectTimeout(timeoutMs);
+                c.setReadTimeout(timeoutMs);
+                c.setRequestProperty("User-Agent", AGENT);
+                int status = c.getResponseCode();
+                String next = status >= 300 && status < 400 ? c.getHeaderField("Location") : null;
+                if (next != null && hop < 5) {
+                    URL to = new URL(new URL(at), next);
+                    c.disconnect();
+                    if (!"https".equalsIgnoreCase(to.getProtocol())) {
+                        return null;
+                    }
+                    at = to.toString();
+                    continue;
+                }
+                if (status != 200) {
+                    return null;
+                }
+                break;
             }
             try (InputStream in = c.getInputStream()) {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -95,8 +151,11 @@ public final class WebGet {
             String at = url;
             int status = 0;
             for (int hop = 0; ; hop++) {
+                if (!publicHost(new URL(at).getHost())) {
+                    return new Page(0, null, "that address is on this phone's own network, which Ibiko doesn't fetch");
+                }
                 c = (HttpURLConnection) new URL(at).openConnection();
-                c.setInstanceFollowRedirects(!withCookie);
+                c.setInstanceFollowRedirects(false); // every hop is checked here: auto-follow skipped the check above
                 c.setConnectTimeout(timeoutMs);
                 c.setReadTimeout(timeoutMs);
                 c.setRequestProperty("User-Agent", BROWSER);
@@ -106,7 +165,7 @@ public final class WebGet {
                     c.setRequestProperty("Cookie", cookie.replace("\r", "").replace("\n", ""));
                 }
                 status = c.getResponseCode();
-                String next = withCookie && status >= 300 && status < 400 ? c.getHeaderField("Location") : null;
+                String next = status >= 300 && status < 400 ? c.getHeaderField("Location") : null;
                 if (next == null || hop >= 5) {
                     break;
                 }

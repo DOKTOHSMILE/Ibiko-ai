@@ -19,7 +19,24 @@ public final class LocalModel {
     private volatile State state;
     private final java.util.concurrent.atomic.AtomicInteger epoch = new java.util.concurrent.atomic.AtomicInteger();
     private volatile String problem;
-    private long handle;
+    private volatile long handle;
+    /**
+     * Held only while the native engine is freed or told to stop: Stop (from any thread) read the handle and called
+     * nCancel without a lock, and a release in between (the app going to the background) freed the engine first, so
+     * the cancel wrote into freed memory. A reply never takes this lock, so Stop still reaches a running reply.
+     */
+    private final Object nativeGuard = new Object();
+
+    /** Frees the engine (if one is loaded) under {@link #nativeGuard}. */
+    private void freeNative() {
+        synchronized (nativeGuard) {
+            long h = handle;
+            handle = 0;
+            if (h != 0) {
+                NativeLlm.nFree(h);
+            }
+        }
+    }
     private final List<String[]> history = new ArrayList<String[]>();
     /** How many exchanges the model holds itself; older ones reach it as the chat's notes record. */
     public static final int HISTORY_TURNS = 6;
@@ -235,46 +252,63 @@ public final class LocalModel {
         bench = models == null ? new ArrayList<String>() : new ArrayList<String>(models);
     }
 
-    /** The selected model, then up to two of a similar size from {@link #bench}. */
-    public List<String> ring() {
-        String selected = "";
+    /**
+     * Every API model that can think in Think 2: each provider's model (and its fast model), and the other models of
+     * the first provider ({@link #bench}), the selected one first, each once, at most {@link ThinkTwo#MOST}.
+     */
+    public List<ThinkTwo.Thinker> thinkers() {
+        List<ThinkTwo.Thinker> out = new ArrayList<ThinkTwo.Thinker>();
+        java.util.Set<String> seen = new java.util.HashSet<String>();
         List<Slot> now = chain;
-        if (!now.isEmpty() && now.get(0).brain != null && now.get(0).brain.model != null) {
-            selected = now.get(0).brain.model;
+        for (int i = 0; i < now.size(); i++) {
+            Slot sl = now.get(i);
+            if (sl.brain != null && sl.brain.model != null && seen.add(i + ":" + sl.brain.model)) {
+                out.add(new ThinkTwo.Thinker(i, sl.brain.model));
+            }
         }
-        return ModelRing.choose(selected, bench);
+        if (!now.isEmpty()) {
+            for (String m : bench) {
+                if (m != null && !m.trim().isEmpty() && seen.add("0:" + m.trim())) {
+                    out.add(new ThinkTwo.Thinker(0, m.trim()));
+                }
+            }
+        }
+        for (int i = 0; i < now.size(); i++) {
+            Slot sl = now.get(i);
+            if (sl.fast != null && sl.fast.model != null && seen.add(i + ":" + sl.fast.model)) {
+                out.add(new ThinkTwo.Thinker(i, sl.fast.model)); // last: the quick models add a view, rarely the judge
+            }
+        }
+        return out.size() > ThinkTwo.MOST ? new ArrayList<ThinkTwo.Thinker>(out.subList(0, ThinkTwo.MOST)) : out;
     }
 
-    /**
-     * One named model on the first API, not the fast/strong switch. Null when no API is on or the call failed.
-     * Used by {@link RoundThink}, which asks several models one after another.
-     */
-    public String askNamed(String model, String system, String prompt, int maxTokens) {
-        if (!remoteOn() || model == null || model.trim().isEmpty()) {
+    /** One thinker's call: that provider, that model, at strong effort. Null when it failed or Stop was pressed. */
+    public String askThinker(ThinkTwo.Thinker t, String system, String prompt, int maxTokens) {
+        if (!remoteOn() || t == null || t.model == null || t.model.trim().isEmpty()) {
             return null;
         }
         Slot sl;
         synchronized (this) {
-            if (chain.isEmpty()) {
+            if (t.provider < 0 || t.provider >= chain.size()) {
                 return null;
             }
-            sl = chain.get(0);
+            sl = chain.get(t.provider);
         }
-        RemoteBrain r = sl.brain.withModel(model.trim());
+        RemoteBrain r = sl.brain.withModel(t.model.trim()); // its own copy: thinkers run at the same time
         r.effortFor(TaskSize.Tier.STRONG);
         List<String[]> turns = new ArrayList<String[]>();
         turns.add(new String[] {"user", prompt == null ? "" : prompt});
         final int ticket = epoch.get();
-        parkNative();
         inFlight.add(r);
         String answer;
         try {
+            // its own watchdog: a thinker that goes quiet is stopped alone, the others carry on
             answer = withTimeout(null, wrapped -> r.chat(system, turns, maxTokens, 0.4f, wrapped), true, r, new String[1]);
         } finally {
             inFlight.remove(r);
         }
         if (ticket != epoch.get()) {
-            return null;
+            return null; // Stop was pressed meanwhile
         }
         return answer == null ? null : answer.trim();
     }
@@ -498,8 +532,7 @@ public final class LocalModel {
             return true;
         }
         if (handle != 0) {
-            NativeLlm.nFree(handle);
-            handle = 0;
+            freeNative();
             loadedContext = 0;
             state = State.INSTALLED;
         }
@@ -588,8 +621,7 @@ public final class LocalModel {
                 return;
             }
             NativeLlm.nCancel(handle);
-            NativeLlm.nFree(handle);
-            handle = 0;
+            freeNative();
             loadedContext = 0;
             if (state == State.READY) {
                 state = State.INSTALLED;
@@ -955,8 +987,7 @@ public final class LocalModel {
                 return;
             }
             NativeLlm.nCancel(handle);
-            NativeLlm.nFree(handle);
-            handle = 0;
+            freeNative();
             loadedContext = 0;
             if (state == State.READY) {
                 state = State.INSTALLED;
@@ -1204,9 +1235,11 @@ public final class LocalModel {
             each.cancel(); // every worker's request, not only the newest: they kept streaming (and spending) after Stop
         }
         epoch.incrementAndGet();
-        long h = handle;
-        if (h != 0) {
-            NativeLlm.nCancel(h);
+        synchronized (nativeGuard) {
+            long h = handle;
+            if (h != 0) {
+                NativeLlm.nCancel(h);
+            }
         }
     }
 
@@ -1342,8 +1375,7 @@ public final class LocalModel {
             return;
         }
         if (handle != 0) {
-            NativeLlm.nFree(handle);
-            handle = 0;
+            freeNative();
         }
         loadedContext = 0;
         synchronized (speeds) {
@@ -1433,8 +1465,7 @@ public final class LocalModel {
             return null;
         }
         if (handle != 0) {
-            NativeLlm.nFree(handle);
-            handle = 0;
+            freeNative();
             loadedContext = 0;
             if (state == State.READY) {
                 state = State.INSTALLED;
@@ -1504,8 +1535,7 @@ public final class LocalModel {
     /** Frees the model and deletes its file. */
     public synchronized boolean uninstall() {
         if (handle != 0) {
-            NativeLlm.nFree(handle);
-            handle = 0;
+            freeNative();
         }
         history.clear();
         boolean gone = !file.exists() || file.delete();

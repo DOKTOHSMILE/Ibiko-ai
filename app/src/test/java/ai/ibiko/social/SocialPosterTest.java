@@ -22,7 +22,16 @@ public class SocialPosterTest {
         assertTrue(js, js.contains("execCommand('insertText'"));
         assertTrue("Post is pressed once (stage 2), then stage 3 only watches", js.contains("btn.click();d.stage=3"));
         assertTrue(js, js.contains("'done'") && js.contains("signedout"));
-        assertTrue(js, js.endsWith("(\"facebook\",\"Success is a habit\",[],false)"));
+        assertTrue(js, js.endsWith("(\"facebook\",\"Success is a habit\",[],false,false)"));
+    }
+
+    @Test
+    public void aPictureIsAttachedBeforePostOrNothingIsPosted() {
+        String js = SocialPoster.script("x", "Cakes", null, false, true);
+        assertTrue(js, js.endsWith(",false,true)"));
+        assertTrue("put in the composer's own file field", js.contains("inp.files=dt.files"));
+        assertTrue("Post waits for the preview", js.indexOf("'imgready'") < js.indexOf("btn.click();d.stage=3"));
+        assertTrue("no picture: nothing posted", js.contains("'noimage'"));
     }
 
     @Test

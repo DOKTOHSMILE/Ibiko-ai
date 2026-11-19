@@ -37,6 +37,11 @@ public final class SocialPoster {
             this.posted = posted;
             this.said = said;
         }
+
+        /** Nothing was posted, and why. */
+        public static Result failed(String said) {
+            return new Result(false, said);
+        }
     }
 
     /** The network for an app name ("facebook", "x"), when Ibiko can post there itself; null otherwise. */
@@ -82,6 +87,15 @@ public final class SocialPoster {
      * (or Comment, Reply) button once, then watch for the box to clear or the "sent" notice. Returns the stage.
      */
     static String script(String net, String text, java.util.List<String> tags, boolean comment) {
+        return script(net, text, tags, comment, false);
+    }
+
+    /**
+     * As above; with {@code image}, the picture (already on the page as {@code window.__dvimg}, base64 JPEG) is put in the
+     * composer's own file field before Post is pressed, and Post waits for its preview. "noimage" when it can't be
+     * attached: nothing is posted without it.
+     */
+    static String script(String net, String text, java.util.List<String> tags, boolean comment, boolean image) {
         StringBuilder t = new StringBuilder("[");
         if (tags != null) {
             for (int i = 0; i < tags.size(); i++) {
@@ -89,7 +103,7 @@ public final class SocialPoster {
             }
         }
         t.append(']');
-        return "(function(net,text,tags,comment){var d=window.__dv||(window.__dv={stage:0,ti:0,typed:false,tries:0,missed:[]});"
+        return "(function(net,text,tags,comment,image){var d=window.__dv||(window.__dv={stage:0,ti:0,typed:false,tries:0,missed:[]});"
                 + "function vis(e){return e&&e.getBoundingClientRect&&e.getBoundingClientRect().height>0;}"
                 + "function q(s){var a=document.querySelectorAll(s);for(var i=0;i<a.length;i++)if(vis(a[i]))return a[i];return null;}"
                 + "function byText(re){var a=document.querySelectorAll('[role=button],button,div[aria-label],span');"
@@ -112,6 +126,18 @@ public final class SocialPoster {
                 + "var opt=q('[data-testid=typeaheadResult]')||q('[role=listbox] [role=option]')||q('li[role=option]')||q('[role=option]');"
                 + "if(opt){opt.click();d.ti++;d.typed=false;return 'tagged';}"
                 + "if(++d.tries>4){d.missed.push(tags[d.ti]);d.ti++;d.typed=false;return 'notag';}return 'tagwait';}"
+                + "if(d.stage==2&&image&&d.img!==2){"
+                + "if(!d.img){var inp=document.querySelector('input[type=file][accept*=image]')||document.querySelector('input[type=file]');"
+                + "if(!inp&&net=='facebook'){var ph=byText(/^(photo|photo\\/video|photos?|add photos?(\\/videos?)?)$/i);"
+                + "if(ph&&!d.opened){d.opened=1;ph.click();return 'imgopen';}}"
+                + "if(!inp){d.it=(d.it||0)+1;return d.it>10?'noimage':'imgwait';}"
+                + "try{var bin=atob(window.__dvimg||'');if(!bin.length)return 'noimage';var arr=new Uint8Array(bin.length);"
+                + "for(var k=0;k<bin.length;k++)arr[k]=bin.charCodeAt(k);"
+                + "var f=new File([arr],'post.jpg',{type:'image/jpeg'});var dt=new DataTransfer();dt.items.add(f);"
+                + "inp.files=dt.files;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));"
+                + "d.img=1;return 'imgset';}catch(e){return 'noimage';}}"
+                + "if(document.querySelector('[data-testid=attachments] img,img[src^=\\\"blob:\\\"],[aria-label*=emove][role=button]')){d.img=2;return 'imgready';}"
+                + "d.pt=(d.pt||0)+1;return d.pt>14?'noimage':'imgload';}"
                 + "if(d.stage==2){var b2=box();if(b2&&said(b2).indexOf(head)<0)return 'nottyped';"
                 + "var btn=q('[data-testid=tweetButton]')||q('[data-testid=tweetButtonInline]')"
                 + "||byText(comment?/^(comment|post|reply|send)$/i:/^(post|share now|publish)$/i);"
@@ -120,7 +146,7 @@ public final class SocialPoster {
                 + "if(d.stage==3){var b3=box();var body=document.body?document.body.innerText:'';"
                 + "if(/your post was sent|your post is now|posted|shared to|your reply was sent/i.test(body))return 'done';"
                 + "if(!b3||said(b3)=='')return 'done';return 'checking';}"
-                + "return 'waiting';})(" + quote(net) + "," + quote(text) + "," + t + "," + comment + ")";
+                + "return 'waiting';})(" + quote(net) + "," + quote(text) + "," + t + "," + comment + "," + image + ")";
     }
 
     /** A JavaScript string literal of {@code s}: quotes, backslashes, line ends and other control characters escaped. */
@@ -154,9 +180,27 @@ public final class SocialPoster {
      * link) it is a comment under that post instead. Call it off the main thread.
      */
     public static Result post(Context c, Platform p, String text, java.util.List<String> tags, String commentOn) {
+        return post(c, p, text, tags, commentOn, null);
+    }
+
+    /** The most a picture may be to go with a post: it travels to the page as text. */
+    static final long MOST_IMAGE = 4L * 1024 * 1024;
+
+    /**
+     * As above, with {@code image} (a JPEG) attached to a new post. The picture goes into the composer's own file field
+     * and Post waits for its preview; when it can't be attached nothing is posted (a campaign post never goes out
+     * without its picture), and the result says so.
+     */
+    public static Result post(Context c, Platform p, String text, java.util.List<String> tags, String commentOn, java.io.File image) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             throw new IllegalStateException("posting waits for the page: call it off the main thread");
         }
+        synchronized (SocialWeb.SWITCH) { // never while a campaign has another account in use
+            return postNow(c, p, text, tags, commentOn, image);
+        }
+    }
+
+    private static Result postNow(Context c, Platform p, String text, java.util.List<String> tags, String commentOn, java.io.File image) {
         if (text == null || text.trim().isEmpty()) {
             return new Result(false, "There was nothing to post.");
         }
@@ -173,7 +217,20 @@ public final class SocialPoster {
             return new Result(false, "Not posted: " + v.why);
         }
         final String net = p == Platform.X ? "x" : "facebook";
-        final String js = script(net, text.trim(), tags, comment);
+        String data = null;
+        if (image != null && !comment) {
+            if (!image.isFile() || image.length() > MOST_IMAGE) {
+                return new Result(false, "The picture for this post isn't there.");
+            }
+            try {
+                data = android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(image.toPath()), android.util.Base64.NO_WRAP);
+            } catch (java.io.IOException e) {
+                return new Result(false, "The picture for this post couldn't be read.");
+            }
+        }
+        final boolean withImage = data != null;
+        final String js = script(net, text.trim(), tags, comment, withImage);
+        final String setImage = withImage ? "window.__dvimg=" + quote(data) + ";true" : null;
         final String[] missed = {""};
         final Context app = c.getApplicationContext();
         final Handler main = new Handler(Looper.getMainLooper());
@@ -207,10 +264,18 @@ public final class SocialPoster {
                         if (done.getCount() == 0) {
                             return;
                         }
+                        if (setImage != null) {
+                            // the page forgets it on every load: put again when missing, before the steps run (in order)
+                            w.evaluateJavascript("!!window.__dvimg", has -> {
+                                if (!"true".equals(has)) {
+                                    w.evaluateJavascript(setImage, null);
+                                }
+                            });
+                        }
                         w.evaluateJavascript(js, value -> {
                             String st = value == null ? "" : value.replace("\"", "");
                             stage[0] = st;
-                            if ("done".equals(st) || "signedout".equals(st) || System.currentTimeMillis() > until) {
+                            if ("done".equals(st) || "signedout".equals(st) || "noimage".equals(st) || System.currentTimeMillis() > until) {
                                 w.evaluateJavascript("(window.__dv&&window.__dv.missed||[]).join(', ')", m -> {
                                     missed[0] = m == null ? "" : m.replace("\"", "");
                                     done.countDown();
@@ -256,6 +321,9 @@ public final class SocialPoster {
         if ("signedout".equals(st)) {
             all.signedIn(a.id, false);
             return new Result(false, "Your " + p.shown + " account is signed out here. Sign in again under Social accounts.");
+        }
+        if ("noimage".equals(st)) {
+            return new Result(false, "I couldn't attach the picture on " + p.shown + ", so I didn't post it.");
         }
         String why = "nobutton".equals(st) ? "its Post button wasn't on the page" : "disabled".equals(st) ? "its Post button stayed greyed out"
                 : "nottyped".equals(st) ? "the words didn't go into its composer" : "its composer didn't open";

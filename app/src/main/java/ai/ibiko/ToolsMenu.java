@@ -197,9 +197,9 @@ final class ToolsMenu {
             boolean on = tools.isOn(t);
             if (t == ai.ibiko.suit.ChatTools.Tool.DEEP) {
                 int level = tools.think();
-                about.setText(level == 2 ? "Think 2: several models, then one answer"
-                        : level == 1 ? "Think 1: plan, check and revise first (slower)"
-                        : "Ordinary. Turn on for Think 1. Think 2 is on the Think button. Ibiko 1 applies what is known"
+                about.setText(level == 2 ? "Council: every model thinks, the strongest judges"
+                        : level == 1 ? "Deep: plan, check and revise first (slower)"
+                        : "Swift. Turn on for Deep. Council is on the Think button. Ibiko 1 applies what is known"
                                 + " and what it implies on every level.");
             }
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();

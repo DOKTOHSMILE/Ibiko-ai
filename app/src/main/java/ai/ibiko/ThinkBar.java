@@ -61,7 +61,7 @@ final class ThinkBar {
      * the files and the Linux shell; Media pictures, video, sound and files to attach; Explore the social accounts,
      * the connectors and scheduled posts; More the rest of the app.
      */
-    /** The Think button: a tap opens Ordinary, Think 1 or Think 2. Lit when it is not Ordinary. */
+    /** The Think button: a tap opens Swift, Deep or Council ({@link ai.ibiko.suit.ChatTools#LEVELS}). Lit when not Swift. */
     void bindThink() {
         final android.widget.TextView think = a.findViewById(R.id.btn_think);
         if (think == null) {
@@ -88,9 +88,9 @@ final class ThinkBar {
         think.setOnClickListener(v -> {
             int now = a.chatTools(a.stage == null ? "ibiko" : a.stage.agent()).think();
             androidx.appcompat.widget.PopupMenu menu = new androidx.appcompat.widget.PopupMenu(a, think);
-            menu.getMenu().add(0, 0, 0, "Ordinary");
-            menu.getMenu().add(0, 1, 1, "Think 1");
-            menu.getMenu().add(0, 2, 2, "Think 2");
+            for (int i = 0; i < ai.ibiko.suit.ChatTools.LEVELS.length; i++) {
+                menu.getMenu().add(0, i, i, ai.ibiko.suit.ChatTools.LEVELS[i]);
+            }
             menu.getMenu().setGroupCheckable(0, true, true);
             android.view.MenuItem current = menu.getMenu().findItem(now);
             if (current != null) {

@@ -56,10 +56,12 @@ public final class CrashReport {
         android.view.View copy = host.find(ai.ibiko.R.id.btn_copy_crash);
         if (copy != null) {
             copy.setOnClickListener(v -> {
-                android.content.ClipboardManager clips = (android.content.ClipboardManager) host.context()
-                        .getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-                if (clips != null && report != null) {
-                    clips.setPrimaryClip(android.content.ClipData.newPlainText("ibiko-crash", report));
+                // a native crash's report holds megabytes of trace: past the clipboard's 1 MB the copy itself threw and
+                // closed the app again. The start is kept (the version, the phone, the error); the whole is in Download/Ibiko
+                if (report != null) {
+                    String r = report.length() > 300_000 ? report.substring(0, 300_000)
+                            + "\n\u2026(the rest is in the file in Download/Ibiko)" : report;
+                    ai.ibiko.act.Actions.copy(host.context(), r);
                 }
                 clearCrash();
                 banner.setVisibility(android.view.View.GONE);

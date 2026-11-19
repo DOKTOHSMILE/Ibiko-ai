@@ -45,7 +45,7 @@ public class PostDraftsTest {
     @Test
     public void tagsAndCommentsAreInThePageSteps() {
         String js = SocialPoster.script("facebook", "Hello", Arrays.asList("John"), true);
-        assertTrue(js, js.contains("' @'+tags[d.ti]") && js.contains("[\"John\"]") && js.endsWith(",true)"));
+        assertTrue(js, js.contains("' @'+tags[d.ti]") && js.contains("[\"John\"]") && js.endsWith(",true,false)"));
         assertTrue(js, js.contains("comment|post|reply|send"));
     }
 }

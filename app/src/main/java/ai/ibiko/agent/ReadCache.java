@@ -97,6 +97,17 @@ final class ReadCache {
         return null;
     }
 
+    /**
+     * Something may have changed files without naming them (a command, an unzip, a pull): every search and listing is
+     * stale. Reads keep their own stamp (the file's time and size), so they stay.
+     */
+    synchronized void staleSearches() {
+        boolean any = items.keySet().removeIf(k -> k.startsWith("search\u0000") || k.startsWith("list_files\u0000"));
+        if (any) {
+            save();
+        }
+    }
+
     /** A file changed: the next read of it is a real one. Searches and listings are stale too. */
     synchronized void changed(String path) {
         if (path == null || path.isEmpty()) {

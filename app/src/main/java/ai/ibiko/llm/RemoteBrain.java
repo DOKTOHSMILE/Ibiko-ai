@@ -908,6 +908,9 @@ public final class RemoteBrain {
         return m;
     }
 
+    /** The most of one reply kept: far past any answer asked for, short of what runs the phone out of memory. */
+    static final int MOST_REPLY_CHARS = 8_000_000;
+
     /** OpenAI events: "data: {json}" lines with choices[0].delta.content; "data: [DONE]" ends it. */
     String readOpenAi(InputStream in, NativeLlm.Sink sink) throws IOException {
         endedClean = false;
@@ -925,7 +928,8 @@ public final class RemoteBrain {
             if (!t.startsWith("data:")) {
                 // a server that ignored "stream" sends one JSON body; the stream's blank separators and keep-alive
                 // comments (": OPENROUTER PROCESSING") are not part of any body
-                if (!t.isEmpty() && !t.startsWith(":") && !t.startsWith("event:") && !t.startsWith("id:")) {
+                if (!t.isEmpty() && !t.startsWith(":") && !t.startsWith("event:") && !t.startsWith("id:")
+                        && plain.length() < MOST_REPLY_CHARS) { // a server sending without end can't fill the memory
                     plain.append(line).append('\n');
                 }
                 continue;
@@ -953,6 +957,10 @@ public final class RemoteBrain {
             String piece = MiniJson.str(MiniJson.obj(MiniJson.obj(choices.get(0)).get("delta")).get("content"), "");
             noteToolCalls(calls, MiniJson.list(MiniJson.obj(MiniJson.obj(choices.get(0)).get("delta")).get("tool_calls")));
             if (!piece.isEmpty()) {
+                if (all.length() > MOST_REPLY_CHARS) {
+                    cutOff = true; // far past any reply a model is asked for: what came is kept, the rest isn't read
+                    break;
+                }
                 all.append(piece);
                 out++;
                 if (sink != null && !sink.onText(piece)) {
@@ -1101,6 +1109,10 @@ public final class RemoteBrain {
                 if ("text_delta".equals(MiniJson.str(d.get("type"), ""))) {
                     String piece = MiniJson.str(d.get("text"), "");
                     if (!piece.isEmpty()) {
+                        if (all.length() > MOST_REPLY_CHARS) {
+                            stop = "max_tokens"; // far past any reply asked for: kept as cut off, the rest isn't read
+                            break;
+                        }
                         all.append(piece);
                         if (sink != null && !sink.onText(piece)) {
                             problem = "stopped";

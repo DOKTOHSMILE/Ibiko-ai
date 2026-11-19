@@ -38,17 +38,18 @@ public final class SocialActivity extends AppCompatActivity {
         int pad = Ui.dp(this, 16);
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.setPadding(pad, Ui.dp(this, 20), pad, Ui.dp(this, 8));
+        head.setPadding(Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 4));
         android.widget.ImageView close = Ui.icon(this, ai.ibiko.R.drawable.ic_close, Ui.ACCENT, ai.ibiko.IconSize.STANDARD);
         close.setContentDescription("Close");
-        close.setPadding(Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6));
-        close.setContentDescription("Close");
+        int cp = Ui.dp(this, 12);
+        close.setPadding(cp, cp, cp, cp);
         close.setOnClickListener(v -> finish());
-        head.addView(close);
+        Ui.press(close);
+        head.addView(close, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48))); // a 48 dp target
         TextView title = Ui.text(this, "Social accounts", 19, Ui.TEXT, true);
         title.setGravity(Gravity.CENTER);
         head.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
-        head.addView(new android.view.View(this), new LinearLayout.LayoutParams(Ui.dp(this, 34), 1));
+        head.addView(new android.view.View(this), new LinearLayout.LayoutParams(Ui.dp(this, 48), 1)); // as wide as Close: the title centred
         root.addView(head);
         ScrollView scroll = new ScrollView(this);
         body = new LinearLayout(this);
@@ -90,6 +91,10 @@ public final class SocialActivity extends AppCompatActivity {
                                         + " posts · " + limits.used(a.id, SocialLimits.Kind.COMMENT, now) + " of "
                                         + limits.cap(p, SocialLimits.Kind.COMMENT, true) + " comments");
                 LinearLayout row = row(a.label, a.inUse, state, () -> remove(a), () -> rename(a));
+                row.setContentDescription(a.label + ", " + p.shown + ". " + state);
+                if (!a.inUse) {
+                    Ui.press(row); // only a row that switches the account looks tappable
+                }
                 row.setOnClickListener(v -> {
                     if (!a.inUse) {
                         boolean ok = SocialWeb.switchTo(this, a.id);
@@ -104,7 +109,9 @@ public final class SocialActivity extends AppCompatActivity {
                 }
                 if (paused != null) {
                     TextView resume = Ui.text(this, "Resume " + a.label, 15, Ui.ACCENT, false);
-                    resume.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 10));
+                    resume.setGravity(Gravity.CENTER_VERTICAL);
+                    resume.setMinHeight(Ui.dp(this, 48));
+                    Ui.press(resume);
                     resume.setOnClickListener(v -> new androidx.appcompat.app.AlertDialog.Builder(this)
                             .setMessage("Open " + p.shown + " in your browser or its app first and clear the warning or check."
                                     + " Resume " + a.label + " now?")
@@ -119,11 +126,15 @@ public final class SocialActivity extends AppCompatActivity {
                 }
             }
             TextView add = Ui.text(this, on.isEmpty() ? "Sign in to " + p.shown : "Add account", 15, Ui.ACCENT, false);
-            add.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+            add.setGravity(Gravity.CENTER_VERTICAL);
+            add.setMinHeight(Ui.dp(this, 48));
+            Ui.press(add);
             add.setOnClickListener(v -> startActivity(new Intent(this, SocialLoginActivity.class)
                     .putExtra(SocialLoginActivity.EXTRA_PLATFORM, p.name())));
             card.addView(add);
         }
+
+        campaigns();
 
         // ---- posting: how Ibiko posts, the scheduled posts, and what it did
         LinearLayout posting = section("Posting", ai.ibiko.R.drawable.ic_send);
@@ -143,6 +154,8 @@ public final class SocialActivity extends AppCompatActivity {
         for (final ai.ibiko.social.PostPlan plan : plans) {
             LinearLayout r = iconRow(ai.ibiko.R.drawable.ic_calendar, df.format(new java.util.Date(plan.at)) + " \u00B7 " + plan.network
                     + " \u00B7 " + plan.repeatWords(), plan.text);
+            r.setMinimumHeight(Ui.dp(this, 48));
+            Ui.press(r);
             r.setOnClickListener(v -> new androidx.appcompat.app.AlertDialog.Builder(this)
                     .setMessage("Cancel this scheduled post?\n\n" + plan.text)
                     .setPositiveButton("Cancel it", (d, w) -> {
@@ -175,7 +188,11 @@ public final class SocialActivity extends AppCompatActivity {
             boolean picked = c[1].equals(prefs.getString("social_pace", "normal"));
             TextView pill = Ui.text(this, c[0], 14, picked ? Ui.BG : Ui.TEXT, picked);
             pill.setBackground(Ui.round(this, picked ? Ui.TEXT : Ui.FIELD, 0, 16));
-            pill.setPadding(Ui.dp(this, 14), Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
+            pill.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0);
+            pill.setGravity(Gravity.CENTER);
+            pill.setMinHeight(Ui.dp(this, 40));
+            pill.setSelected(picked);
+            pill.setContentDescription(c[0] + " pace" + (picked ? ", selected" : ""));
             pill.setOnClickListener(v -> {
                 prefs.edit().putString("social_pace", c[1]).apply();
                 SocialWeb.limits(this);
@@ -200,6 +217,308 @@ public final class SocialActivity extends AppCompatActivity {
                 + " comments a day. Ibiko never tags people you didn't name.", 13, Ui.SUB, false);
         only.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 10));
         safe.addView(only);
+    }
+
+    /**
+     * Campaigns: with the switch on, a brief becomes a whole plan (the brain builds it in the chat, you approve it), and
+     * the approved plan runs by itself from the accounts chosen.
+     */
+    private void campaigns() {
+        LinearLayout card = section("Campaigns", ai.ibiko.R.drawable.ic_calendar);
+        card.addView(toggle("Run campaigns", "Give Ibiko a short brief (your business, the offer, who it's for) and it plans"
+                + " the whole campaign: themes, a dated post calendar with words and a picture for each, and searches for people"
+                + " who need what you offer. You approve the plan once; then posts go out by themselves from the accounts you"
+                + " chose, within each account's daily limits.", "social_campaigns", false), Ui.wide(this, 4));
+        if (!prefs.getBoolean("social_campaigns", false)) {
+            return;
+        }
+        java.text.DateFormat df = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM);
+        for (final ai.ibiko.social.campaign.Campaign c : ai.ibiko.social.campaign.CampaignRunner.store(this).all()) {
+            String state = c.status == ai.ibiko.social.campaign.Campaign.Status.ACTIVE ? "Running"
+                    : c.status == ai.ibiko.social.campaign.Campaign.Status.PAUSED ? "Paused"
+                    : c.status == ai.ibiko.social.campaign.Campaign.Status.DONE ? "Done" : "Not started";
+            LinearLayout r = iconRow(ai.ibiko.R.drawable.ic_send, c.name + " · " + state,
+                    c.progress() + " · from " + df.format(new java.util.Date(c.startAt)));
+            r.setMinimumHeight(Ui.dp(this, 52));
+            r.setContentDescription(c.name + ", " + state + ", " + c.progress());
+            Ui.press(r);
+            r.setOnClickListener(v -> campaignMenu(c));
+            card.addView(r);
+        }
+        TextView add = Ui.text(this, "New campaign", 15, Ui.ACCENT, false);
+        add.setGravity(Gravity.CENTER_VERTICAL);
+        add.setMinHeight(Ui.dp(this, 48));
+        Ui.press(add);
+        add.setOnClickListener(v -> newCampaign());
+        card.addView(add);
+        leads();
+    }
+
+    /** People the campaigns found who may need the offer, each with the reply drafted for them: Send, Edit, Dismiss. */
+    private void leads() {
+        LinearLayout card = section("Leads", ai.ibiko.R.drawable.ic_people);
+        java.util.List<ai.ibiko.social.campaign.Lead> waiting = new java.util.ArrayList<ai.ibiko.social.campaign.Lead>();
+        int sent = 0;
+        for (ai.ibiko.social.campaign.Lead l : ai.ibiko.social.campaign.LeadSender.store(this).all()) {
+            if (l.state == ai.ibiko.social.campaign.Lead.State.NEW && l.kind == ai.ibiko.social.campaign.Lead.Kind.LEAD) {
+                waiting.add(l);
+            } else if (l.state == ai.ibiko.social.campaign.Lead.State.SENT) {
+                sent++;
+            }
+        }
+        waiting.sort((x, y) -> Double.compare(y.fit, x.fit));
+        card.addView(Ui.text(this, waiting.isEmpty() ? "No leads waiting. While a campaign runs, Ibiko looks for people who"
+                + " need your offer about every 45 minutes (Ibiko has to be running, with a brain)." + (sent > 0 ? " Sent so far: " + sent + "." : "")
+                : waiting.size() + " waiting, best fit first · tap one to read the post and the reply drafted for it"
+                + (sent > 0 ? " · " + sent + " sent" : ""), 13, Ui.SUB, false), Ui.wide(this, 8));
+        for (int i = 0; i < waiting.size() && i < 30; i++) {
+            final ai.ibiko.social.campaign.Lead l = waiting.get(i);
+            LinearLayout r = iconRow(l.network.equals("x") ? ai.ibiko.R.drawable.ic_net_x : ai.ibiko.R.drawable.ic_net_facebook,
+                    Math.round(l.fit * 100) + "% fit · " + (l.why.isEmpty() ? "may need your offer" : l.why),
+                    l.snippet.length() > 140 ? l.snippet.substring(0, 140) + "…" : l.snippet);
+            r.setMinimumHeight(Ui.dp(this, 52));
+            Ui.press(r);
+            r.setOnClickListener(v -> lead(l));
+            card.addView(r);
+        }
+    }
+
+    /** One lead: the post, the reply drafted for it (edit it here), and Send, Dismiss or Open the post. */
+    private void lead(final ai.ibiko.social.campaign.Lead l) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 20);
+        box.setPadding(p, Ui.dp(this, 8), p, 0);
+        box.addView(Ui.text(this, "Their post", 13, Ui.SUB, false));
+        box.addView(Ui.text(this, l.snippet, 14, Ui.TEXT, false), Ui.wide(this, 4));
+        box.addView(Ui.text(this, "Your reply, under their post", 13, Ui.SUB, false), Ui.wide(this, 14));
+        final android.widget.EditText reply = Ui.field(this, "Reply", l.reply, false, false);
+        reply.setMinLines(3);
+        box.addView(reply, Ui.wide(this, 4));
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(Math.round(l.fit * 100) + "% fit")
+                .setView(sv)
+                .setPositiveButton("Send", (d, w) -> {
+                    l.reply = reply.getText().toString().trim();
+                    android.widget.Toast.makeText(this, "Sending…", android.widget.Toast.LENGTH_SHORT).show();
+                    new Thread(() -> {
+                        ai.ibiko.social.SocialPoster.Result r = ai.ibiko.social.campaign.LeadSender.send(getApplicationContext(), l);
+                        runOnUiThread(() -> {
+                            android.widget.Toast.makeText(this, r.said, android.widget.Toast.LENGTH_LONG).show();
+                            if (!isFinishing()) {
+                                fill();
+                            }
+                        });
+                    }, "ibiko-lead-send").start();
+                })
+                .setNegativeButton("Dismiss", (d, w) -> {
+                    l.state = ai.ibiko.social.campaign.Lead.State.DISMISSED;
+                    try {
+                        ai.ibiko.social.campaign.LeadSender.store(this).put(l);
+                    } catch (java.io.IOException ignored) {
+                        // shown again next time
+                    }
+                    fill();
+                })
+                .setNeutralButton("Open post", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(l.url)));
+                    } catch (RuntimeException ignored) {
+                        // no browser
+                    }
+                })
+                .show();
+    }
+
+    /** One campaign: pause or resume it, see its posts, or delete it. */
+    private void campaignMenu(final ai.ibiko.social.campaign.Campaign c) {
+        boolean running = c.status == ai.ibiko.social.campaign.Campaign.Status.ACTIVE;
+        boolean done = c.status == ai.ibiko.social.campaign.Campaign.Status.DONE;
+        java.util.List<String> labels = new java.util.ArrayList<String>();
+        if (!done) {
+            labels.add(running ? "Pause" : "Resume");
+        }
+        labels.add("Show its posts");
+        labels.add("Delete");
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(c.name)
+                .setItems(labels.toArray(new String[0]), (d, which) -> {
+                    String l = labels.get(which);
+                    if (l.equals("Pause") || l.equals("Resume")) {
+                        ai.ibiko.social.campaign.CampaignRunner.setRunning(this, c.id, !running);
+                        fill();
+                    } else if (l.equals("Show its posts")) {
+                        posts(c);
+                    } else {
+                        new androidx.appcompat.app.AlertDialog.Builder(this)
+                                .setMessage("Delete “" + c.name + "”? Posts already out stay on the networks; the rest won't go out.")
+                                .setPositiveButton("Delete", (d2, w2) -> {
+                                    try {
+                                        ai.ibiko.social.campaign.CampaignRunner.store(this).remove(c.id);
+                                        ai.ibiko.social.campaign.LeadSender.store(this).forget(c.id);
+                                    } catch (java.io.IOException ignored) {
+                                        // the list shows what was kept
+                                    }
+                                    ai.ibiko.social.campaign.CampaignRunner.arm(this, 0);
+                                    fill();
+                                })
+                                .setNegativeButton("Keep", null)
+                                .show();
+                    }
+                })
+                .show();
+    }
+
+    /** A campaign's posts, each with its time, account and what happened. */
+    private void posts(ai.ibiko.social.campaign.Campaign c) {
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), Ui.dp(this, 16));
+        java.text.DateFormat df = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT);
+        SocialAccounts accounts = SocialWeb.accounts(this);
+        for (ai.ibiko.social.campaign.Campaign.Item it : c.items) {
+            SocialAccounts.Account a = accounts.get(it.account);
+            String state = it.state == ai.ibiko.social.campaign.Campaign.State.POSTED ? "Posted"
+                    : it.state == ai.ibiko.social.campaign.Campaign.State.FAILED ? "Didn't go out: " + it.result
+                    : it.result.startsWith("waiting") ? "Waiting: " + it.result.substring(8).trim() : "Planned";
+            list.addView(iconRow(it.state == ai.ibiko.social.campaign.Campaign.State.POSTED ? ai.ibiko.R.drawable.ic_check
+                    : ai.ibiko.R.drawable.ic_calendar, df.format(new java.util.Date(it.at)) + " · "
+                    + (a == null ? it.network : a.label) + " · " + state, it.text));
+        }
+        ScrollView sv = new ScrollView(this);
+        sv.addView(list);
+        BottomSheet.showView(this, c.name, sv);
+    }
+
+    /** The brief: what the campaign is for, the accounts it runs on, how long, how often. */
+    private void newCampaign() {
+        final java.util.List<SocialAccounts.Account> usable = new java.util.ArrayList<SocialAccounts.Account>();
+        for (SocialAccounts.Account a : SocialWeb.accounts(this).all()) {
+            if (a.signedIn && (a.platform == Platform.X || a.platform == Platform.FACEBOOK)) {
+                usable.add(a);
+            }
+        }
+        if (usable.isEmpty()) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setMessage("A campaign posts from your Facebook or X accounts. Sign in to one first (above).")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 20);
+        box.setPadding(p, Ui.dp(this, 8), p, 0);
+        final android.widget.EditText business = field(box, "Your business (name, what you do, where)");
+        final android.widget.EditText offer = field(box, "What this campaign offers or promotes");
+        final android.widget.EditText audience = field(box, "Who it's for");
+        final android.widget.EditText goal = field(box, "The goal (orders, sign-ups, visits, enquiries)");
+        final android.widget.EditText tone = field(box, "Tone (friendly, expert, playful…)");
+        final android.widget.EditText link = field(box, "Link or contact (optional)");
+        box.addView(Ui.text(this, "Post from", 14, Ui.SUB, false), Ui.wide(this, 12));
+        final java.util.List<android.widget.CheckBox> picks = new java.util.ArrayList<android.widget.CheckBox>();
+        for (SocialAccounts.Account a : usable) {
+            android.widget.CheckBox cb = new android.widget.CheckBox(this);
+            cb.setText(a.label + " (" + a.platform.shown + ")");
+            cb.setTextColor(Ui.TEXT);
+            cb.setChecked(a.inUse);
+            cb.setMinHeight(Ui.dp(this, 48));
+            box.addView(cb);
+            picks.add(cb);
+        }
+        final android.widget.EditText days = field(box, "Days (1 to 90)");
+        days.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        days.setText("7");
+        final android.widget.EditText perDay = field(box, "Posts a day on each account (1 to 6)");
+        perDay.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        perDay.setText("1");
+        final android.widget.CheckBox engage = check(box, "Answer comments on its posts", true);
+        final android.widget.CheckBox prospect = check(box, "Find people who need this, and draft a reply for each", true);
+        final android.widget.CheckBox autoPitch = check(box, "Send those replies without asking (up to "
+                + ai.ibiko.social.campaign.LeadSender.MOST_AUTO_PITCHES + " a day)", false);
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        final androidx.appcompat.app.AlertDialog form = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("New campaign")
+                .setView(sv)
+                .setPositiveButton("Plan it", null) // set below: a brief missing a part keeps the form open, not lost
+                .setNegativeButton("Cancel", null)
+                .create();
+        form.setOnShowListener(x -> form.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener(btn -> {
+                    ai.ibiko.social.campaign.Campaign c = new ai.ibiko.social.campaign.Campaign();
+                    long now = System.currentTimeMillis();
+                    c.id = "c" + now;
+                    c.createdAt = now;
+                    c.startAt = now;
+                    c.brief.business = business.getText().toString().trim();
+                    c.brief.offer = offer.getText().toString().trim();
+                    c.brief.audience = audience.getText().toString().trim();
+                    c.brief.goal = goal.getText().toString().trim();
+                    c.brief.tone = tone.getText().toString().trim();
+                    c.brief.link = link.getText().toString().trim();
+                    for (int i = 0; i < picks.size(); i++) {
+                        if (picks.get(i).isChecked()) {
+                            c.accounts.add(usable.get(i).id);
+                        }
+                    }
+                    c.days = number(days, 7, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_DAYS);
+                    c.perDay = number(perDay, 1, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_PER_DAY);
+                    c.engage = engage.isChecked();
+                    c.prospect = prospect.isChecked();
+                    c.autoPitch = prospect.isChecked() && autoPitch.isChecked();
+                    if (c.brief.business.isEmpty() && c.brief.offer.isEmpty()) {
+                        android.widget.Toast.makeText(this, "Say what the business is or what the campaign offers.",
+                                android.widget.Toast.LENGTH_LONG).show();
+                        return; // the form stays open with what was typed
+                    }
+                    if (c.accounts.isEmpty()) {
+                        android.widget.Toast.makeText(this, "Choose at least one account to post from.", android.widget.Toast.LENGTH_LONG).show();
+                        return; // the form stays open with what was typed
+                    }
+                    ai.ibiko.social.campaign.CampaignDraft.offer(c);
+                    form.dismiss();
+                    backToChat(); // the chat's brain plans it, and shows the plan for approval
+        }));
+        form.show();
+    }
+
+    private android.widget.CheckBox check(LinearLayout box, String label, boolean on) {
+        android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText(label);
+        cb.setTextColor(Ui.TEXT);
+        cb.setChecked(on);
+        cb.setMinHeight(Ui.dp(this, 48));
+        box.addView(cb);
+        return cb;
+    }
+
+    private android.widget.EditText field(LinearLayout box, String hint) {
+        android.widget.EditText f = Ui.field(this, hint, "", false, false);
+        box.addView(f, Ui.wide(this, 8));
+        return f;
+    }
+
+    private static int number(android.widget.EditText f, int fallback, int least, int most) {
+        try {
+            String t = f.getText().toString().trim();
+            int n = t.isEmpty() ? fallback : Integer.parseInt(t);
+            return Math.max(least, Math.min(most, n));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** To the chat, nothing put in its message box (whatever was typed there stays). */
+    private void backToChat() {
+        if (getCallingActivity() != null) {
+            setResult(RESULT_OK);
+        } else {
+            startActivity(new Intent(this, ai.ibiko.MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        }
+        finish();
     }
 
     /** A new name for the account ("Work", "Shop page"): how it shows here, in Connectors and in replies. */
@@ -273,7 +592,15 @@ public final class SocialActivity extends AppCompatActivity {
 
     /** Back to the chat with words ready in the message box, for the user to finish and send. */
     private void ask(String words) {
-        setResult(RESULT_OK, new Intent().putExtra("compose", words));
+        if (getCallingActivity() != null) {
+            setResult(RESULT_OK, new Intent().putExtra("compose", words));
+        } else {
+            // opened from Tools or Connectors, not for a result: the words were dropped and the chips did nothing. They
+            // wait for the chat, which is brought to the front (any screen above it closes)
+            ShareActivity.offerText(words);
+            startActivity(new Intent(this, ai.ibiko.MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        }
         finish();
     }
 
@@ -289,7 +616,9 @@ public final class SocialActivity extends AppCompatActivity {
         TextView t = Ui.text(this, label, 13, Ui.TEXT, false);
         t.setPadding(Ui.dp(this, 6), 0, 0, 0);
         c.addView(t);
-        c.setMinimumHeight(Ui.dp(this, 36));
+        c.setMinimumHeight(Ui.dp(this, 40));
+        c.setContentDescription(label);
+        Ui.press(c);
         c.setOnClickListener(v -> tap.run());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.rightMargin = Ui.dp(this, 8);
@@ -366,7 +695,8 @@ public final class SocialActivity extends AppCompatActivity {
         edit.setPadding(ep, ep, ep, ep);
         edit.setContentDescription("Rename " + what);
         edit.setOnClickListener(v -> rename.run());
-        r.addView(edit, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+        Ui.press(edit);
+        r.addView(edit, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         ImageView x = new ImageView(this);
         x.setImageResource(ai.ibiko.R.drawable.ic_close);
         x.setColorFilter(Ui.ACCENT);
@@ -374,25 +704,51 @@ public final class SocialActivity extends AppCompatActivity {
         x.setPadding(p, p, p, p);
         x.setContentDescription("Remove " + what);
         x.setOnClickListener(v -> remove.run());
-        r.addView(x, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+        Ui.press(x);
+        r.addView(x, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         return r;
     }
 
     private android.view.View toggle(String title, String about, final String key, boolean def) {
         LinearLayout r = new LinearLayout(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12)); // as in Settings: air around each switch
+        r.setMinimumHeight(Ui.dp(this, 56));
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
+        words.setPadding(0, 0, Ui.dp(this, 16), 0);
         words.addView(Ui.text(this, title, 16, Ui.TEXT, false));
-        words.addView(Ui.text(this, about, 13, Ui.SUB, false));
+        words.addView(Ui.text(this, about, 13, Ui.SUB, false), Ui.wide(this, 4));
         r.addView(words, new LinearLayout.LayoutParams(0, -2, 1f));
-        android.widget.Switch sw = new android.widget.Switch(this);
+        final android.widget.Switch sw = new android.widget.Switch(this);
         sw.setChecked(prefs.getBoolean(key, def));
+        sw.setContentDescription(title);
         sw.setTrackTintList(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_checked}, {}},
                 new int[]{Ui.CORAL, Ui.FIELD}));
-        sw.setOnCheckedChangeListener((b, on) -> prefs.edit().putBoolean(key, on).apply());
+        sw.setOnCheckedChangeListener((b, on) -> {
+            if (on && "social_auto".equals(key) && !prefs.getBoolean(key, false)) {
+                // posting without a yes is a big step: a stray tap on the row turned it on unasked
+                b.setChecked(false);
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Post without asking?")
+                        .setMessage("Posts and comments you ask for will go out from your account at once, without showing"
+                                + " them to you first. Still only what you ask for, within the daily limits.")
+                        .setPositiveButton("Turn on", (d, w) -> {
+                            prefs.edit().putBoolean(key, true).apply();
+                            fill();
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+                return;
+            }
+            prefs.edit().putBoolean(key, on).apply();
+            if ("social_campaigns".equals(key)) {
+                b.post(this::fill); // the campaigns list shows or hides with its switch
+            }
+        });
         r.addView(sw);
         r.setOnClickListener(v -> sw.toggle());
+        Ui.press(r);
         return r;
     }
 }

@@ -2333,13 +2333,34 @@ public final class ChatPane extends LinearLayout {
                 lang.setText("html".equals(m.kind) ? "HTML preview" : (m.language == null || m.language.isEmpty() ? "code" : m.language));
             }
             if (body != null) {
-                body.setText(m.body == null ? "" : m.body);
+                // only what the preview shows (40 lines): the whole text was laid out even though the rest was hidden,
+                // and the cut was silent
+                String all = m.body == null ? "" : m.body;
+                int cut = -1;
+                for (int i = 0, seen = 0; i < all.length(); i++) {
+                    if (all.charAt(i) == '\n' && ++seen == CODE_PREVIEW_LINES) {
+                        cut = i;
+                        break;
+                    }
+                }
+                if (cut >= 0 && cut < all.length() - 1) {
+                    int more = 1;
+                    for (int i = cut + 1; i < all.length(); i++) {
+                        if (all.charAt(i) == '\n') {
+                            more++;
+                        }
+                    }
+                    body.setText(all.substring(0, cut) + "\n\u2026 " + more + " more lines: open full screen");
+                } else {
+                    body.setText(all);
+                }
             }
             TextView copy = row.findViewById(R.id.code_copy);
             if (copy != null) {
                 copy.setOnClickListener(v -> {
-                    copyText(m.body);
-                    android.widget.Toast.makeText(getContext(), "Code copied", android.widget.Toast.LENGTH_SHORT).show();
+                    if (copyText(m.body)) {
+                        android.widget.Toast.makeText(getContext(), "Code copied", android.widget.Toast.LENGTH_SHORT).show();
+                    }
                 });
             }
             TextView open = row.findViewById(R.id.code_open);
@@ -2444,8 +2465,9 @@ public final class ChatPane extends LinearLayout {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setPadding(0, dp(2), 0, dp(10));
         bar.addView(icon(R.drawable.ic_copy, "Copy", v -> {
-            copyText(all);
-            android.widget.Toast.makeText(getContext(), "Copied", android.widget.Toast.LENGTH_SHORT).show();
+            if (copyText(all)) {
+                android.widget.Toast.makeText(getContext(), "Copied", android.widget.Toast.LENGTH_SHORT).show();
+            }
         }));
         bar.addView(listenButton(spoken, "Read aloud"));
         return bar;
@@ -2712,8 +2734,9 @@ public final class ChatPane extends LinearLayout {
         bar.setPadding(0, 0, 0, dp(4));
         bar.addView(icon(R.drawable.ic_edit, "Edit your message", v -> edit(text, index)));
         bar.addView(icon(R.drawable.ic_copy, "Copy your message", v -> {
-            copyText(text);
-            android.widget.Toast.makeText(getContext(), "Copied", android.widget.Toast.LENGTH_SHORT).show();
+            if (copyText(text)) {
+                android.widget.Toast.makeText(getContext(), "Copied", android.widget.Toast.LENGTH_SHORT).show();
+            }
         }));
         LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         bar.setLayoutParams(lp);
@@ -2963,11 +2986,32 @@ public final class ChatPane extends LinearLayout {
         getContext().startActivity(intent);
     }
 
-    private void copyText(String text) {
+    /**
+     * Copies {@code text}; false when it is too big for the clipboard. The clipboard travels through the same 1 MB
+     * channel as an Intent: a very long reply or code block threw there and closed the app.
+     */
+    /** Lines a code block shows in the chat; the whole of it opens full screen. */
+    static final int CODE_PREVIEW_LINES = 40;
+
+    private boolean copyText(String text) {
+        String t = text == null ? "" : text;
+        if (t.length() > ai.ibiko.chat.ui.CodeViewActivity.MOST_COPY) {
+            android.widget.Toast.makeText(getContext(), "Too big to copy: open it full screen and use Share.",
+                    android.widget.Toast.LENGTH_LONG).show();
+            return false;
+        }
         android.content.ClipboardManager clips = (android.content.ClipboardManager) getContext()
                 .getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-        if (clips != null) {
-            clips.setPrimaryClip(android.content.ClipData.newPlainText("ibiko", text == null ? "" : text));
+        if (clips == null) {
+            return false;
+        }
+        try {
+            clips.setPrimaryClip(android.content.ClipData.newPlainText("ibiko", t));
+            return true;
+        } catch (RuntimeException tooBig) {
+            android.widget.Toast.makeText(getContext(), "Too big to copy: open it full screen and use Share.",
+                    android.widget.Toast.LENGTH_LONG).show();
+            return false;
         }
     }
 

@@ -71,18 +71,20 @@ final class AgentSession {
                         @Override
                         public String ask(String system, String transcript) {
                             // a step is a tool call or a short note: the fast model. The report uses the strong one.
-                            return asked(system, transcript, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs), stepTier);
+                            return asked(ai.ibiko.agent.Takeover.with(system, a.takeover), transcript,
+                                    ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs), stepTier);
                         }
 
                         @Override
                         public String askLong(String system, String transcript) {
                             // the final report: room to write all of it, on the strong model
-                            return asked(system, transcript, Math.max(12000, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs) * 3),
-                                    reportTier);
+                            return asked(ai.ibiko.agent.Takeover.with(system, a.takeover), transcript,
+                                    Math.max(12000, ai.ibiko.chat.Tuning.AGENT_TOKENS.get(a.prefs) * 3), reportTier);
                         }
 
                         @Override
-                        public String askQuiet(String system, String text) {
+                        public String askQuiet(String sys, String text) {
+                            final String system = ai.ibiko.agent.Takeover.with(sys, a.takeover); // workers know of it too
                             // a survey reader or a worker: not streamed into the chat, and it stops with the task. On an API it
                             // does not wait for the device model's lock, so the readers and workers really run at once
                             if (!a.alive(id) || !ai.ibiko.llm.WorkerPace.SHARED.enter(() -> !a.alive(id))) {
@@ -268,6 +270,7 @@ final class AgentSession {
                         + ". A report is in Download/Ibiko. Say “continue” to try again from the last checkpoint.";
             } finally {
                 a.model.watchIdleMs = 0;
+                a.takeover = null; // the job is over: the next one starts with whichever model is chosen
                 a.model.watchCapMs = 0;
                 a.model.watchReadMs = 0;
                 ai.ibiko.llm.ReplyService.release(a);
