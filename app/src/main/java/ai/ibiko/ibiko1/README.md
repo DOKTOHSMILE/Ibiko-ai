@@ -2,7 +2,10 @@
 
 Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no network and no other model needed. It:
 
-- answers from its built-in knowledge: world facts, the elements, local facts, and an English dictionary (Open English WordNet);
+- answers from its built-in knowledge: world facts, the elements, local facts, an English dictionary (Open English WordNet),
+  and an encyclopedia: the opening of every Simple English Wikipedia article, with other names for each (CC BY-SA 4.0,
+  `assets/knowledge/encyclopedia/`, built by `tools/build_encyclopedia.py`). "What is a volcano", "who was Nelson
+  Mandela" and "tell me about Lagos" are answered offline, saying which article it read;
 - remembers what it is taught, and learns from "right" and "wrong";
 - researches the web only when the app gives it a way to (`Plug.web`);
 - writes a function line (`§XX …`) when a message asks the app to do something;

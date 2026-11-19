@@ -202,6 +202,16 @@ public final class Ibiko1 {
         return builtIn;
     }
 
+    private static Encyclopedia encyclopedia;
+
+    /** The encyclopedia that ships with the app: every Simple English Wikipedia article's opening, offline. */
+    public static synchronized Encyclopedia encyclopedia() {
+        if (encyclopedia == null) {
+            encyclopedia = new Encyclopedia();
+        }
+        return encyclopedia;
+    }
+
     /** How answers were reached, by kind of request: learned from every reply, used by every brain. */
     public Methods methods() {
         return Store.methods(dir);
@@ -558,6 +568,16 @@ public final class Ibiko1 {
             think(steps, () -> {
                 saysSure(who, reasoned.text, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED);
                 rateable(t, reasoned.text);
+            });
+            return;
+        }
+        // the encyclopedia that ships with the app: "what is a volcano", "who was Nelson Mandela", offline
+        final String explained = encyclopedia().answer(t);
+        if (explained != null && !knowledge().rejected(t, explained)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question", "Checking what I already know", "Found it in my built-in encyclopedia"), () -> {
+                saysSure(who, explained, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN);
+                rateable(t, explained);
             });
             return;
         }
