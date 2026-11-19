@@ -43,8 +43,9 @@ public final class PostPlan {
     private static final Pattern LINE = Pattern.compile("(?is)^\\s*(\\S+)\\s+(.+?)\\s*:(?!\\d)\\s*(.+)$"); // "09:30" is a time, not the colon before the text
     private static final Pattern DATE_TIME = Pattern.compile("(\\d{4})-(\\d{1,2})-(\\d{1,2})[ T](\\d{1,2}):(\\d{2})");
     private static final Pattern TIME = Pattern.compile("(?i)\\b(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?\\b");
-    private static final Pattern IN = Pattern.compile("(?i)\\bin\\s+(\\d+)\\s*(m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\\b");
-    private static final Pattern EVERY = Pattern.compile("(?i)\\bevery\\s+(\\d+)\\s*(h|hr|hrs|hours?)\\b");
+    // at most six digits: a longer number from the model's schedule order overflowed the parse and crashed the app
+    private static final Pattern IN = Pattern.compile("(?i)\\bin\\s+(\\d{1,6})\\s*(m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\\b");
+    private static final Pattern EVERY = Pattern.compile("(?i)\\bevery\\s+(\\d{1,6})\\s*(h|hr|hrs|hours?)\\b");
 
     /** Reads the brain's line; null when it isn't a whole plan (a network, a time and some text). */
     public static PostPlan parse(String line, long now, TimeZone zone) {

@@ -214,7 +214,9 @@ public final class SocialLimits {
                 } else if (f[0].equals("N") && f.length == 3) {
                     next.put(f[1], Long.parseLong(f[2]));
                 } else if (f[0].equals("P") && f.length == 4) {
-                    paused.put(f[1], new String[]{f[2], f[3]});
+                    if (f[2].matches("\\d{1,18}")) { // a damaged time made every later check on this account throw
+                        paused.put(f[1], new String[]{f[2], f[3]});
+                    }
                 }
             } catch (NumberFormatException damaged) {
                 // a damaged line is skipped
