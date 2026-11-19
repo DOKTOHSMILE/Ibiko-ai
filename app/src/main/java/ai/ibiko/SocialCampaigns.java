@@ -18,7 +18,12 @@ final class SocialCampaigns {
         this.a = a;
     }
 
-    /** A brief waiting from the Social accounts screen: planned now. */
+    /**
+     * A brief waiting from the Social accounts screen: planned now, on its own thread and apart from every chat (it
+     * used to run in whatever chat was open, and clashed with the work there). A notification shows how far it is; the
+     * plan is kept as a draft, and when it is ready it opens in a new chat of its own if nothing is going on, or waits
+     * in Social accounts › Campaigns.
+     */
     void takeDraft() {
         final Campaign c = CampaignDraft.take();
         if (c == null) {
@@ -29,25 +34,69 @@ final class SocialCampaigns {
             return;
         }
         final List<CampaignPlanner.Seat> seats = seats(c);
-        final int id = a.nextAsk();
-        a.armThink("Planning the campaign", "Planning the campaign");
-        a.activity("Planning the campaign “" + clip(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer) + "”");
-        a.hub.worker.execute(() -> {
-            String why = CampaignPlanner.build(c, seats, (system, prompt, tokens) -> a.model.task(system, prompt, tokens, null),
-                    line -> a.handler.post(() -> {
-                        if (a.alive(id)) {
-                            a.activity(line);
-                        }
-                    }), () -> !a.alive(id), java.util.TimeZone.getDefault());
-            a.handler.post(() -> {
-                a.endThink();
-                if (why != null) {
-                    a.note("The campaign wasn't planned: " + why);
-                    return;
+        final android.content.Context ctx = a.getApplicationContext();
+        final String title = clip(c.brief.offer.isEmpty() ? c.brief.business : c.brief.offer);
+        c.name = title;
+        try {
+            CampaignRunner.store(ctx).put(c); // a draft from the start: shown as planning in Social accounts
+        } catch (java.io.IOException ignored) {
+            // planned all the same; kept when it is done
+        }
+        CampaignDraft.started(c.id);
+        CampaignDraft.at(ctx, c.id, title, "Planning the campaign");
+        a.note("Planning “" + title + "” in the background. Your chats aren't touched; you'll get a notification"
+                + " when the plan is ready to review.");
+        new Thread(() -> {
+            // on an API the batches run side by side, without the phone model's lock; the phone's model takes one at a time
+            final boolean api = a.model.remoteOn();
+            CampaignPlanner.Brain brain = (system, prompt, tokens) -> {
+                String got = api ? a.model.remoteTask(system, prompt, tokens) : null;
+                return got != null ? got : a.model.task(system, prompt, tokens, null);
+            };
+            String why;
+            try {
+                why = CampaignPlanner.build(c, seats, brain, line -> CampaignDraft.at(ctx, c.id, title, line),
+                        () -> CampaignDraft.isStopped(c.id), java.util.TimeZone.getDefault(), api ? CampaignPlanner.WORKERS : 1);
+            } catch (RuntimeException e) {
+                why = "something went wrong while planning (" + e.getClass().getSimpleName() + ")";
+            }
+            boolean stopped = CampaignDraft.isStopped(c.id);
+            CampaignDraft.finished(ctx, c.id);
+            if (why != null || stopped) {
+                try {
+                    CampaignRunner.store(ctx).remove(c.id);
+                } catch (java.io.IOException ignored) {
+                    // the list shows what was kept
                 }
-                review(c);
-            });
-        });
+                CampaignDraft.show(ctx, c.id, stopped ? "Campaign planning stopped" : "The campaign wasn't planned",
+                        stopped ? "“" + title + "” was stopped. Nothing was posted." : why, false);
+                return;
+            }
+            try {
+                CampaignRunner.store(ctx).put(c); // the whole plan, waiting for approval
+            } catch (java.io.IOException ignored) {
+                // shown now all the same
+            }
+            CampaignDraft.show(ctx, c.id, "“" + c.name + "” is ready to review", c.items.size() + " posts over "
+                    + c.days + " days. Tap to read the plan and approve it. Nothing is posted before you do.", false);
+            a.handler.post(() -> ready(c));
+        }, "ibiko-campaign-plan").start();
+    }
+
+    /** A plan ready while Ibiko is open and nothing is going on: a new chat of its own, with the plan to review. */
+    private void ready(Campaign c) {
+        if (a.isFinishing() || !a.inFront || a.generating || a.backgroundTask != null || a.chats == null) {
+            return; // work is going on, or Ibiko isn't on screen: the notification and Social accounts have it
+        }
+        a.startNewChatSafely();
+        a.chats.add("assistant", "text", "Your campaign “" + c.name + "” is planned: " + c.items.size() + " posts over "
+                + c.days + " days" + (c.themes.isEmpty() ? "" : ", themes: " + String.join(", ", c.themes))
+                + ". Review it below; nothing is posted until you approve. It also waits under Social accounts › Campaigns.",
+                a.chats.current().persona);
+        if (a.chatPane != null) {
+            a.chatPane.show();
+        }
+        ai.ibiko.chat.ui.CampaignReview.show(a, c, null);
     }
 
     /** The chosen accounts, as the planner sees them (only signed-in accounts on networks Ibiko posts to itself). */
@@ -61,73 +110,6 @@ final class SocialCampaigns {
             }
         }
         return out;
-    }
-
-    /** The whole plan, to read before anything runs: Approve and start, or Discard. */
-    void review(final Campaign c) {
-        android.widget.LinearLayout list = new android.widget.LinearLayout(a);
-        list.setOrientation(android.widget.LinearLayout.VERTICAL);
-        int pad = a.dp(16);
-        list.setPadding(pad, 0, pad, pad);
-        java.text.DateFormat when = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT);
-        android.widget.TextView about = new android.widget.TextView(a);
-        about.setText(c.items.size() + " posts over " + c.days + " days"
-                + (c.themes.isEmpty() ? "" : "\nThemes: " + String.join(" · ", c.themes))
-                + (c.searches.isEmpty() || !c.prospect ? "" : "\nFinds people searching: " + String.join(" · ", c.searches))
-                + "\n\nNothing is posted until you approve. Posts go out by themselves at these times, from these accounts,"
-                + " within each account's daily limits.");
-        about.setTextColor(a.getColor(R.color.text_secondary));
-        about.setTextSize(13.5f);
-        about.setPadding(0, 0, 0, a.dp(8));
-        list.addView(about);
-        ai.ibiko.social.SocialAccounts accounts = ai.ibiko.social.SocialWeb.accounts(a);
-        for (final Campaign.Item it : c.items) {
-            ai.ibiko.social.SocialAccounts.Account acc = accounts.get(it.account);
-            String head = when.format(new java.util.Date(it.at)) + " · " + (acc == null ? it.network : acc.label + " (" + acc.platform.shown + ")");
-            android.view.View row = a.modelMenu.brainLink(head, it.text + (it.imageHtml.isEmpty() ? "" : "\nTap to see its picture"), null);
-            if (!it.imageHtml.isEmpty()) {
-                row.setOnClickListener(v -> a.startActivity(new android.content.Intent(a, ai.ibiko.chat.ui.HtmlViewActivity.class)
-                        .putExtra(ai.ibiko.chat.ui.HtmlViewActivity.EXTRA_HTML, it.imageHtml)));
-            }
-            list.addView(row);
-        }
-        final android.app.Dialog[] sheet = {null};
-        android.widget.TextView start = new android.widget.TextView(a);
-        start.setText("Approve and start");
-        start.setTextColor(a.getColor(R.color.on_accent));
-        start.setBackgroundResource(R.drawable.bg_send_button);
-        start.setGravity(android.view.Gravity.CENTER);
-        start.setTextSize(16f);
-        start.setMinHeight(a.dp(48));
-        start.setOnClickListener(v -> {
-            if (sheet[0] != null) {
-                sheet[0].dismiss();
-            }
-            a.note("Starting “" + c.name + "”: drawing its pictures…");
-            new Thread(() -> {
-                String why = CampaignRunner.start(a.getApplicationContext(), c);
-                a.handler.post(() -> a.note(why == null ? "“" + c.name + "” is running: " + c.progress()
-                        + ". See it under Social accounts › Campaigns." : why));
-            }, "ibiko-campaign-start").start();
-        });
-        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = a.dp(12);
-        list.addView(start, lp);
-        android.widget.TextView discard = new android.widget.TextView(a);
-        discard.setText("Discard");
-        discard.setTextColor(a.getColor(R.color.text_secondary));
-        discard.setGravity(android.view.Gravity.CENTER);
-        discard.setMinHeight(a.dp(48));
-        discard.setOnClickListener(v -> {
-            if (sheet[0] != null) {
-                sheet[0].dismiss();
-            }
-            a.note("Campaign discarded. Nothing was posted.");
-        });
-        list.addView(discard);
-        android.widget.ScrollView scroll = new android.widget.ScrollView(a);
-        scroll.addView(list);
-        sheet[0] = ai.ibiko.chat.ui.BottomSheet.showView(a, c.name.isEmpty() ? "Your campaign" : c.name, scroll);
     }
 
     /** Between two rounds of finding leads and answering comments. */

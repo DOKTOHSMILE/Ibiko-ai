@@ -263,7 +263,9 @@ final class LocalAsk {
                                     act.talk.setOwner(owner); // said as it is written, and kept under the message it will be
                                 }
                             }
-                            act.talk.queue(ivieVoice, sentence);
+                            if (!sentence.trim().startsWith("[button")) {
+                                act.talk.queue(ivieVoice, sentence); // the buttons line is for tapping, not for hearing
+                            }
                         }
 
                         @Override
@@ -338,8 +340,21 @@ final class LocalAsk {
                     ? act.model.thinkers() : java.util.Collections.<ai.ibiko.llm.ThinkTwo.Thinker>emptyList();
             if (!thinkers.isEmpty() && (carry || ai.ibiko.llm.ThinkTwo.worth(english))) {
                 final int room = Math.max(length, 800);
-                raw = ai.ibiko.llm.ThinkTwo.run((t, sys, prompt) -> act.model.askThinker(t, sys, prompt, room),
-                        thinkers, subject, context, system, () -> !act.alive(id));
+                act.handler.post(() -> {
+                    if (act.alive(id) && act.chatPane != null) {
+                        act.chatPane.brainstorm(true); // Council at work: its own words and colour on the live line
+                    }
+                });
+                try {
+                    raw = ai.ibiko.llm.ThinkTwo.run((t, sys, prompt) -> act.model.askThinker(t, sys, prompt, room),
+                            thinkers, subject, context, system, () -> !act.alive(id));
+                } finally {
+                    act.handler.post(() -> {
+                        if (act.chatPane != null) {
+                            act.chatPane.brainstorm(false);
+                        }
+                    });
+                }
                 if (raw != null) {
                     sink.onText(raw);
                 }
@@ -517,7 +532,7 @@ final class LocalAsk {
                 } else {
                     // a reply that says it sent, saved or posted something when nothing was done says so plainly
                     body = ai.ibiko.gate.ClaimGuard.check(body, false);
-                    act.keepVoice(body); // the rest of the voice, under this reply, while the words go on screen
+                    act.keepVoice(ai.ibiko.chat.ReplyButtons.split(body).text); // the rest of the voice: the words, not the buttons
                     TurnLine said = new TurnLine(agent, "SAY", body);
                     if (spokeLive) {
                         act.spokenLive.add(said);

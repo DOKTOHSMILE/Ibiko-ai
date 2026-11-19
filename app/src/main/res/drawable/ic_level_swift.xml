@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ibiko icon: Swift, a direct answer (a bolt), two-tone in the app's colour (@color/icon_brand). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="18dp" android:height="18dp"
+    android:viewportWidth="960" android:viewportHeight="960">
+    <path android:fillColor="@color/icon_brand" android:fillAlpha="0.26"
+        android:pathData="M560,96L224,536L452,536L404,864L736,404L508,404Z" />
+    <path android:strokeColor="@color/icon_brand" android:strokeWidth="64" android:strokeLineJoin="round"
+        android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M560,96L224,536L452,536L404,864L736,404L508,404Z" />
+</vector>

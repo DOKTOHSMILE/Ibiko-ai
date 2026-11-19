@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ibiko icon: Deep, plan, check and revise (stacked layers), two-tone in the app's colour (@color/icon_brand). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="18dp" android:height="18dp"
+    android:viewportWidth="960" android:viewportHeight="960">
+    <path android:fillColor="@color/icon_brand" android:fillAlpha="0.26" android:pathData="M480,128L832,324L480,520L128,324Z" />
+    <path android:strokeColor="@color/icon_brand" android:strokeWidth="64" android:strokeLineJoin="round"
+        android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M480,128L832,324L480,520L128,324ZM160,500L480,680L800,500M160,664L480,844L800,664" />
+</vector>

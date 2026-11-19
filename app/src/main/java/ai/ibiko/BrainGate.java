@@ -310,9 +310,10 @@ final class BrainGate {
                     how += ai.ibiko.social.SocialPlaybook.SHORT; // how to move through the social codes, in a few lines
                 }
             }
-            return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today) + how;
+            return ai.ibiko.llm.PersonaPrompt.lean(a.brain.userName(), today) + how + ai.ibiko.chat.ReplyButtons.HOW;
         }
-        return ai.ibiko.llm.PersonaPrompt.system(agent, a.brain.userName(), today, a.selfSheet()) + (acts ? suitCodes(agent) : "");
+        return ai.ibiko.llm.PersonaPrompt.system(agent, a.brain.userName(), today, a.selfSheet()) + (acts ? suitCodes(agent) : "")
+                + ai.ibiko.chat.ReplyButtons.HOW;
     }
 
     String suitCodes(String persona) {

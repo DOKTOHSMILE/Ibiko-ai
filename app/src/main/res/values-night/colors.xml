@@ -19,6 +19,8 @@
     <color name="accent_cyan">#8B7CFF</color>
     <color name="border_subtle">#262632</color>
     <color name="accent">#8B7CFF</color>
+    <!-- Council's brainstorming: the live line pulses between the accent and this -->
+    <color name="brainstorm">#FFB547</color>
     <color name="on_accent">#0E0E14</color>
     <color name="surface_high">#262632</color>
     <color name="code_bg">#0B0B10</color>

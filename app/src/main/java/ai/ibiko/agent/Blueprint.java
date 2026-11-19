@@ -161,7 +161,19 @@ public final class Blueprint {
         boolean namesLine = t.matches("(?s).*\\.[a-z]{1,5}:\\d+.*");
         boolean compiler = t.contains("cannot be resolved") || t.contains("cannot find symbol")
                 || t.contains("does not exist") || t.contains("error:");
-        return namesLine && compiler;
+        if (namesLine && compiler) {
+            return true;
+        }
+        // an error pasted to fix (a stack trace, an exception, a traceback, a failing test): straight to the code it
+        // names. A survey of the project and a plan first was the circle: reading every file, and no fix
+        // real error output (what a compiler, a test run or a crash prints), or an error named with a request to fix it;
+        // "build an app that handles IOException" is neither
+        boolean output = !ErrorReader.read(task).isEmpty() || t.contains("traceback (most recent call last)")
+                || t.matches("(?s).*\\bat [\\w.$]+\\([\\w$]+\\.(java|kt):\\d+\\).*");
+        boolean named = task.matches("(?s).*\\b[A-Z]\\w*(Exception|Error)\\b.*") || t.matches("(?s).*\\berror\\[e\\d+\\].*")
+                || t.matches("(?s).*\\b(\\d+ )?(tests? )?failed\\b.*") || t.matches("(?s).*\\berror ts\\d+.*");
+        boolean wantsFix = t.matches("(?s).*\\b(fix|solve|resolve|debug|repair|crash(es|ed|ing)?|fails?|failing|failed|broken|not working|doesn'?t work|won'?t (build|compile|run|start))\\b.*");
+        return output || named && wantsFix;
     }
 
     /** The phase the blueprint is in: UNDERSTAND until PLAN.md says otherwise. */
