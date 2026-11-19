@@ -23,7 +23,6 @@ import ai.ibiko.social.campaign.CampaignDraft;
 import ai.ibiko.social.campaign.CampaignPlanner;
 import ai.ibiko.social.campaign.CampaignRunner;
 import ai.ibiko.social.campaign.LeadSender;
-import ai.ibiko.social.campaign.PlatformRules;
 import ai.ibiko.social.campaign.Product;
 import ai.ibiko.social.campaign.WhatsApp;
 
@@ -301,30 +300,7 @@ public final class CampaignFormActivity extends AppCompatActivity {
             Toast.makeText(this, "Choose at least one account to post from, or Instagram or LinkedIn.", Toast.LENGTH_LONG).show();
             return;
         }
-        java.util.List<String> networks = new java.util.ArrayList<String>(c.handoff);
-        for (int i = 0; i < picks.size(); i++) {
-            if (picks.get(i).isChecked()) {
-                networks.add(usable.get(i).platform == Platform.X ? "x" : "facebook");
-            }
-        }
-        java.util.List<PlatformRules.Flag> flags = PlatformRules.brief(c.brief, networks);
-        if (flags.isEmpty()) {
-            hand(c);
-            return;
-        }
-        StringBuilder why = new StringBuilder();
-        for (PlatformRules.Flag f : flags) {
-            why.append("• ").append(Character.toUpperCase(f.why.charAt(0))).append(f.why.substring(1)).append(".\n");
-        }
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Before you plan")
-                .setMessage(why + "\nPosts that break these rules can be taken down and the account restricted, which stops every"
-                        + " campaign on it. Ibiko will keep those items out of posts there and build them around your other"
-                        + " products, and flag any post that still breaks a rule for you to check. WhatsApp Status is yours"
-                        + " to share as you see fit.")
-                .setPositiveButton("Plan it", (d, w) -> hand(c))
-                .setNegativeButton("Change the brief", null)
-                .show();
+        hand(c);
     }
 
     private void hand(Campaign c) {

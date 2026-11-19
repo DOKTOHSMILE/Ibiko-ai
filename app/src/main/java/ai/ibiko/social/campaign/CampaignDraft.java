@@ -28,6 +28,19 @@ public final class CampaignDraft {
         waiting = c;
     }
 
+    private static String chatToOpen;
+
+    /** A campaign's chat to open when Ibiko's chat screen comes back (from the campaigns dashboard). */
+    public static synchronized void openChat(String chatId) {
+        chatToOpen = chatId;
+    }
+
+    public static synchronized String takeChat() {
+        String id = chatToOpen;
+        chatToOpen = null;
+        return id;
+    }
+
     public static synchronized Campaign take() {
         Campaign c = waiting;
         waiting = null;
@@ -75,7 +88,7 @@ public final class CampaignDraft {
             nm.createNotificationChannel(ch);
         }
         PendingIntent open = PendingIntent.getActivity(c, id.hashCode(),
-                new Intent(c, ai.ibiko.chat.ui.SocialActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                new Intent(c, ai.ibiko.chat.ui.CampaignsActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new Notification.Builder(c, CHANNEL)
                 .setSmallIcon(ai.ibiko.R.drawable.ic_calendar)

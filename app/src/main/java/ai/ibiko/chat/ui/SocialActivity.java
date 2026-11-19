@@ -65,7 +65,17 @@ public final class SocialActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         fill(); // back from signing in
+        if (!focused && "leads".equals(getIntent().getStringExtra(EXTRA_FOCUS)) && leadsCard != null) {
+            focused = true;
+            final android.view.View scroller = (android.view.View) body.getParent();
+            body.post(() -> scroller.scrollTo(0, Math.max(0, leadsCard.getTop() - Ui.dp(this, 48))));
+        }
     }
+
+    /** Opened to show one part ({@code "leads"}): the screen scrolls there once. */
+    static final String EXTRA_FOCUS = "focus";
+    private android.view.View leadsCard;
+    private boolean focused;
 
     /** A campaign is being planned: the list redraws every few seconds, so its progress shows. */
     private boolean planningNow;
@@ -256,49 +266,28 @@ public final class SocialActivity extends AppCompatActivity {
         if (!prefs.getBoolean("social_campaigns", false)) {
             return;
         }
-        java.text.DateFormat df = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM);
-        for (final ai.ibiko.social.campaign.Campaign c : ai.ibiko.social.campaign.CampaignRunner.store(this).all()) {
-            final String planning = ai.ibiko.social.campaign.CampaignDraft.planning(c.id);
-            boolean draft = c.status == ai.ibiko.social.campaign.Campaign.Status.DRAFT;
-            boolean cut = draft && planning == null && c.items.isEmpty(); // Ibiko closed while it was planning
-            String state = planning != null ? "Planning" : cut ? "Planning didn't finish" : draft ? "Ready to review"
-                    : c.status == ai.ibiko.social.campaign.Campaign.Status.ACTIVE ? "Running"
-                    : c.status == ai.ibiko.social.campaign.Campaign.Status.PAUSED ? "Paused" : "Done";
-            String under = planning != null ? planning + " · tap to stop" : cut ? "Tap to remove it, then plan it again"
-                    : draft ? c.items.size() + " posts · tap to read the plan and approve it"
-                    : c.progress() + " · from " + df.format(new java.util.Date(c.startAt));
-            LinearLayout r = iconRow(planning != null ? ai.ibiko.R.drawable.ic_calendar : ai.ibiko.R.drawable.ic_send,
-                    c.name + " · " + state, under);
-            r.setMinimumHeight(Ui.dp(this, 52));
-            r.setContentDescription(c.name + ", " + state + ", " + under);
-            Ui.press(r);
-            if (planning != null) {
-                planningNow = true;
-                r.setOnClickListener(v -> new androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setMessage("Stop planning “" + c.name + "”? Nothing has been posted.")
-                        .setPositiveButton("Stop", (d, w) -> {
-                            ai.ibiko.social.campaign.CampaignDraft.stop(c.id);
-                            android.widget.Toast.makeText(this, "Stopping after the posts being written now.",
-                                    android.widget.Toast.LENGTH_SHORT).show();
-                        })
-                        .setNegativeButton("Keep planning", null)
-                        .show());
-            } else if (cut) {
-                r.setOnClickListener(v -> {
-                    try {
-                        ai.ibiko.social.campaign.CampaignRunner.store(this).remove(c.id);
-                    } catch (java.io.IOException ignored) {
-                        // the list shows what was kept
-                    }
-                    fill();
-                });
-            } else if (draft) {
-                r.setOnClickListener(v -> CampaignReview.show(this, c, this::fill));
-            } else {
-                r.setOnClickListener(v -> campaignMenu(c));
+        int running = 0, upcoming = 0, past = 0;
+        long now = System.currentTimeMillis();
+        for (ai.ibiko.social.campaign.Campaign c : ai.ibiko.social.campaign.CampaignRunner.store(this).all()) {
+            boolean planning = ai.ibiko.social.campaign.CampaignDraft.planning(c.id) != null;
+            planningNow |= planning;
+            switch (ai.ibiko.social.campaign.CampaignBoard.bucket(c, planning, now)) {
+                case RUNNING:
+                    running++;
+                    break;
+                case UPCOMING:
+                    upcoming++;
+                    break;
+                default:
+                    past++;
             }
-            card.addView(r);
         }
+        LinearLayout open = iconRow(ai.ibiko.R.drawable.ic_calendar, "Open the campaigns dashboard",
+                running + " running · " + upcoming + " coming up · " + past + " past");
+        open.setMinimumHeight(Ui.dp(this, 56));
+        Ui.press(open);
+        open.setOnClickListener(v -> startActivity(new Intent(this, CampaignsActivity.class)));
+        card.addView(open);
         TextView add = Ui.text(this, "New campaign", 15, Ui.ACCENT, false);
         add.setGravity(Gravity.CENTER_VERTICAL);
         add.setMinHeight(Ui.dp(this, 48));
@@ -319,6 +308,7 @@ public final class SocialActivity extends AppCompatActivity {
     /** People the campaigns found who may need the offer, each with the reply drafted for them: Send, Edit, Dismiss. */
     private void leads() {
         LinearLayout card = section("Leads", ai.ibiko.R.drawable.ic_people);
+        leadsCard = card;
         java.util.List<ai.ibiko.social.campaign.Lead> waiting = new java.util.ArrayList<ai.ibiko.social.campaign.Lead>();
         int sent = 0;
         for (ai.ibiko.social.campaign.Lead l : ai.ibiko.social.campaign.LeadSender.store(this).all()) {
@@ -505,97 +495,6 @@ public final class SocialActivity extends AppCompatActivity {
                     }
                 })
                 .show();
-    }
-
-    /** One campaign: pause or resume it, see its posts, or delete it. */
-    private void campaignMenu(final ai.ibiko.social.campaign.Campaign c) {
-        boolean running = c.status == ai.ibiko.social.campaign.Campaign.Status.ACTIVE;
-        boolean done = c.status == ai.ibiko.social.campaign.Campaign.Status.DONE;
-        java.util.List<String> labels = new java.util.ArrayList<String>();
-        if (!done) {
-            labels.add(running ? "Pause" : "Resume");
-        }
-        labels.add("Show its posts");
-        labels.add("Delete");
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(c.name)
-                .setItems(labels.toArray(new String[0]), (d, which) -> {
-                    String l = labels.get(which);
-                    if (l.equals("Pause") || l.equals("Resume")) {
-                        ai.ibiko.social.campaign.CampaignRunner.setRunning(this, c.id, !running);
-                        fill();
-                    } else if (l.equals("Show its posts")) {
-                        posts(c);
-                    } else {
-                        new androidx.appcompat.app.AlertDialog.Builder(this)
-                                .setMessage("Delete “" + c.name + "”? Posts already out stay on the networks; the rest won't go out.")
-                                .setPositiveButton("Delete", (d2, w2) -> {
-                                    try {
-                                        ai.ibiko.social.campaign.CampaignRunner.store(this).remove(c.id);
-                                        ai.ibiko.social.campaign.LeadSender.store(this).forget(c.id);
-                                        ai.ibiko.social.campaign.Results res = ai.ibiko.social.campaign.CampaignRunner.results(this);
-                                        res.forget(c);
-                                        res.save();
-                                    } catch (java.io.IOException ignored) {
-                                        // the list shows what was kept
-                                    }
-                                    ai.ibiko.social.campaign.CampaignRunner.arm(this, 0);
-                                    fill();
-                                })
-                                .setNegativeButton("Keep", null)
-                                .show();
-                    }
-                })
-                .show();
-    }
-
-    /** A campaign's posts, each with its time, account and what happened. */
-    private void posts(final ai.ibiko.social.campaign.Campaign c) {
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), Ui.dp(this, 16));
-        ai.ibiko.social.campaign.Results results = ai.ibiko.social.campaign.CampaignRunner.results(this);
-        TextView sum = Ui.text(this, results.summary(c, java.util.TimeZone.getDefault())
-                + "\nResponses are read from each account's notifications while Ibiko runs. Tap a post to share, edit or"
-                + " take it out.", 13, Ui.SUB, false);
-        sum.setPadding(0, 0, 0, Ui.dp(this, 8));
-        list.addView(sum);
-        java.text.DateFormat df = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT);
-        SocialAccounts accounts = SocialWeb.accounts(this);
-        final android.app.Dialog[] sheet = {null};
-        final Runnable again = () -> {
-            if (sheet[0] != null) {
-                sheet[0].dismiss();
-            }
-            ai.ibiko.social.campaign.Campaign fresh = ai.ibiko.social.campaign.CampaignRunner.store(this).get(c.id);
-            if (fresh != null) {
-                posts(fresh);
-            }
-            fill();
-        };
-        for (final ai.ibiko.social.campaign.Campaign.Item it : c.items) {
-            SocialAccounts.Account a = accounts.get(it.account);
-            boolean posted = it.state == ai.ibiko.social.campaign.Campaign.State.POSTED;
-            String state = posted ? (it.handoff ? "Handed to you" : it.checked == 1 ? "Posted, checked on the network"
-                    : "Posted, not checked yet")
-                    : it.state == ai.ibiko.social.campaign.Campaign.State.FAILED ? "Didn't go out: " + it.result
-                    : it.result.startsWith("waiting") ? "Waiting: " + it.result.substring(8).trim() : "Planned";
-            String where = it.handoff || a == null ? ai.ibiko.social.campaign.CampaignRunner.shown(it.network) : a.label;
-            String counts = "";
-            if (posted && !it.handoff) {
-                ai.ibiko.social.campaign.Results.Count n = results.of(it.id);
-                counts = " · " + n.reactions + (n.reactions == 1 ? " reaction" : " reactions") + ", " + n.talk
-                        + (n.talk == 1 ? " comment or share" : " comments or shares");
-            }
-            LinearLayout row = iconRow(posted ? ai.ibiko.R.drawable.ic_check : ai.ibiko.R.drawable.ic_calendar,
-                    df.format(new java.util.Date(it.at)) + " · " + where + " · " + state + counts, it.text);
-            Ui.press(row);
-            row.setOnClickListener(v -> PostActions.menu(this, c, it, again));
-            list.addView(row);
-        }
-        ScrollView sv = new ScrollView(this);
-        sv.addView(list);
-        sheet[0] = BottomSheet.showView(this, c.name, sv);
     }
 
     private static final int FORM = 41;

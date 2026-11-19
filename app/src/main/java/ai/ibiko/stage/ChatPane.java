@@ -2159,11 +2159,8 @@ public final class ChatPane extends LinearLayout {
         String was = making.remove(token);
         if (path != null && was != null) {
             String chat = was.substring(0, was.indexOf('\n'));
-            String here = book.current().id;
-            if (!chat.equals(here) && book.use(chat)) {
-                book.add("assistant", "image", path, writer()); // pasted into the chat it was asked in
-                book.use(here);
-            } else {
+            // pasted into the chat it was asked in, whichever is open now (add() would follow the latest job's chat)
+            if (!book.addTo(chat, "assistant", "image", path, writer())) {
                 book.add("assistant", "image", path, writer());
             }
         }

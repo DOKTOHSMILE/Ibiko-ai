@@ -34,4 +34,17 @@ public class PostCheckTest {
         assertNull("next to nothing on the page", PostCheck.found("Log in", POST, "facebook"));
         assertNull("too few words to tell posts apart", PostCheck.found(page("Hi"), "Hi!", "facebook"));
     }
+
+    @Test
+    public void thePostsOwnLinkIsGiven() {
+        String x = page("Valentine Inetanbor @valineto3\nFresh 12.5kg gas cylinders delivered across Lagos today! #gas\n"
+                + "LINK https://x.com/valineto3/status/1990012345678901234/analytics\nLINK https://x.com/someone/status/1");
+        PostCheck.Seen s = PostCheck.seen(x, POST, "x");
+        assertEquals(Boolean.TRUE, s.found);
+        assertEquals("https://x.com/valineto3/status/1990012345678901234", s.url);
+        String fb = page("LINK https://m.facebook.com/story.php?story_fbid=42&id=7\nValineto3 · 1m\n"
+                + "Fresh 12.5kg gas cylinders delivered across Lagos today!");
+        assertEquals("https://m.facebook.com/story.php?story_fbid=42&id=7", PostCheck.seen(fb, POST, "facebook").url);
+        assertNull("not found: no link", PostCheck.seen(page("Other things"), POST, "facebook").url);
+    }
 }

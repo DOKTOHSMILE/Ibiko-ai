@@ -49,7 +49,7 @@ public class CampaignFormTest {
         assertTrue("starts tall", offer.getMinLines() >= 3);
         assertTrue("a long answer wraps", offer.getMaxLines() > 1);
 
-        offer.setText("Gas cylinders\nand household gadgets, delivered across Lagos");
+        offer.setText("Tazers, gas cylinders\nand household gadgets, delivered across Lagos");
         TextView plan = (TextView) byText(a.getWindow().getDecorView(), "Plan it");
         assertNotNull(plan);
         plan.performClick();
@@ -62,30 +62,6 @@ public class CampaignFormTest {
         assertTrue(a.isFinishing());
         c.pause().stop().destroy();
         accounts.remove(x.id); // the accounts list is shared with other tests
-    }
-
-    @Test
-    public void aBriefTheNetworksBanIsWarnedAboutBeforePlanning() {
-        CampaignDraft.take();
-        android.content.Context app = org.robolectric.RuntimeEnvironment.getApplication();
-        SocialAccounts accounts = SocialWeb.accounts(app);
-        SocialAccounts.Account fb = accounts.add(Platform.FACEBOOK, "Shop", System.currentTimeMillis());
-        accounts.signedIn(fb.id, true);
-        accounts.use(fb.id);
-        ActivityController<CampaignFormActivity> c = Robolectric.buildActivity(CampaignFormActivity.class).create().start().resume().visible();
-        CampaignFormActivity a = c.get();
-        List<EditText> boxes = new ArrayList<EditText>();
-        collect(a.getWindow().getDecorView(), boxes);
-        boxes.get(1).setText("(Tazers), gas cylinders and other gadgets");
-        ((TextView) byText(a.getWindow().getDecorView(), "Plan it")).performClick();
-        android.app.Dialog d = org.robolectric.shadows.ShadowDialog.getLatestDialog();
-        assertNotNull("a warning first", d);
-        assertNull("not handed on yet", CampaignDraft.take());
-        ((androidx.appcompat.app.AlertDialog) d).getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick();
-        ShadowLooper.idleMainLooper();
-        assertNotNull("planned once the person goes ahead", CampaignDraft.take());
-        c.pause().stop().destroy();
-        accounts.remove(fb.id);
     }
 
     @Test

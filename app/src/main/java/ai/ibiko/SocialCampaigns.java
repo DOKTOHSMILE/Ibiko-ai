@@ -24,6 +24,17 @@ final class SocialCampaigns {
      * plan is kept as a draft, and when it is ready it opens in a new chat of its own if nothing is going on, or waits
      * in Social accounts › Campaigns.
      */
+    /** Back from the campaigns dashboard with a campaign's chat to open: it opens. */
+    void takeChatJump() {
+        String id = CampaignDraft.takeChat();
+        if (id != null && a.chats != null && a.chats.use(id)) {
+            a.selectPersona(a.chats.current().persona);
+            if (a.chatPane != null) {
+                a.chatPane.show();
+            }
+        }
+    }
+
     void takeDraft() {
         final Campaign c = CampaignDraft.take();
         if (c == null) {
@@ -134,53 +145,7 @@ final class SocialCampaigns {
 
     /** The brief as the person's message in the campaign's chat. */
     static String brief(Campaign c, ai.ibiko.social.SocialAccounts all) {
-        StringBuilder s = new StringBuilder("New social media campaign\n");
-        line(s, "Business", c.brief.business);
-        line(s, "Promotes", c.brief.offer);
-        line(s, "For", c.brief.audience);
-        line(s, "Goal", c.brief.goal);
-        line(s, "Tone", c.brief.tone);
-        line(s, "Link", c.brief.link);
-        line(s, "WhatsApp", c.brief.whatsapp);
-        if (!c.brief.products.isEmpty()) {
-            java.util.List<String> ps = new ArrayList<String>();
-            for (ai.ibiko.social.campaign.Product p : c.brief.products) {
-                ps.add(p.name + (p.price.isEmpty() ? "" : " (" + p.price + ")"));
-            }
-            line(s, "Products", String.join(", ", ps));
-        }
-        java.util.List<String> from = new ArrayList<String>();
-        for (String id : c.accounts) {
-            ai.ibiko.social.SocialAccounts.Account acc = all == null ? null : all.get(id);
-            if (acc != null) {
-                from.add(acc.label + " (" + acc.platform.shown + ")");
-            }
-        }
-        for (String n : c.handoff) {
-            from.add(CampaignRunner.shown(n) + " (you share)");
-        }
-        line(s, "Posts from", String.join(", ", from));
-        line(s, "Runs", c.days + (c.days == 1 ? " day, " : " days, ") + c.perDay + (c.perDay == 1 ? " post" : " posts")
-                + " a day on each account");
-        java.util.List<String> also = new ArrayList<String>();
-        if (c.engage) {
-            also.add("answer comments");
-        }
-        if (c.prospect) {
-            also.add(c.autoPitch ? "find people who need it and pitch them (up to " + ai.ibiko.social.campaign.LeadSender.MOST_AUTO_PITCHES
-                    + " a day)" : "find people who need it (pitches wait for you)");
-        }
-        if (c.whatsappShare) {
-            also.add("offer each post for WhatsApp Status");
-        }
-        line(s, "Also", String.join(" · ", also));
-        return s.toString().trim();
-    }
-
-    private static void line(StringBuilder s, String name, String v) {
-        if (v != null && !v.trim().isEmpty()) {
-            s.append('\n').append(name).append(": ").append(v.trim().replaceAll("\\s*\\n\\s*", " "));
-        }
+        return ai.ibiko.social.campaign.CampaignBoard.brief(c, all);
     }
 
     /** A message from the campaign in its own chat, wherever the person is. */

@@ -13,7 +13,6 @@ import java.util.List;
 
 import ai.ibiko.social.campaign.Campaign;
 import ai.ibiko.social.campaign.CampaignRunner;
-import ai.ibiko.social.campaign.PlatformRules;
 
 /**
  * What can be done with one planned post, from the plan's review and from a running campaign's posts: see its
@@ -33,8 +32,8 @@ final class PostActions {
         if (planned) {
             labels.add("Edit the words");
         }
-        if (planned && !it.riskOk && PlatformRules.banned(it.network, it.text)) {
-            labels.add("Post it anyway");
+        if (it.state == Campaign.State.FAILED) {
+            labels.add("Try posting it again");
         }
         if (it.handoff) {
             labels.add("Share to " + CampaignRunner.shown(it.network) + " now");
@@ -51,22 +50,25 @@ final class PostActions {
                                 CampaignRunner.catalog(a).inline(it.imageHtml)));
                     } else if (l.equals("Edit the words")) {
                         edit(a, c, it, redraw);
-                    } else if (l.equals("Post it anyway")) {
-                        new androidx.appcompat.app.AlertDialog.Builder(a)
-                                .setMessage(PlatformRules.said(PlatformRules.check(it.network, it.text))
-                                        + "\n\nThe network may take it down and restrict the account. Post it anyway?")
-                                .setPositiveButton("Post it anyway", (d2, w2) -> {
-                                    it.riskOk = true;
-                                    if (it.state == Campaign.State.FAILED) {
-                                        it.state = Campaign.State.PLANNED; // held back: it goes out at the next run
-                                        it.result = "";
-                                        it.at = Math.max(it.at, System.currentTimeMillis());
-                                    }
-                                    save(a, c, redraw);
-                                    CampaignRunner.arm(a, 0);
-                                })
-                                .setNegativeButton("Keep it held", null)
-                                .show();
+                    } else if (l.equals("Try posting it again")) {
+                        Runnable again = () -> {
+                            it.state = Campaign.State.PLANNED; // it goes out at the next run
+                            it.result = "";
+                            it.checked = 0;
+                            it.at = Math.max(it.at, System.currentTimeMillis());
+                            save(a, c, redraw);
+                            CampaignRunner.arm(a, 0);
+                        };
+                        if (it.checked == -1) {
+                            new androidx.appcompat.app.AlertDialog.Builder(a)
+                                    .setMessage("Ibiko pressed Post on this one before but couldn't find it on your profile."
+                                            + " If it did go out, posting again doubles it. Look on your profile first.")
+                                    .setPositiveButton("Post it again", (d2, w2) -> again.run())
+                                    .setNegativeButton("Keep it", null)
+                                    .show();
+                        } else {
+                            again.run();
+                        }
                     } else if (l.startsWith("Share to WhatsApp")) {
                         a.startActivity(PostShareActivity.intent(a, c.id, it.id, "whatsapp"));
                     } else if (l.startsWith("Share to ")) {
@@ -105,8 +107,6 @@ final class PostActions {
                         t = t.substring(0, most);
                     }
                     it.text = t;
-                    it.risk = PlatformRules.said(PlatformRules.check(it.network, t));
-                    it.riskOk = false; // the new words are checked afresh
                     save(a, c, redraw);
                 })
                 .setNegativeButton("Cancel", null)
@@ -124,14 +124,4 @@ final class PostActions {
         }
     }
 
-    /** How many posts of {@code c} still planned break a rule their network bans, and weren't let through. */
-    static int held(Campaign c) {
-        int n = 0;
-        for (Campaign.Item it : c.items) {
-            if (it.state == Campaign.State.PLANNED && !it.riskOk && PlatformRules.banned(it.network, it.text)) {
-                n++;
-            }
-        }
-        return n;
-    }
 }

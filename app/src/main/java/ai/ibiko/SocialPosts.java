@@ -395,7 +395,9 @@ final class SocialPosts {
             if (r.posted) {
                 act.ibiko1().readReply(p.content); // Ibiko 1 learns the language of what the pilot approved
             }
-            act.handler.post(() -> act.play(LocalTurn.speakAs(agent, r.said), null));
+            final String said = r.posted && p.target != null && p.target.startsWith("https://")
+                    ? r.said + "\nThe post you commented on: " + p.target : r.said;
+            act.handler.post(() -> act.play(LocalTurn.speakAs(agent, said), null));
         }, "ibiko-comment-post").start();
     }
 }

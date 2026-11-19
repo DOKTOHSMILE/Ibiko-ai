@@ -131,9 +131,10 @@ final class StagedActions {
                 if (r.posted) {
                     a.ibiko1().readReply(p.content); // Ibiko 1 learns the language of what the pilot approved
                     a.handler.post(() -> a.note("Checking that it's on your " + net.shown + " profile\u2026"));
-                    Boolean seen = ai.ibiko.social.campaign.PostCheck.verify(a, net, p.content); // pressing Post isn't proof
-                    checked = Boolean.TRUE.equals(seen) ? "Posted on " + net.shown + " and checked: it's on your profile."
-                            : Boolean.FALSE.equals(seen) ? "I pressed Post on " + net.shown + ", but the post isn't on your profile."
+                    ai.ibiko.social.campaign.PostCheck.Seen seen = ai.ibiko.social.campaign.PostCheck.verify(a, net, p.content);
+                    checked = seen.yes() ? "Posted on " + net.shown + " and checked: it's on your profile."
+                            + (seen.url == null ? "" : "\n" + seen.url)
+                            : seen.no() ? "I pressed Post on " + net.shown + ", but the post isn't on your profile."
                                     + " Check it there; I won't post it again, so nothing is doubled."
                             : r.said + " I couldn't check your profile to confirm it.";
                 }

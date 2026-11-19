@@ -64,17 +64,86 @@ public final class PostCheck {
         return Boolean.FALSE;
     }
 
+    /** What a look found: whether the post is there (null: not known), and its address when the page showed one. */
+    public static final class Seen {
+        public final Boolean found;
+        public final String url;
+
+        Seen(Boolean found, String url) {
+            this.found = found;
+            this.url = url;
+        }
+
+        public boolean yes() {
+            return Boolean.TRUE.equals(found);
+        }
+
+        public boolean no() {
+            return Boolean.FALSE.equals(found);
+        }
+    }
+
+    /** As {@link #found}, with the post's own address: the post link on the page nearest after its words. */
+    static Seen seen(String page, String text, String network) {
+        Boolean f = found(page, text, network);
+        return new Seen(f, Boolean.TRUE.equals(f) ? link(page, text, network) : null);
+    }
+
+    /** The address of the post whose words are {@code text}, from the page's {@code LINK} lines; null when none. */
+    static String link(String page, String text, String network) {
+        String[] lines = page.split("\n");
+        String[] w = Results.plain(words(text)).split(" ");
+        StringBuilder head = new StringBuilder();
+        for (int i = 0; i < w.length && i < 4; i++) {
+            head.append(i == 0 ? "" : " ").append(w[i]);
+        }
+        String want = head.toString();
+        int at = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (!lines[i].trim().regionMatches(true, 0, "LINK ", 0, 5) && Results.plain(lines[i]).contains(want)) {
+                at = i;
+                break;
+            }
+        }
+        if (at < 0) {
+            return null;
+        }
+        boolean x = "x".equals(network);
+        String best = null;
+        // the post's own link comes with it, usually just after its words (its time stamp), sometimes before
+        for (int d = 0; d <= 14 && best == null; d++) {
+            for (int i : new int[]{at + d, at - d}) {
+                if (i < 0 || i >= lines.length) {
+                    continue;
+                }
+                String l = lines[i].trim();
+                if (!l.regionMatches(true, 0, "LINK ", 0, 5)) {
+                    continue;
+                }
+                String u = l.substring(5).trim().replaceAll("[).,]+$", "");
+                boolean post = x ? u.matches("https://(?:x|twitter|mobile\\.twitter)\\.com/[^/]+/status/\\d+.*")
+                        : ai.ibiko.social.SocialPage.postLink(u);
+                if (post && u.startsWith("https://")) {
+                    best = x ? u.replaceAll("(/status/\\d+).*$", "$1").replace("mobile.twitter.com", "x.com")
+                            .replace("twitter.com", "x.com") : u;
+                    break;
+                }
+            }
+        }
+        return best;
+    }
+
     /** Looks once: the account's timeline (Facebook) or an exact-words search (X). */
-    static Boolean look(Context c, Platform p, String text) {
+    static Seen look(Context c, Platform p, String text) {
         String page = p == Platform.X
                 ? SocialWeb.search(c, Platform.X, "\"" + words(text) + "\"", 9000)
                 : SocialWeb.open(c, "https://m.facebook.com/me", 12000);
-        return found(page, text, p == Platform.X ? "x" : "facebook");
+        return seen(page, text, p == Platform.X ? "x" : "facebook");
     }
 
     /** Looks after a short wait, and once more if it wasn't there yet. */
-    public static Boolean verify(Context c, Platform p, String text) {
-        Boolean seen = null;
+    public static Seen verify(Context c, Platform p, String text) {
+        Seen seen = new Seen(null, null);
         long[] waits = {FIRST_MS, AGAIN_MS};
         for (long w : waits) {
             try {
@@ -83,11 +152,11 @@ public final class PostCheck {
                 Thread.currentThread().interrupt();
                 return seen;
             }
-            Boolean now = look(c, p, text);
-            if (Boolean.TRUE.equals(now)) {
-                return Boolean.TRUE;
+            Seen now = look(c, p, text);
+            if (now.yes()) {
+                return now;
             }
-            seen = now == null ? seen : now;
+            seen = now.found == null ? seen : now;
         }
         return seen;
     }

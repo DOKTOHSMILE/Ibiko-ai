@@ -39,7 +39,7 @@ public final class CampaignPlanner {
 
     public static final int MOST_POSTS = 120, MOST_DAYS = 90, MOST_PER_DAY = 6;
     /** A picture's HTML larger than this is dropped (the post goes out with words only). */
-    static final int MOST_HTML = 24_000;
+    static final int MOST_HTML = 48_000;
 
     private static final String OUTLINE_SYSTEM = "You are a social media campaign strategist for a small business. You plan"
             + " honest, useful campaigns that attract real customers: value first, a clear offer, a call to action, no"
@@ -63,8 +63,7 @@ public final class CampaignPlanner {
                 .append(" need this offer\"],\"times\":{\"<network>\":[\"09:30\",\"19:00\"]}}\n")
                 .append("3 to 6 themes mixing value, proof and offer, each with ").append(Math.max(3, Math.min(8, days * perDay * seats.size() / 4 + 1)))
                 .append(" different angles; for each network the 2 to 4 times of day its audience is most active. Short lines only.")
-                .append(brief.lessons.isEmpty() ? "" : " Lean on what worked in earlier campaigns.")
-                .append(' ').append(PlatformRules.FOR_THE_BRAIN);
+                .append(brief.lessons.isEmpty() ? "" : " Lean on what worked in earlier campaigns.");
         return s.toString();
     }
 
@@ -138,7 +137,7 @@ public final class CampaignPlanner {
     public static final int WORKERS = 6;
 
     private static final String POSTS_SYSTEM = "You write social media posts for a small business campaign: honest, useful,"
-            + " a clear call to action, no made-up facts, prices or reviews. " + PlatformRules.FOR_THE_BRAIN
+            + " a clear call to action, no made-up facts, prices or reviews."
             + " Reply with one JSON object only, no prose.";
 
     private static final String TEMPLATE_SYSTEM = "You design one picture template for a campaign theme, as a single"
@@ -516,7 +515,6 @@ public final class CampaignPlanner {
                     it.handoff = slot.account.startsWith(HANDOFF);
                     it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand,
                             shown == null || shown.photo.isEmpty() ? "" : shown.id);
-                    it.risk = PlatformRules.said(PlatformRules.check(it.network, it.text + "\n" + p[1] + "\n" + p[2]));
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }
