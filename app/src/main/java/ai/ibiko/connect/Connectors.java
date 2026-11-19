@@ -430,6 +430,13 @@ public final class Connectors {
         }
     }
 
+    /** A header that carries a secret: never sent to another host after a redirect. */
+    static boolean secret(String name) {
+        String n = name == null ? "" : name.toLowerCase(Locale.US);
+        return n.equals("authorization") || n.equals("cookie") || n.contains("token") || n.contains("api-key")
+                || n.contains("subscription") || n.equals("mcp-session-id");
+    }
+
     /** The real network: https only, 15 seconds to connect, 30 to answer, at most 2 MB back. */
     public static Http https() {
         return (method, url, headers, body) -> {
@@ -437,21 +444,42 @@ public final class Connectors {
             if (!"https".equalsIgnoreCase(u.getProtocol())) {
                 throw new IOException("only https is allowed");
             }
-            javax.net.ssl.HttpsURLConnection c = (javax.net.ssl.HttpsURLConnection) u.openConnection();
-            c.setRequestMethod(method);
-            c.setConnectTimeout(15_000);
-            c.setReadTimeout(30_000);
-            for (Map.Entry<String, String> h : headers.entrySet()) {
-                c.setRequestProperty(h.getKey(), h.getValue());
-            }
-            if (body != null) {
-                c.setDoOutput(true);
-                c.setFixedLengthStreamingMode(body.length);
-                try (java.io.OutputStream o = c.getOutputStream()) {
-                    o.write(body);
+            // redirects by hand: HttpURLConnection re-sent the token header to wherever it was redirected, another
+            // host too. On another host the secrets (token, key, session) are left out.
+            final String host = u.getHost();
+            javax.net.ssl.HttpsURLConnection c;
+            int status;
+            for (int hop = 0; ; hop++) {
+                c = (javax.net.ssl.HttpsURLConnection) u.openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setRequestMethod(method);
+                c.setConnectTimeout(15_000);
+                c.setReadTimeout(30_000);
+                boolean same = u.getHost().equalsIgnoreCase(host);
+                for (Map.Entry<String, String> h : headers.entrySet()) {
+                    if (same || !secret(h.getKey())) {
+                        c.setRequestProperty(h.getKey(), h.getValue());
+                    }
                 }
+                if (body != null) {
+                    c.setDoOutput(true);
+                    c.setFixedLengthStreamingMode(body.length);
+                    try (java.io.OutputStream o = c.getOutputStream()) {
+                        o.write(body);
+                    }
+                }
+                status = c.getResponseCode();
+                String next = status >= 300 && status < 400 && status != 304 ? c.getHeaderField("Location") : null;
+                if (next == null || hop >= 5 || (body != null && status != 307 && status != 308)) {
+                    break; // a POST is only followed where the method and body stay the same
+                }
+                java.net.URL to = new java.net.URL(u, next);
+                if (!"https".equalsIgnoreCase(to.getProtocol())) {
+                    break;
+                }
+                c.disconnect();
+                u = to;
             }
-            int status = c.getResponseCode();
             Map<String, String> got = new LinkedHashMap<String, String>();
             for (Map.Entry<String, List<String>> e : c.getHeaderFields().entrySet()) {
                 if (e.getKey() != null && e.getValue() != null && !e.getValue().isEmpty()) {
