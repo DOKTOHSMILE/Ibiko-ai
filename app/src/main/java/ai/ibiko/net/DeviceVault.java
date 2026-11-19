@@ -39,9 +39,15 @@ public final class DeviceVault {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
             return new String(c.doFinal(all, 12, all.length - 12), StandardCharsets.UTF_8);
-        } catch (Exception broken) {
-            // key gone (e.g. after a restore) or data damaged: register again
+        } catch (javax.crypto.AEADBadTagException | java.security.UnrecoverableKeyException
+                | android.security.keystore.KeyPermanentlyInvalidatedException | ArrayIndexOutOfBoundsException
+                | IllegalArgumentException broken) {
+            // the key is gone (e.g. after a restore) or the data is damaged: register again
             prefs.edit().remove(PREF).apply();
+            return null;
+        } catch (Exception passing) {
+            // the Keystore is busy or not ready yet (early after boot): keep the secret and try again later;
+            // deleting it made the phone register again and lose what the server kept for its old id
             return null;
         }
     }
@@ -65,7 +71,8 @@ public final class DeviceVault {
         prefs.edit().remove(PREF).apply();
     }
 
-    private static SecretKey key() throws Exception {
+    /** One key for the app: two vaults creating it at once made the second overwrite the first's key. */
+    private static synchronized SecretKey key() throws Exception {
         KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
         ks.load(null);
         if (ks.containsAlias(KEY)) {
