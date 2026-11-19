@@ -3253,7 +3253,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
                 f.delete();
                 return;
             }
-            java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            ai.ibiko.learn.SafeFile.write(f, text); // whole or not at all: a crash mid-save cut the unsent draft
         } catch (java.io.IOException ignored) {
             // the words stay in the box until this pause; the next one tries again
         }
