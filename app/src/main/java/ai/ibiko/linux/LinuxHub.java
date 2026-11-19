@@ -144,6 +144,14 @@ public final class LinuxHub {
         }
     }
 
+    private static boolean githubSignedIn(android.content.Context c) {
+        try {
+            return new ai.ibiko.connect.ConnectorStore(c).ready(ai.ibiko.connect.ConnectorStore.Kind.GITHUB);
+        } catch (RuntimeException e) {
+            return true; // unknown: leave it
+        }
+    }
+
     /**
      * The one way every part of the app runs a Linux command: chat, Ibiko, the task system. It is always the same
      * Alpine (the one the Shell screen shows): installed the first time it is needed, then run in the open terminal at
@@ -175,6 +183,9 @@ public final class LinuxHub {
             command = CloneFolder.settle() + "\n" + CloneFolder.place(command);
             String placed = where == null ? command : GuestPath.at(where, command);
             String token = gitToken(c, placed);
+            if (token == null && !githubSignedIn(c)) {
+                ai.ibiko.connect.GitAsk.forget(LinuxRoot.root(c)); // signed out: the token left in Linux is removed
+            }
             if (token != null) {
                 try {
                     ai.ibiko.connect.GitAsk.install(LinuxRoot.root(c), token);
@@ -214,6 +225,27 @@ public final class LinuxHub {
                 + "\n(Linux isn't installed yet" + (why == null ? "" : ": " + why) + ". Ibiko's small built-in shell ran this;"
                 + " open Shell when you're online to install Alpine.)";
         return ai.ibiko.connect.GitAsk.network(command) ? ai.ibiko.connect.GitAsk.note(plain, false) : plain;
+    }
+
+    /** Reads what {@code out} has past {@code seen[0]} into {@code bytes}; true when something was read. */
+    private static boolean readMore(File out, long[] seen, java.io.ByteArrayOutputStream bytes) throws java.io.IOException {
+        if (!out.isFile()) {
+            return false;
+        }
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(out, "r")) {
+            if (raf.length() <= seen[0]) {
+                return false;
+            }
+            raf.seek(seen[0]);
+            byte[] buf = new byte[(int) Math.min(65536, raf.length() - seen[0])];
+            int n = raf.read(buf);
+            if (n <= 0) {
+                return false;
+            }
+            seen[0] += n;
+            bytes.write(buf, 0, n);
+            return true;
+        }
     }
 
     /** The command's text, with a token taken out and a private-repository note when the remote refused it. */
@@ -286,28 +318,16 @@ public final class LinuxHub {
         session.send(Guest.pipe(command));
         long began = System.currentTimeMillis();
         long deadline = began + CommandWait.ms(command);
-        long seen = 0;
-        StringBuilder text = new StringBuilder();
+        long[] seen = {0};
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream(); // decoded once: no split characters
+        boolean ended = false;
         while (System.currentTimeMillis() < deadline) {
-            if (out.isFile()) {
-                java.io.RandomAccessFile raf = new java.io.RandomAccessFile(out, "r");
-                try {
-                    if (raf.length() > seen) {
-                        raf.seek(seen);
-                        byte[] buf = new byte[(int) Math.min(8192, raf.length() - seen)];
-                        int n = raf.read(buf);
-                        if (n > 0) {
-                            seen += n;
-                            deadline = Math.min(began + CommandWait.LONG_MS,
-                                    Math.max(deadline, System.currentTimeMillis() + CommandWait.SHORT_MS));
-                            text.append(new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8));
-                        }
-                    }
-                } finally {
-                    raf.close();
-                }
+            if (readMore(out, seen, bytes)) {
+                deadline = Math.min(began + CommandWait.LONG_MS,
+                        Math.max(deadline, System.currentTimeMillis() + CommandWait.SHORT_MS));
             }
             if (status.isFile() && status.length() > 0) {
+                ended = true;
                 break;
             }
             if (!session.alive()) {
@@ -315,6 +335,17 @@ public final class LinuxHub {
             }
             Thread.sleep(120);
         }
-        return text.toString();
+        // what was written after the last look and before the status file: it was dropped (often the error at the end)
+        while (readMore(out, seen, bytes)) {
+            // read to the end
+        }
+        String text = new String(bytes.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+        if (ended) {
+            String code = new String(java.nio.file.Files.readAllBytes(status.toPath()), java.nio.charset.StandardCharsets.UTF_8).trim();
+            if (!code.equals("0") && !code.isEmpty()) {
+                text = text + (text.endsWith("\n") || text.isEmpty() ? "" : "\n") + "[exit " + code + "]";
+            }
+        }
+        return text;
     }
 }

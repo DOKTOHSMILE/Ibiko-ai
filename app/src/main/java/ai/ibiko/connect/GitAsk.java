@@ -101,6 +101,17 @@ public final class GitAsk {
         secret.setWritable(true, true);
     }
 
+    /** Removes the token from the Alpine root (after signing out of GitHub it stayed there, readable by any command). */
+    public static void forget(File rootfs) {
+        if (rootfs == null) {
+            return;
+        }
+        File secret = new File(rootfs, "etc/ibiko-git-token");
+        if (secret.isFile()) {
+            secret.delete();
+        }
+    }
+
     private static void writeExec(File file, String text) throws IOException {
         Files.write(file.toPath(), text.getBytes(StandardCharsets.UTF_8));
         file.setExecutable(true, false);
