@@ -268,6 +268,9 @@ public final class Survey {
             return;
         }
         for (File f : in) {
+            if (java.nio.file.Files.isSymbolicLink(f.toPath())) {
+                continue; // a link in a repository could lead to the app's own files (its .xml settings), read as "source"
+            }
             if (f.isDirectory()) {
                 if (!SKIP_DIRS.contains(f.getName()) && !f.getName().startsWith(".")) {
                     walk(f, out, depth + 1);
