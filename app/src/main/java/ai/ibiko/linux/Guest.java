@@ -35,9 +35,11 @@ public final class Guest {
      * can read while it runs. The status file is written last, so its appearance means the command ended.
      */
     public static String pipe(String line) {
+        // the command's code, taken before pwd runs: "echo $?" after pwd gave pwd's 0, so every failure read as success
         return "eval " + quote(line) + " > /root/.ibiko_out 2>&1\n"
+                + "status=$?\n"
                 + "pwd > /root/.ibiko_cwd\n"
-                + "echo $? > /root/.ibiko_status\n";
+                + "echo $status > /root/.ibiko_status\n";
     }
 
     /**

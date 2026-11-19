@@ -255,6 +255,7 @@ public final class WebSearch {
     static String dropBlocks(String html) {
         String low = html.toLowerCase(Locale.ROOT);
         StringBuilder out = new StringBuilder(html.length());
+        java.util.Set<String> neverClosed = new java.util.HashSet<String>(); // searched once to the end: none follows
         int at = 0;
         while (at < html.length()) {
             int lt = low.indexOf('<', at);
@@ -276,7 +277,10 @@ public final class WebSearch {
                 continue;
             }
             out.append(html, at, lt).append(' ');
-            int end = low.indexOf("</" + tag, lt);
+            int end = neverClosed.contains(tag) ? -1 : low.indexOf("</" + tag, lt);
+            if (end < 0) {
+                neverClosed.add(tag); // each unclosed tag searched to the end of the page made it quadratic
+            }
             if (end < 0) {
                 int close = low.indexOf('>', lt);
                 at = close < 0 ? html.length() : close + 1; // an unclosed block: only its tag is dropped

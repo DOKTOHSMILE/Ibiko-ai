@@ -30,6 +30,8 @@ public class GitHubGitTest {
         final Map<String, String[]> commits = new HashMap<String, String[]>(); // sha → {tree, parent, message}
         public final Map<String, String> refs = new TreeMap<String, String>();
         final List<String> calls = new ArrayList<String>();
+        /** Paths that are executable (100755); every other blob is 100644. And the modes a push sent, by path. */
+        final Map<String, String> modes = new HashMap<String, String>(), sentModes = new HashMap<String, String>();
         int n;
 
         public String commit(Map<String, String> files, String parent, String message) {
@@ -90,6 +92,7 @@ public class GitHubGitTest {
                     en.put("path", e.getKey());
                     en.put("type", "blob");
                     en.put("sha", e.getValue());
+                    en.put("mode", modes.containsKey(e.getKey()) ? modes.get(e.getKey()) : "100644");
                     en.put("size", (double) blobs.get(e.getValue()).length);
                     list.add(en);
                 }
@@ -107,6 +110,7 @@ public class GitHubGitTest {
                 for (Object o : MiniJson.list(in.get("tree"))) {
                     Map<String, Object> e = MiniJson.obj(o);
                     String sha = MiniJson.str(e.get("sha"), null);
+                    sentModes.put(MiniJson.str(e.get("path"), ""), MiniJson.str(e.get("mode"), ""));
                     if (sha == null) {
                         tree.remove(MiniJson.str(e.get("path"), ""));
                     } else {
@@ -200,6 +204,21 @@ public class GitHubGitTest {
     private static void write(File f, String s) throws IOException {
         f.getParentFile().mkdirs();
         Files.write(f.toPath(), s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void anEditedScriptStaysExecutable() throws Exception {
+        FakeHub hub = new FakeHub();
+        hub.modes.put("gradlew", "100755");
+        hub.refs.put("main", hub.commit(files("gradlew", "#!/bin/sh\necho old\n", "README.md", "# App\n"), null, "first"));
+        GitHubGit git = new GitHubGit(hub, "tok");
+        File dir = new File(Files.createTempDirectory("git").toFile(), "app");
+        git.clone("me/app", "", dir);
+        write(new File(dir, "gradlew"), "#!/bin/sh\necho new\n");
+        write(new File(dir, "README.md"), "# App 2\n");
+        git.push(dir, "edit", "");
+        assertEquals("the executable bit is kept", "100755", hub.sentModes.get("gradlew"));
+        assertEquals("100644", hub.sentModes.get("README.md"));
     }
 
     @Test

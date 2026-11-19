@@ -1057,8 +1057,11 @@ public final class RemoteBrain {
             return false;
         }
         String t = text.toLowerCase(java.util.Locale.US);
+        // Ibiko's own command codes too: a reply that is only "\u00A7WK" (start the agents) is an answer. The check
+        // that the reply says something strips the codes, so a code-only reply was thrown away as "no answer"
+        // and asked again, failing the same way ("Start" after "say the word and I'll get the agents on it")
         return t.contains("<tool") || t.contains("<function") || t.contains("<invoke") || t.contains("\"tool_calls\"")
-                || t.contains("dsml");
+                || t.contains("dsml") || ai.ibiko.suit.FunctionCode.parse(text.trim()) != null;
     }
 
     /**

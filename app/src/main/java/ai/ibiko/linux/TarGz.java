@@ -76,6 +76,13 @@ public final class TarGz {
                 continue;
             }
             File out = new File(dest, name);
+            // through the links already unpacked, the entry must still land inside: a symlink unpacked first
+            // ("evil -> /data/data/…") and then "evil/x" wrote outside, with no ".." in either name
+            if (!inside(dest, out.getParentFile()) || (type == '1' && !safe(link))) {
+                skip(in, size);
+                skipPad(in, size);
+                continue;
+            }
             if (type == '5') {
                 out.mkdirs();
                 skip(in, size);
@@ -133,6 +140,16 @@ public final class TarGz {
             out.setExecutable(true, false);
         }
         return true;
+    }
+
+    /** Whether {@code dir}, with every link in it followed, is {@code dest} or inside it. */
+    static boolean inside(File dest, File dir) throws IOException {
+        if (dir == null) {
+            return false;
+        }
+        String root = dest.getCanonicalPath();
+        String at = dir.getCanonicalPath();
+        return at.equals(root) || at.startsWith(root + File.separator);
     }
 
     /** A path that stays inside the destination. */
