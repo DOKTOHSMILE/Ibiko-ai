@@ -151,7 +151,7 @@ public final class TermuxSessionLog {
         if (s == null) {
             return "";
         }
-        return s.replaceAll("ghp_[A-Za-z0-9]+", "ghp_…").replaceAll("sk-[A-Za-z0-9_\\-]{8,}", "sk-…");
+        return s.replaceAll("(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}", "$1…").replaceAll("sk-[A-Za-z0-9_\\-]{8,}", "sk-…");
     }
 
     private static String clip(String s) {
