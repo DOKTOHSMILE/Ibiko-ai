@@ -64,6 +64,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     final DrawingShelf drawingShelf = new DrawingShelf(this);
     final StagedActions stagedActions = new StagedActions(this);
     final SocialPosts socialPosts = new SocialPosts(this);
+    final SocialCampaigns socialCampaigns = new SocialCampaigns(this);
     final Brains brains = new Brains(this);
     final AgentWork agentWorkBook = new AgentWork(this);
     /** The on-device brain-and-body control engine (primary functions; runs offline). */
@@ -3284,6 +3285,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     protected void onResume() {
         super.onResume();
         handler.postDelayed(this::takeShared, 400); // something shared to Ibiko from another app
+        handler.postDelayed(socialCampaigns::takeDraft, 600); // a campaign brief from Social accounts: the brain plans it
         inFront = true;
         showPersonaBar(); // Settings may have turned the group chat on or off
         connectivity.start();

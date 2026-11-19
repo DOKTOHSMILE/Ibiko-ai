@@ -134,6 +134,8 @@ public final class SocialActivity extends AppCompatActivity {
             card.addView(add);
         }
 
+        campaigns();
+
         // ---- posting: how Ibiko posts, the scheduled posts, and what it did
         LinearLayout posting = section("Posting", ai.ibiko.R.drawable.ic_send);
         posting.addView(toggle("Post directly from your account", "After your yes, Ibiko types the post into Facebook or X in the"
@@ -215,6 +217,211 @@ public final class SocialActivity extends AppCompatActivity {
                 + " comments a day. Ibiko never tags people you didn't name.", 13, Ui.SUB, false);
         only.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 10));
         safe.addView(only);
+    }
+
+    /**
+     * Campaigns: with the switch on, a brief becomes a whole plan (the brain builds it in the chat, you approve it), and
+     * the approved plan runs by itself from the accounts chosen.
+     */
+    private void campaigns() {
+        LinearLayout card = section("Campaigns", ai.ibiko.R.drawable.ic_calendar);
+        card.addView(toggle("Run campaigns", "Give Ibiko a short brief (your business, the offer, who it's for) and it plans"
+                + " the whole campaign: themes, a dated post calendar with words and a picture for each, and searches for people"
+                + " who need what you offer. You approve the plan once; then posts go out by themselves from the accounts you"
+                + " chose, within each account's daily limits.", "social_campaigns", false), Ui.wide(this, 4));
+        if (!prefs.getBoolean("social_campaigns", false)) {
+            return;
+        }
+        java.text.DateFormat df = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM);
+        for (final ai.ibiko.social.campaign.Campaign c : ai.ibiko.social.campaign.CampaignRunner.store(this).all()) {
+            String state = c.status == ai.ibiko.social.campaign.Campaign.Status.ACTIVE ? "Running"
+                    : c.status == ai.ibiko.social.campaign.Campaign.Status.PAUSED ? "Paused"
+                    : c.status == ai.ibiko.social.campaign.Campaign.Status.DONE ? "Done" : "Not started";
+            LinearLayout r = iconRow(ai.ibiko.R.drawable.ic_send, c.name + " · " + state,
+                    c.progress() + " · from " + df.format(new java.util.Date(c.startAt)));
+            r.setMinimumHeight(Ui.dp(this, 52));
+            r.setContentDescription(c.name + ", " + state + ", " + c.progress());
+            Ui.press(r);
+            r.setOnClickListener(v -> campaignMenu(c));
+            card.addView(r);
+        }
+        TextView add = Ui.text(this, "New campaign", 15, Ui.ACCENT, false);
+        add.setGravity(Gravity.CENTER_VERTICAL);
+        add.setMinHeight(Ui.dp(this, 48));
+        Ui.press(add);
+        add.setOnClickListener(v -> newCampaign());
+        card.addView(add);
+    }
+
+    /** One campaign: pause or resume it, see its posts, or delete it. */
+    private void campaignMenu(final ai.ibiko.social.campaign.Campaign c) {
+        boolean running = c.status == ai.ibiko.social.campaign.Campaign.Status.ACTIVE;
+        boolean done = c.status == ai.ibiko.social.campaign.Campaign.Status.DONE;
+        java.util.List<String> labels = new java.util.ArrayList<String>();
+        if (!done) {
+            labels.add(running ? "Pause" : "Resume");
+        }
+        labels.add("Show its posts");
+        labels.add("Delete");
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(c.name)
+                .setItems(labels.toArray(new String[0]), (d, which) -> {
+                    String l = labels.get(which);
+                    if (l.equals("Pause") || l.equals("Resume")) {
+                        ai.ibiko.social.campaign.CampaignRunner.setRunning(this, c.id, !running);
+                        fill();
+                    } else if (l.equals("Show its posts")) {
+                        posts(c);
+                    } else {
+                        new androidx.appcompat.app.AlertDialog.Builder(this)
+                                .setMessage("Delete “" + c.name + "”? Posts already out stay on the networks; the rest won't go out.")
+                                .setPositiveButton("Delete", (d2, w2) -> {
+                                    try {
+                                        ai.ibiko.social.campaign.CampaignRunner.store(this).remove(c.id);
+                                    } catch (java.io.IOException ignored) {
+                                        // the list shows what was kept
+                                    }
+                                    ai.ibiko.social.campaign.CampaignRunner.arm(this, 0);
+                                    fill();
+                                })
+                                .setNegativeButton("Keep", null)
+                                .show();
+                    }
+                })
+                .show();
+    }
+
+    /** A campaign's posts, each with its time, account and what happened. */
+    private void posts(ai.ibiko.social.campaign.Campaign c) {
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), Ui.dp(this, 16));
+        java.text.DateFormat df = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT);
+        SocialAccounts accounts = SocialWeb.accounts(this);
+        for (ai.ibiko.social.campaign.Campaign.Item it : c.items) {
+            SocialAccounts.Account a = accounts.get(it.account);
+            String state = it.state == ai.ibiko.social.campaign.Campaign.State.POSTED ? "Posted"
+                    : it.state == ai.ibiko.social.campaign.Campaign.State.FAILED ? "Didn't go out: " + it.result
+                    : it.result.startsWith("waiting") ? "Waiting: " + it.result.substring(8).trim() : "Planned";
+            list.addView(iconRow(it.state == ai.ibiko.social.campaign.Campaign.State.POSTED ? ai.ibiko.R.drawable.ic_check
+                    : ai.ibiko.R.drawable.ic_calendar, df.format(new java.util.Date(it.at)) + " · "
+                    + (a == null ? it.network : a.label) + " · " + state, it.text));
+        }
+        ScrollView sv = new ScrollView(this);
+        sv.addView(list);
+        BottomSheet.showView(this, c.name, sv);
+    }
+
+    /** The brief: what the campaign is for, the accounts it runs on, how long, how often. */
+    private void newCampaign() {
+        final java.util.List<SocialAccounts.Account> usable = new java.util.ArrayList<SocialAccounts.Account>();
+        for (SocialAccounts.Account a : SocialWeb.accounts(this).all()) {
+            if (a.signedIn && (a.platform == Platform.X || a.platform == Platform.FACEBOOK)) {
+                usable.add(a);
+            }
+        }
+        if (usable.isEmpty()) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setMessage("A campaign posts from your Facebook or X accounts. Sign in to one first (above).")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 20);
+        box.setPadding(p, Ui.dp(this, 8), p, 0);
+        final android.widget.EditText business = field(box, "Your business (name, what you do, where)");
+        final android.widget.EditText offer = field(box, "What this campaign offers or promotes");
+        final android.widget.EditText audience = field(box, "Who it's for");
+        final android.widget.EditText goal = field(box, "The goal (orders, sign-ups, visits, enquiries)");
+        final android.widget.EditText tone = field(box, "Tone (friendly, expert, playful…)");
+        final android.widget.EditText link = field(box, "Link or contact (optional)");
+        box.addView(Ui.text(this, "Post from", 14, Ui.SUB, false), Ui.wide(this, 12));
+        final java.util.List<android.widget.CheckBox> picks = new java.util.ArrayList<android.widget.CheckBox>();
+        for (SocialAccounts.Account a : usable) {
+            android.widget.CheckBox cb = new android.widget.CheckBox(this);
+            cb.setText(a.label + " (" + a.platform.shown + ")");
+            cb.setTextColor(Ui.TEXT);
+            cb.setChecked(a.inUse);
+            cb.setMinHeight(Ui.dp(this, 48));
+            box.addView(cb);
+            picks.add(cb);
+        }
+        final android.widget.EditText days = field(box, "Days (1 to 90)");
+        days.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        days.setText("7");
+        final android.widget.EditText perDay = field(box, "Posts a day on each account (1 to 6)");
+        perDay.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        perDay.setText("1");
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        final androidx.appcompat.app.AlertDialog form = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("New campaign")
+                .setView(sv)
+                .setPositiveButton("Plan it", null) // set below: a brief missing a part keeps the form open, not lost
+                .setNegativeButton("Cancel", null)
+                .create();
+        form.setOnShowListener(x -> form.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener(btn -> {
+                    ai.ibiko.social.campaign.Campaign c = new ai.ibiko.social.campaign.Campaign();
+                    long now = System.currentTimeMillis();
+                    c.id = "c" + now;
+                    c.createdAt = now;
+                    c.startAt = now;
+                    c.brief.business = business.getText().toString().trim();
+                    c.brief.offer = offer.getText().toString().trim();
+                    c.brief.audience = audience.getText().toString().trim();
+                    c.brief.goal = goal.getText().toString().trim();
+                    c.brief.tone = tone.getText().toString().trim();
+                    c.brief.link = link.getText().toString().trim();
+                    for (int i = 0; i < picks.size(); i++) {
+                        if (picks.get(i).isChecked()) {
+                            c.accounts.add(usable.get(i).id);
+                        }
+                    }
+                    c.days = number(days, 7, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_DAYS);
+                    c.perDay = number(perDay, 1, 1, ai.ibiko.social.campaign.CampaignPlanner.MOST_PER_DAY);
+                    if (c.brief.business.isEmpty() && c.brief.offer.isEmpty()) {
+                        android.widget.Toast.makeText(this, "Say what the business is or what the campaign offers.",
+                                android.widget.Toast.LENGTH_LONG).show();
+                        return; // the form stays open with what was typed
+                    }
+                    if (c.accounts.isEmpty()) {
+                        android.widget.Toast.makeText(this, "Choose at least one account to post from.", android.widget.Toast.LENGTH_LONG).show();
+                        return; // the form stays open with what was typed
+                    }
+                    ai.ibiko.social.campaign.CampaignDraft.offer(c);
+                    form.dismiss();
+                    backToChat(); // the chat's brain plans it, and shows the plan for approval
+        }));
+        form.show();
+    }
+
+    private android.widget.EditText field(LinearLayout box, String hint) {
+        android.widget.EditText f = Ui.field(this, hint, "", false, false);
+        box.addView(f, Ui.wide(this, 8));
+        return f;
+    }
+
+    private static int number(android.widget.EditText f, int fallback, int least, int most) {
+        try {
+            String t = f.getText().toString().trim();
+            int n = t.isEmpty() ? fallback : Integer.parseInt(t);
+            return Math.max(least, Math.min(most, n));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** To the chat, nothing put in its message box (whatever was typed there stays). */
+    private void backToChat() {
+        if (getCallingActivity() != null) {
+            setResult(RESULT_OK);
+        } else {
+            startActivity(new Intent(this, ai.ibiko.MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        }
+        finish();
     }
 
     /** A new name for the account ("Work", "Shop page"): how it shows here, in Connectors and in replies. */
@@ -438,6 +645,9 @@ public final class SocialActivity extends AppCompatActivity {
                 return;
             }
             prefs.edit().putBoolean(key, on).apply();
+            if ("social_campaigns".equals(key)) {
+                b.post(this::fill); // the campaigns list shows or hides with its switch
+            }
         });
         r.addView(sw);
         r.setOnClickListener(v -> sw.toggle());
