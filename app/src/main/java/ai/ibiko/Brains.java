@@ -171,11 +171,19 @@ final class Brains {
             final ai.ibiko.llm.LocalModel leaving = a.model;
             a.hub.worker.execute(leaving::releaseIfIdle);
         }
+        String now = brainLabel();
+        if (shownBrain != null && !shownBrain.equals(now) && (a.backgroundTask != null || (a.model != null && a.model.coding))) {
+            a.takeover = ai.ibiko.agent.Takeover.note(shownBrain, now); // the job goes on with the new model, aware of it
+        }
+        shownBrain = now;
         android.widget.TextView sub = a.findViewById(R.id.tv_header_sub);
         if (sub != null && a.stage != null) {
-            sub.setText(brainLabel()); // the title already says Ibiko
+            sub.setText(now); // the title already says Ibiko
         }
     }
+
+    /** The brain the header last showed: a change while a job runs is a takeover. */
+    private String shownBrain;
 
     /** What the chat header says answers: the API's model, or the phone's brain. */
     String brainLabel() {

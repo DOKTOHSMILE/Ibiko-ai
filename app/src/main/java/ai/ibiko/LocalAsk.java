@@ -322,7 +322,7 @@ final class LocalAsk {
             if (pageTools.round() && !act.model.remoteOn()) {
                 act.handler.post(() -> {
                     if (act.alive(id)) {
-                        act.activity("Think 2 needs an API model; answering once");
+                        act.activity("Council needs an API model; answering once");
                     }
                 });
             }

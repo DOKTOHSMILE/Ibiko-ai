@@ -1787,9 +1787,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
                 .putBoolean(THINK_ON, n == 1).apply();
         repaintThink();
         if (tell) {
-            note(n == 2 ? "Think 2: several models think it through, then one answer."
-                    : n == 1 ? "Think 1: Ibiko plans, checks and revises before answering (slower)."
-                            : "Ordinary: a direct answer.");
+            note(ai.ibiko.suit.ChatTools.levelName(n) + ": " + ai.ibiko.suit.ChatTools.ABOUT[n]);
         }
     }
 
@@ -2551,6 +2549,11 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
     /** What the job running in the background is doing, for a reply given beside it. */
     volatile String backgroundTask;
+    /**
+     * Set when the person changes the model while a job runs: what the new model is told for the rest of that job, so it
+     * takes the work on where it stands instead of starting a new train of thought. Cleared when the job ends.
+     */
+    volatile String takeover;
 
     /**
      * A message sent in a chat that was not the one running. When that run ends, and this chat is the one on screen, it is asked. The other chat was not cancelled to make room.

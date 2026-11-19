@@ -27,7 +27,7 @@ public final class ChatTools {
         SHARE("Share and copy", "Through your apps, after your yes", FunctionCode.AC),
         SOCIAL("Social accounts", "Trends, posts, comments, schedules", FunctionCode.SO),
         WORKERS("Workers", "On for every task: the work is split into parts that run at once", null),
-        DEEP("Deep thinking", "Think 1: plan, check and revise first (slower). Think 2 is on the Think button.", null);
+        DEEP("Deep thinking", "Deep: plan, check and revise first (slower). Council is on the Think button.", null);
 
         public final String title, about;
         /** The function the tool opens, or null when it isn't a single code (GitHub, deep thinking). */
@@ -141,9 +141,20 @@ public final class ChatTools {
         return think;
     }
 
+    /** The thinking levels' names, in order: a direct answer, plan-check-revise, every model then the strongest judges. */
+    public static final String[] LEVELS = {"Swift", "Deep", "Council"};
+    /** What each level does, in a line. */
+    public static final String[] ABOUT = {"A direct answer, fast.", "Plans, checks and revises before answering (slower).",
+            "Every model thinks it through, then the strongest judges and answers (slowest, uses several API calls)."};
+
+    /** A level's name (0, 1 or 2). */
+    public static String levelName(int level) {
+        return LEVELS[Math.max(0, Math.min(2, level))];
+    }
+
     /** The words on the Think button. */
     public String thinkLabel() {
-        return think == 2 ? "Think 2" : think == 1 ? "Think 1" : "Ordinary";
+        return levelName(think);
     }
 
     /** Sets the thinking level. Think 1 is also the Deep thinking tool; the other level turns that tool off. */

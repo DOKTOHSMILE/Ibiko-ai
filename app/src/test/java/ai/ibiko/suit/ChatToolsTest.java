@@ -54,7 +54,7 @@ public class ChatToolsTest {
         assertFalse(t.deep());
         assertTrue(t.round());
         assertFalse("Think 2 is not the tools-card switch", t.isOn(ChatTools.Tool.DEEP));
-        assertEquals("Think 2", t.thinkLabel());
+        assertEquals("Council", t.thinkLabel());
         ChatTools round = ChatTools.read("ibiko", t.write());
         assertEquals(2, round.think());
         assertFalse("Think 2 is not the old deep-thinking pass", round.deep());
@@ -62,11 +62,11 @@ public class ChatToolsTest {
         assertEquals("turning the card off does not clear Think 2", 2, round.think());
         round.set(ChatTools.Tool.DEEP, true);
         assertEquals(1, round.think());
-        assertEquals("Ordinary", ChatTools.defaults("obi").thinkLabel());
+        assertEquals("Swift", ChatTools.defaults("obi").thinkLabel());
         t.think(3);
         assertFalse("Wisdom is ibiko1's own reasoning, not a fourth level", t.deep());
         assertTrue("an old Wisdom 3.0 setting is read as Think 2", t.round());
-        assertEquals("Think 2", t.thinkLabel());
+        assertEquals("Council", t.thinkLabel());
         ChatTools migrated = ChatTools.read("ibiko", t.write());
         assertEquals(2, migrated.think());
         migrated.set(ChatTools.Tool.DEEP, false);

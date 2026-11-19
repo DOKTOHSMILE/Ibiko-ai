@@ -1319,18 +1319,18 @@ public class LaunchTest {
                 c.get().getPackageName()));
         // the Think button is a level: Ordinary, Think 1, Think 2
         android.widget.TextView think = c.get().findViewById(ai.ibiko.R.id.btn_think);
-        org.junit.Assert.assertEquals("Ordinary", String.valueOf(think.getText()));
+        org.junit.Assert.assertEquals("Swift", String.valueOf(think.getText()));
         org.junit.Assert.assertFalse(think.isSelected());
         c.get().setThink(1);
-        org.junit.Assert.assertEquals("Think 1", String.valueOf(think.getText()));
+        org.junit.Assert.assertEquals("Deep", String.valueOf(think.getText()));
         org.junit.Assert.assertTrue(think.isSelected());
-        org.junit.Assert.assertEquals("Think 1", String.valueOf(think.getStateDescription()));
+        org.junit.Assert.assertEquals("Deep", String.valueOf(think.getStateDescription()));
         c.get().setThink(2);
-        org.junit.Assert.assertEquals("Think 2", String.valueOf(think.getText()));
+        org.junit.Assert.assertEquals("Council", String.valueOf(think.getText()));
         org.junit.Assert.assertTrue(c.get().chatTools("obi").round());
         org.junit.Assert.assertFalse(c.get().chatTools("obi").deep());
         c.get().setThink(0);
-        org.junit.Assert.assertEquals("Ordinary", String.valueOf(think.getText()));
+        org.junit.Assert.assertEquals("Swift", String.valueOf(think.getText()));
         org.junit.Assert.assertFalse(think.isSelected());
         c.pause().stop().destroy();
     }
@@ -1342,13 +1342,13 @@ public class LaunchTest {
         android.widget.TextView think = c.get().findViewById(ai.ibiko.R.id.btn_think);
         c.get().setThink(1);
         org.junit.Assert.assertTrue(think.isSelected());
-        org.junit.Assert.assertEquals("Think 1 holds in this chat", "Think 1", String.valueOf(think.getText()));
+        org.junit.Assert.assertEquals("Think 1 holds in this chat", "Deep", String.valueOf(think.getText()));
         org.junit.Assert.assertTrue(c.get().chatTools("obi").deep());
         java.lang.reflect.Method fresh = MainActivity.class.getDeclaredMethod("startNewChatSafely");
         fresh.setAccessible(true);
         fresh.invoke(c.get());
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
-        org.junit.Assert.assertEquals("a new chat starts on Ordinary", "Ordinary", String.valueOf(think.getText()));
+        org.junit.Assert.assertEquals("a new chat starts on Ordinary", "Swift", String.valueOf(think.getText()));
         org.junit.Assert.assertFalse(think.isSelected());
         c.get().setThink(2);
         org.junit.Assert.assertTrue(c.get().chatTools("obi").round());
@@ -1357,7 +1357,7 @@ public class LaunchTest {
         ActivityController<MainActivity> again = Robolectric.buildActivity(MainActivity.class).create().start().resume().visible();
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
         android.widget.TextView after = again.get().findViewById(ai.ibiko.R.id.btn_think);
-        org.junit.Assert.assertEquals("the app opens on a new chat, on Ordinary", "Ordinary", String.valueOf(after.getText()));
+        org.junit.Assert.assertEquals("the app opens on a new chat, on Ordinary", "Swift", String.valueOf(after.getText()));
         again.pause().stop().destroy();
     }
 
