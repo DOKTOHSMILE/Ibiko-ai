@@ -1,9 +1,7 @@
 package ai.ibiko.ibiko1;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,8 +15,11 @@ import java.util.regex.Pattern;
  * Ibiko 1's encyclopedia, inside the app: the opening of every article of Simple English Wikipedia (CC BY-SA 4.0, see
  * {@code assets/knowledge/encyclopedia/LICENSE.txt}), in plain words, with the redirects as other names ("USA" for
  * "United States"). It answers "what is a volcano", "who was Nelson Mandela", "tell me about Lagos" offline, saying
- * where it read it. Split by title into {@link #SHARDS} small files ({@code tools/build_encyclopedia.py} makes them),
- * so one lookup reads one small file; the files last read are kept. Pure Java: the files come through {@link Plug#asset}.
+ * where it read it. Kept in the Ibiko v1 coded form (IBK1, {@code tools/encode_encyclopedia.py}): every word a number
+ * from one shared vocabulary, most-used words the smallest, so the files are a fraction of the text's size; split by
+ * title into {@link #SHARDS} files, so a lookup reads one, skips the entries it doesn't want by their length, and
+ * decodes only the article it found. The files last read and the vocabulary are kept. Pure Java: the files come
+ * through {@link Plug#asset}.
  */
 public final class Encyclopedia {
     /** How many files the articles are split into (as the build tool). */
@@ -40,12 +41,16 @@ public final class Encyclopedia {
     }
 
     private final java.util.function.Function<String, InputStream> files;
-    private final LinkedHashMap<Integer, Map<String, String[]>> cache = new LinkedHashMap<Integer, Map<String, String[]>>(16, 0.75f, true) {
+    /** Shards read, as their bytes (an entry is decoded only when it is the one asked for). */
+    private final LinkedHashMap<Integer, byte[]> cache = new LinkedHashMap<Integer, byte[]>(16, 0.75f, true) {
         @Override
-        protected boolean removeEldestEntry(Map.Entry<Integer, Map<String, String[]>> eldest) {
+        protected boolean removeEldestEntry(Map.Entry<Integer, byte[]> eldest) {
             return size() > KEEP;
         }
     };
+    /** The vocabulary: its words' bytes end to end, and where each starts (word n is at {@code at[n]}). */
+    private byte[] words;
+    private int[] at;
 
     /** Reads its files from the app's assets ({@link Plug#asset}). */
     public Encyclopedia() {
@@ -72,16 +77,170 @@ public final class Encyclopedia {
     public synchronized Article get(String name) {
         String k = key(name);
         for (int hop = 0; hop <= HOPS && !k.isEmpty(); hop++) {
-            String[] row = load(shard(k)).get(k);
-            if (row == null) {
+            byte[] shard = load(shard(k));
+            int[] found = locate(shard, k.getBytes(StandardCharsets.UTF_8));
+            if (found == null) {
                 return null;
             }
-            if (!row[1].startsWith("=>")) {
-                return new Article(row[0], row[1]);
+            if ((found[2] & 1) == 0) {
+                return new Article(title(shard, found, k), decode(shard, found[3], found[4]));
             }
-            k = key(row[1].substring(2)); // another name for it
+            k = key(new String(shard, found[3], found[4], StandardCharsets.UTF_8)); // another name for it
         }
         return null;
+    }
+
+    /** A varint at {@code p[0]} in {@code b}; {@code p[0]} moves past it. */
+    static int varint(byte[] b, int[] p) {
+        int n = 0, shift = 0;
+        while (p[0] < b.length) {
+            int x = b[p[0]++] & 0xff;
+            n |= (x & 0x7f) << shift;
+            if ((x & 0x80) == 0) {
+                return n;
+            }
+            shift += 7;
+        }
+        return n;
+    }
+
+    /**
+     * Where the entry for {@code key} is in a shard: {title start, title length, kind, payload start, payload length},
+     * or null. Entries before it are skipped by their lengths, never decoded. The kind's bit 0 says a redirect; bits
+     * 1-2 how the title is made (0 written in the entry, 1 the key with its first letter capital, 2 each word capital).
+     */
+    static int[] locate(byte[] shard, byte[] key) {
+        if (shard.length < 4 || shard[0] != 'I' || shard[1] != 'B' || shard[2] != 'K' || shard[3] != '1') {
+            return null;
+        }
+        int[] p = {4};
+        int count = varint(shard, p);
+        for (int e = 0; e < count && p[0] < shard.length; e++) {
+            int kl = varint(shard, p), ks = p[0];
+            p[0] += kl;
+            int kind = shard[p[0]++] & 0xff;
+            int tl = 0, ts = p[0];
+            if (((kind >> 1) & 3) == 0) {
+                tl = varint(shard, p);
+                ts = p[0];
+                p[0] += tl;
+            }
+            int pl = varint(shard, p), ps = p[0];
+            p[0] += pl;
+            if (kl == key.length && same(shard, ks, key)) {
+                return new int[]{ts, tl, kind, ps, pl};
+            }
+        }
+        return null;
+    }
+
+    /** An article's title: written in the entry, or made from its key by the entry's rule. */
+    static String title(byte[] shard, int[] found, String key) {
+        switch ((found[2] >> 1) & 3) {
+            case 1:
+                return capital(key);
+            case 2:
+                StringBuilder s = new StringBuilder();
+                for (String w : key.split(" ")) {
+                    s.append(s.length() == 0 ? "" : " ").append(capital(w));
+                }
+                return s.toString();
+            default:
+                return new String(shard, found[0], found[1], StandardCharsets.UTF_8);
+        }
+    }
+
+    /** The first letter capital (one letter for one, as the build tool). */
+    static String capital(String w) {
+        if (w.isEmpty()) {
+            return w;
+        }
+        int first = w.codePointAt(0);
+        return new String(Character.toChars(Character.toUpperCase(first))) + w.substring(Character.charCount(first));
+    }
+
+    private static boolean same(byte[] b, int from, byte[] key) {
+        for (int i = 0; i < key.length; i++) {
+            if (b[from + i] != key[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** An article's words back from their codes (see {@code tools/encode_encyclopedia.py}). */
+    String decode(byte[] b, int from, int length) {
+        vocabulary();
+        StringBuilder s = new StringBuilder(length * 3);
+        int[] p = {from};
+        int end = from + length;
+        while (p[0] < end) {
+            int code = varint(b, p);
+            int v = code >>> 3, kase = (code >>> 1) & 3;
+            boolean space = (code & 1) != 0;
+            String t;
+            if (v == 0) {
+                int n = varint(b, p);
+                t = new String(b, p[0], n, StandardCharsets.UTF_8);
+                p[0] += n;
+            } else if (v - 1 < at.length - 1) {
+                t = new String(words, at[v - 1], at[v] - at[v - 1], StandardCharsets.UTF_8);
+                if (kase == 1) {
+                    t = capital(t);
+                } else if (kase == 2) {
+                    t = t.toUpperCase(Locale.ROOT);
+                }
+            } else {
+                t = ""; // a number past the vocabulary: a damaged file
+            }
+            if (space && s.length() > 0) {
+                s.append(' ');
+            }
+            s.append(t);
+        }
+        return s.toString();
+    }
+
+    /** The shared vocabulary, read once. */
+    private void vocabulary() {
+        if (words != null) {
+            return;
+        }
+        byte[] v = readAll(files.apply(DIR + "vocab.ibk"));
+        if (v.length < 5 || v[0] != 'I' || v[4] != 'V') {
+            words = new byte[0];
+            at = new int[]{0};
+            return;
+        }
+        int[] p = {5};
+        int count = varint(v, p);
+        at = new int[count + 1];
+        java.io.ByteArrayOutputStream all = new java.io.ByteArrayOutputStream(v.length);
+        for (int i = 0; i < count; i++) {
+            int n = varint(v, p);
+            at[i] = all.size();
+            all.write(v, p[0], n);
+            p[0] += n;
+        }
+        at[count] = all.size();
+        words = all.toByteArray();
+    }
+
+    private static byte[] readAll(InputStream in) {
+        if (in == null) {
+            return new byte[0];
+        }
+        try (InputStream i = in) {
+            java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(1 << 16);
+            byte[] buf = new byte[1 << 15];
+            int n;
+            while ((n = i.read(buf)) > 0) {
+                o.write(buf, 0, n);
+            }
+            return o.toByteArray();
+        } catch (IOException e) {
+            return new byte[0];
+        }
     }
 
     /**
@@ -162,31 +321,13 @@ public final class Encyclopedia {
         return a.text + "\n(From Simple English Wikipedia, “" + a.title + "”.)";
     }
 
-    /** One shard: key → {title, text or "=>Target"}. Empty when the file isn't there. */
-    private Map<String, String[]> load(int n) {
-        Map<String, String[]> got = cache.get(n);
-        if (got != null) {
-            return got;
+    /** One shard's bytes (empty when the file isn't there). */
+    private byte[] load(int n) {
+        byte[] got = cache.get(n);
+        if (got == null) {
+            got = readAll(files.apply(DIR + String.format(Locale.ROOT, "%03d.ibk", n)));
+            cache.put(n, got);
         }
-        got = new java.util.HashMap<String, String[]>();
-        InputStream in = files.apply(DIR + String.format(Locale.ROOT, "%03d.tsv", n));
-        if (in != null) {
-            try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 1 << 16)) {
-                String line;
-                while ((line = r.readLine()) != null) {
-                    int a = line.indexOf('\t'), b = a < 0 ? -1 : line.indexOf('\t', a + 1);
-                    if (b > a && a > 0) {
-                        String k = line.substring(0, a);
-                        if (!got.containsKey(k) || !line.startsWith("=>", b + 1)) {
-                            got.put(k, new String[]{line.substring(a + 1, b), line.substring(b + 1)}); // an article wins over a redirect
-                        }
-                    }
-                }
-            } catch (IOException ignored) {
-                // what was read stands
-            }
-        }
-        cache.put(n, got);
         return got;
     }
 }
