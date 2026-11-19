@@ -86,7 +86,9 @@ public final class CampaignPlanner {
                     .append(" | ").append(sl[1]).append(" | ").append(sl[2]).append('\n');
         }
         s.append("\nEach post in the brief's tone, with a clear call to action")
-                .append(brief.link.isEmpty() ? "" : " and the link").append(", at most 3 hashtags; no two alike.")
+                .append(brief.link.isEmpty() ? "" : " and the link")
+                .append(brief.chat().isEmpty() ? "" : "; where it fits, invite people to chat on WhatsApp with the WhatsApp chat link exactly as given")
+                .append(", at most 3 hashtags; no two alike.")
                 .append(" For each also a picture headline (at most 6 words) and a short line under it (at most 10 words).\n")
                 .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\"}]}");
         return s.toString();
@@ -347,7 +349,7 @@ public final class CampaignPlanner {
                     it.account = slot.account;
                     it.network = network.get(slot.account);
                     it.theme = slot.theme;
-                    it.text = p[0];
+                    it.text = WhatsApp.withLink(p[0], c.brief.chat(), maxChars(it.network));
                     it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand);
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);

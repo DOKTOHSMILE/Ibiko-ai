@@ -98,7 +98,9 @@ public final class Prospector {
         }
         s.append("\nFor each post whose author needs what the business offers, give its number, a fit from 0 to 1, why in a")
                 .append(" few words, and the reply (at most ").append(CampaignPlanner.maxChars(network) > 300 ? 500 : 260)
-                .append(" characters). Leave out every post that doesn't truly fit.\n")
+                .append(" characters)")
+                .append(brief.chat().isEmpty() ? "" : "; a reply may end with the WhatsApp chat link, exactly as given, so they can order in one tap")
+                .append(". Leave out every post that doesn't truly fit.\n")
                 .append("JSON: {\"leads\":[{\"n\":1,\"fit\":0.8,\"why\":\"asks for a cake baker in Lagos\",\"reply\":\"...\"}]}");
         return s.toString();
     }
@@ -132,7 +134,7 @@ public final class Prospector {
             if (leads && (fit < LEAST_FIT || fit > 1)) {
                 continue;
             }
-            String text = clean(MiniJson.str(p.get("reply"), ""), brief.link, network);
+            String text = cleanKeeping(MiniJson.str(p.get("reply"), ""), network, brief.link, brief.chat());
             if (text.isEmpty()) {
                 continue;
             }
@@ -154,13 +156,21 @@ public final class Prospector {
      * talked into adding one by what it read), and no @mention of anyone (the comment is under their post already).
      */
     static String clean(String reply, String ownLink, String network) {
+        return cleanKeeping(reply, network, ownLink);
+    }
+
+    /** As above, with every link the business owns (its site, its WhatsApp chat link) kept. */
+    static String cleanKeeping(String reply, String network, String... ownLinks) {
         String r = reply == null ? "" : reply.trim();
-        String own = ownLink == null ? "" : ownLink.trim();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)\\b(?:https?://|www\\.)\\S+").matcher(r);
         StringBuffer b = new StringBuffer();
         while (m.find()) {
             String link = m.group();
-            boolean ours = !own.isEmpty() && (link.startsWith(own) || own.startsWith(link.replaceAll("[).,]+$", "")));
+            boolean ours = false;
+            for (String o : ownLinks) {
+                String own = o == null ? "" : o.trim();
+                ours |= !own.isEmpty() && (link.startsWith(own) || own.startsWith(link.replaceAll("[).,]+$", "")));
+            }
             m.appendReplacement(b, ours ? java.util.regex.Matcher.quoteReplacement(link) : "");
         }
         m.appendTail(b);
