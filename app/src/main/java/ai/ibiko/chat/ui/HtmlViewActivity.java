@@ -99,7 +99,7 @@ public final class HtmlViewActivity extends AppCompatActivity {
      * A plain GET over https to a library CDN: a page can use Chart.js or Tailwind, but nothing it holds can be sent
      * anywhere else (a form, a fetch, an image address carrying the page's text to another server).
      */
-    static boolean libraryRequest(android.webkit.WebResourceRequest r) {
+    public static boolean libraryRequest(android.webkit.WebResourceRequest r) {
         android.net.Uri u = r.getUrl();
         return "GET".equalsIgnoreCase(r.getMethod()) && "https".equals(u.getScheme()) && u.getHost() != null
                 && LIBRARIES.contains(u.getHost().toLowerCase(java.util.Locale.US));
