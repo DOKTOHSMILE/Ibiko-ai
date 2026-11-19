@@ -161,7 +161,28 @@ public final class Raster {
 
     /** Pictures from bytes (PNG, JPEG, WebP), or null. */
     public static Bitmap decode(byte[] bytes) {
-        return bytes == null ? null : android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        if (bytes == null) {
+            return null;
+        }
+        // a picture from the web is measured first: a small file can hold a huge image (20000 px square is 1.6 GB
+        // decoded), so it is shrunk to about 2048 px on its longer side while decoding
+        android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return null;
+        }
+        android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+        opts.inSampleSize = 1;
+        long longest = Math.max(bounds.outWidth, bounds.outHeight);
+        while (longest / opts.inSampleSize > 2048) {
+            opts.inSampleSize *= 2;
+        }
+        try {
+            return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
+        } catch (OutOfMemoryError e) {
+            return null;
+        }
     }
 
     private static Shape sample(Bitmap b, int maxPoints, float width, float depth) {
