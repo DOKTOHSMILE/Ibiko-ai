@@ -2534,7 +2534,19 @@ public final class CodeAgent {
                 continue;
             }
             try {
-                String fromRoot = workspace.getCanonicalFile().toPath().relativize(k.getCanonicalFile().toPath()).toString();
+                File real = k.getCanonicalFile();
+                String root = workspace.getCanonicalPath();
+                if (!real.getPath().startsWith(root + File.separator)) {
+                    continue; // a link that leads out of the workspace: not listed, not searched, not read
+                }
+                if (ai.ibiko.main.ChatSpace.otherChat(workspace, real) != null) {
+                    continue; // another chat's files
+                }
+                if (scope != null && !real.getPath().startsWith(scope.getCanonicalPath() + File.separator)
+                        && !real.getPath().equals(scope.getCanonicalPath()) && !scope.getCanonicalPath().startsWith(real.getPath())) {
+                    continue; // a worker on one project sees only that project
+                }
+                String fromRoot = workspace.getCanonicalFile().toPath().relativize(real.toPath()).toString();
                 if (othersRecord(fromRoot, ownBlueprint, ownRecord, this::isClone) != null) {
                     continue; // another project's backups are not listed or searched
                 }
@@ -2543,7 +2555,7 @@ public final class CodeAgent {
             }
             String rel = base.toPath().relativize(k.toPath()).toString();
             out.add(k.isDirectory() ? rel + "/" : rel + " (" + k.length() + " bytes)");
-            if (k.isDirectory()) {
+            if (k.isDirectory() && !java.nio.file.Files.isSymbolicLink(k.toPath())) {
                 walk(base, k, out);
             }
         }
