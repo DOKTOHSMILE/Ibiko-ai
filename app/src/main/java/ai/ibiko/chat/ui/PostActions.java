@@ -32,6 +32,7 @@ final class PostActions {
         if (planned) {
             labels.add("Edit the words");
             labels.add("Change the date and time");
+            labels.add("New picture");
         }
         if (it.state == Campaign.State.FAILED) {
             labels.add("Try posting it again");
@@ -53,6 +54,20 @@ final class PostActions {
                         edit(a, c, it, redraw);
                     } else if (l.equals("Change the date and time")) {
                         when(a, c, it, redraw);
+                    } else if (l.equals("New picture")) {
+                        Toast.makeText(a, "Designing a fresh picture\u2026", Toast.LENGTH_SHORT).show();
+                        final android.content.Context app = a.getApplicationContext();
+                        new Thread(() -> {
+                            java.io.File made = CampaignRunner.redraw(app, c, it);
+                            a.runOnUiThread(() -> {
+                                if (made == null) {
+                                    Toast.makeText(a, "That picture couldn't be drawn. Try again.", Toast.LENGTH_SHORT).show();
+                                }
+                                if (redraw != null) {
+                                    redraw.run();
+                                }
+                            });
+                        }, "ibiko-new-picture").start();
                     } else if (l.equals("Try posting it again")) {
                         Runnable again = () -> {
                             it.state = Campaign.State.PLANNED; // it goes out at the next run

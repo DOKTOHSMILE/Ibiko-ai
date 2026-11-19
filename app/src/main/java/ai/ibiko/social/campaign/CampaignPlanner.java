@@ -166,7 +166,8 @@ public final class CampaignPlanner {
                 .append("; no two alike in opening or format.")
                 .append(" For each also a picture headline (3 to 6 punchy words, no business name) and a short line under it"
                         + " (at most 9 words) that adds to the headline, not repeats it.\n")
-                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\"}]}");
+                .append(DesignGen.HOW).append('\n')
+                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\",\"design\":{...}}]}");
         return s.toString();
     }
 
@@ -354,7 +355,8 @@ public final class CampaignPlanner {
                 int cut = text.lastIndexOf(' ', most - 1);
                 text = text.substring(0, cut > most / 2 ? cut : most - 1).trim() + "\u2026";
             }
-            out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90)});
+            out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90),
+                    DesignGen.Spec.of(p.get("design")).json()});
         }
         return out;
     }
@@ -372,67 +374,6 @@ public final class CampaignPlanner {
             + "p{font-size:44px;margin:0;opacity:.9}</style></head>"
             + "<body><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></body></html>";
 
-    /** Designed picture layouts, one a theme in turn: bold type, depth and shape; the theme as a small tag, no name. */
-    static final String[] DESIGNS = {
-            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
-                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
-                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:radial-gradi"
-                    + "ent(circle at 18% 20%,#7c3aed 0,transparent 42%),radial-gradient(circle at 85% 80%,#06b6d4 0,transpa"
-                    + "rent 45%),radial-gradient(circle at 80% 10%,#f472b6 0,transparent 30%),#0b1026;color:#fff}.ring{posi"
-                    + "tion:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.18)}.r1{width:620px;height:620px;"
-                    + "right:-180px;top:-160px}.r2{width:420px;height:420px;right:-80px;top:-60px;border-color:rgba(255,255"
-                    + ",255,.28)}.dots{position:absolute;left:80px;bottom:80px;width:260px;height:120px;background-image:ra"
-                    + "dial-gradient(rgba(255,255,255,.35) 2px,transparent 2px);background-size:22px 22px}.c{position:absol"
-                    + "ute;left:96px;right:96px;top:50%;transform:translateY(-50%)}.tag{display:inline-block;padding:12px 2"
-                    + "6px;border-radius:40px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);font-"
-                    + "size:28px;letter-spacing:3px;text-transform:uppercase;margin-bottom:40px}h1{font-size:104px;line-hei"
-                    + "ght:1.02;margin:0 0 36px;font-weight:800;letter-spacing:-2px}.bar{width:140px;height:10px;border-rad"
-                    + "ius:6px;background:linear-gradient(90deg,#f472b6,#06b6d4);margin-bottom:36px}p{font-size:44px;line-h"
-                    + "eight:1.3;margin:0;color:rgba(255,255,255,.85)}</style></head><body><div class=\"ring r1\"></div><div "
-                    + "class=\"ring r2\"></div><div class=\"dots\"></div><div class=\"c\"><div class=\"tag\">{{THEME}}</div><h1>{{H"
-                    + "EADLINE}}</h1><div class=\"bar\"></div><p>{{LINE}}</p></div></body></html>",
-            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
-                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
-                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:#fff7ed;colo"
-                    + "r:#1c1917}.blob{position:absolute;right:-140px;bottom:-140px;width:760px;height:760px;border-radius:"
-                    + "46% 54% 42% 58%/55% 45% 55% 45%;background:linear-gradient(135deg,#fb923c,#e11d48)}.blob2{position:a"
-                    + "bsolute;right:120px;bottom:140px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,"
-                    + "255,.22)}svg{position:absolute;right:150px;bottom:170px;width:240px;height:240px}.c{position:absolut"
-                    + "e;left:90px;top:120px;width:640px}.k{font-size:30px;font-weight:700;color:#e11d48;letter-spacing:4px"
-                    + ";text-transform:uppercase;margin-bottom:28px}h1{font-size:96px;line-height:1.02;margin:0 0 32px;font"
-                    + "-weight:800;letter-spacing:-2px}p{font-size:42px;line-height:1.35;margin:0;color:#44403c}</style></h"
-                    + "ead><body><div class=\"blob\"></div><div class=\"blob2\"></div><svg viewBox=\"0 0 100 100\"><path d=\"M50 8"
-                    + " L61 38 L93 39 L67 58 L77 90 L50 71 L23 90 L33 58 L7 39 L39 38 Z\" fill=\"#fff\"/></svg><div class=\"c\">"
-                    + "<div class=\"k\">{{THEME}}</div><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></body></html>",
-            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
-                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
-                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:linear-gradi"
-                    + "ent(160deg,#0f766e 0%,#14b8a6 45%,#a7f3d0 100%);color:#fff}.grid{position:absolute;inset:0;backgroun"
-                    + "d-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,25"
-                    + "5,255,.08) 1px,transparent 1px);background-size:60px 60px}.card{position:absolute;left:90px;right:90"
-                    + "px;bottom:110px;padding:70px 64px;border-radius:44px;background:rgba(6,40,38,.55);border:1px solid r"
-                    + "gba(255,255,255,.25);box-shadow:0 30px 80px rgba(0,0,0,.25)}.num{position:absolute;right:90px;top:70"
-                    + "px;font-size:300px;font-weight:900;color:rgba(255,255,255,.14);line-height:1}.k{font-size:28px;lette"
-                    + "r-spacing:4px;text-transform:uppercase;color:#a7f3d0;margin-bottom:22px;font-weight:700}h1{font-size"
-                    + ":88px;line-height:1.04;margin:0 0 26px;font-weight:800;letter-spacing:-1.5px}p{font-size:40px;line-h"
-                    + "eight:1.35;margin:0;color:rgba(255,255,255,.88)}</style></head><body><div class=\"grid\"></div><div cl"
-                    + "ass=\"num\">&#10022;</div><div class=\"card\"><div class=\"k\">{{THEME}}</div><h1>{{HEADLINE}}</h1><p>{{LI"
-                    + "NE}}</p></div></body></html>",
-            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Pop"
-                    + "pins:wght@400;600;700;800;900&display=swap\"><style>body{margin:0;width:1080px;height:1080px;position"
-                    + ":relative;overflow:hidden;font-family:'Poppins','Segoe UI',Roboto,sans-serif;background:#111827;colo"
-                    + "r:#f9fafb}.half{position:absolute;left:0;top:0;width:1080px;height:1080px;background:linear-gradient"
-                    + "(135deg,#facc15,#f97316);clip-path:polygon(0 0,100% 0,100% 38%,0 62%)}svg{position:absolute;right:80"
-                    + "px;top:70px;width:300px;height:300px}.c{position:absolute;left:90px;right:90px;bottom:120px}h1{font-"
-                    + "size:110px;line-height:1;margin:0 0 30px;font-weight:900;text-transform:uppercase;letter-spacing:-2p"
-                    + "x}h1 span{color:#facc15}p{font-size:42px;line-height:1.35;margin:0;color:#d1d5db}.k{position:absolut"
-                    + "e;left:90px;top:110px;font-size:34px;font-weight:800;color:#111827;letter-spacing:3px;text-transform"
-                    + ":uppercase;max-width:560px}</style></head><body><div class=\"half\"></div><div class=\"k\">{{THEME}}</di"
-                    + "v><svg viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"46\" fill=\"none\" stroke=\"#111827\" stroke-widt"
-                    + "h=\"5\"/><circle cx=\"50\" cy=\"50\" r=\"30\" fill=\"none\" stroke=\"#111827\" stroke-width=\"5\"/><circle cx=\"50\""
-                    + " cy=\"50\" r=\"12\" fill=\"#111827\"/></svg><div class=\"c\"><h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></bod"
-                    + "y></html>"
-    };
 
 
     /** The card for a post that shows a product photo, when the theme's template has no place for one. */
@@ -443,6 +384,17 @@ public final class CampaignPlanner {
             + "rgba(20,11,51,.92) 38%)}h1{font-size:84px;line-height:1.05;margin:0 0 20px}p{font-size:40px;margin:0 0 28px;"
             + "opacity:.92}b{font-size:32px;opacity:.85}</style></head><body><img src=\"{{PHOTO}}\"><div class=\"s\">"
             + "<h1>{{HEADLINE}}</h1><p>{{LINE}}</p></div></body></html>";
+
+    /** A post's picture from its words, the model's design and its seed ({@code photo}: a product photo, or ""). */
+    public static String picture(Campaign.Item it, String photo) {
+        Object spec = null;
+        try {
+            spec = it.design.isEmpty() ? null : MiniJson.parse(it.design);
+        } catch (RuntimeException ignored) {
+            // the formula chooses
+        }
+        return DesignGen.make(it.seed, it.headline, it.line, it.theme, photo, CampaignImage.SIDE, CampaignImage.SIDE, DesignGen.Spec.of(spec));
+    }
 
     /** The template with this post's words in it (as text: nothing the brain wrote becomes markup). */
     static String fill(String template, String headline, String line, String brand) {
@@ -610,10 +562,7 @@ public final class CampaignPlanner {
                     } catch (Exception e) {
                         tpl = "";
                     }
-                    if (tpl.isEmpty()) {
-                        int t = Math.max(0, o.themes.indexOf(slot.theme));
-                        tpl = DESIGNS[(t + (from + i) / Math.max(1, o.themes.size())) % DESIGNS.length];
-                    }
+
                     n++;
                     Campaign.Item it = new Campaign.Item();
                     it.id = c.id + "-" + n;
@@ -624,8 +573,12 @@ public final class CampaignPlanner {
                     Product shown = slot.product >= 0 ? c.brief.products.get(slot.product) : null;
                     it.product = shown == null ? "" : shown.id;
                     it.handoff = slot.account.startsWith(HANDOFF);
-                    it.imageHtml = fill(tpl, p[1].isEmpty() ? slot.theme : p[1], p[2], brand,
-                            shown == null || shown.photo.isEmpty() ? "" : shown.id, slot.theme);
+                    // the model designed the picture; the formula draws it fresh (no two alike)
+                    it.headline = p[1].isEmpty() ? slot.theme : p[1];
+                    it.line = p[2];
+                    it.design = p.length > 3 ? p[3] : "";
+                    it.seed = DesignGen.freshSeed(it.id);
+                    it.imageHtml = picture(it, shown == null || shown.photo.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(shown.id));
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }

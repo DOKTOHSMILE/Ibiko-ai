@@ -102,6 +102,9 @@ public final class Campaign {
         public String id = "", account = "", network = "", text = "", imageHtml = "", imagePath = "", result = "", theme = "";
         public long at;
         public State state = State.PLANNED;
+        /** The picture's words, the model's design for it, and the seed its fresh design is drawn from. */
+        public String headline = "", line = "", design = "";
+        public long seed;
         /** The catalog product it shows ({@link Product#id}), or "". */
         public String product = "";
         /** A network Ibiko can't post on itself (Instagram, LinkedIn): offered to the person to share when due. */
@@ -124,6 +127,10 @@ public final class Campaign {
             m.put("state", state.name());
             m.put("result", result);
             m.put("product", product);
+            m.put("headline", headline);
+            m.put("line", line);
+            m.put("design", design);
+            m.put("seed", String.valueOf(seed));
             m.put("handoff", handoff);
             m.put("checked", (double) checked);
             m.put("url", url);
@@ -144,6 +151,14 @@ public final class Campaign {
             i.state = state(MiniJson.str(m.get("state"), "PLANNED"));
             i.result = MiniJson.str(m.get("result"), "");
             i.product = MiniJson.str(m.get("product"), "");
+            i.headline = MiniJson.str(m.get("headline"), "");
+            i.line = MiniJson.str(m.get("line"), "");
+            i.design = MiniJson.str(m.get("design"), "");
+            try {
+                i.seed = Long.parseLong(MiniJson.str(m.get("seed"), "0"));
+            } catch (NumberFormatException e) {
+                i.seed = 0;
+            }
             i.handoff = Boolean.TRUE.equals(m.get("handoff"));
             i.checked = (int) MiniJson.num(m.get("checked"), 0);
             i.url = MiniJson.str(m.get("url"), "");
