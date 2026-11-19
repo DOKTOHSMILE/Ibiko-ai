@@ -491,9 +491,13 @@ public final class CodeAgent {
             + " rounds; between rounds the user gets a short progress note, and the work goes on by itself.\n";
 
     /** A compiler error that names the file: one edit, then stop. Not a survey and not a plan. */
-    static final String POINTED = "This is a compiler error, not a project. Open only the files the errors name."
-            + " Fix the symbols they name (a missing import is an import, nothing else) and stop."
-            + " Do not list the repository, do not read other files, and do not write PLAN.md.\n";
+    static final String POINTED = "Fix mode: this is an error to fix, not a project to survey. Work like a senior engineer"
+            + " fixing a bug: 1) read the error: what failed, and where (file and line); 2) the code it names is below, so"
+            + " start from it, and open another file only if the cause plainly lives there; 3) find the root cause, not the"
+            + " symptom; 4) make the smallest correct edit with edit_file; 5) run one check that shows it is fixed (the"
+            + " failing command, test or build) and fix again if it still fails; 6) say in a few lines what was wrong and"
+            + " what you changed. Do not list the repository, do not read files the error doesn't lead to, do not read a"
+            + " file twice, and do not write PLAN.md.\n";
 
     static final String PROGRESS_NOW = "Your steps for this round are used. Write a short progress note for the user, in a"
             + " few plain lines: what you did and found so far, what works now, and what you will do next. No tool calls;"
@@ -906,6 +910,9 @@ public final class CodeAgent {
             }
             work.append("Workspace files now:\n").append(Blueprint.pointed(task) ? "(not listed: the errors name the files)"
                     : listFiles(".")).append("\n\nTask: ").append(task.trim()).append('\n');
+            if (Blueprint.pointed(task)) {
+                work.append(namedCode(task)); // the lines the error names, read for it: the first step can be the fix
+            }
         }
         this.work = work;
         startBlueprint(task, work);
@@ -1041,6 +1048,7 @@ public final class CodeAgent {
                         }
                     }
                 }
+                result = noCircles(call, result);
                 if (!modelSaid && narrate) {
                     // never silent: what it was doing and what came back, in the chat between the steps
                     String line = Narration.of(lastStep, result);
@@ -2691,5 +2699,78 @@ public final class CodeAgent {
                     + " Read parts of it with start and end lines, or search it.");
         }
         return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+    }
+
+    /** Look-only steps in a row: reads, listings, searches. */
+    private int looksInARow;
+    /** In fix mode, after this many looks in a row the next result says: fix it now. Other work gets more room. */
+    static final int FIX_LOOKS = 5, WORK_LOOKS = 10;
+
+    /**
+     * The circle breaker: reading and searching again and again with no change is how a task ran for an hour with no
+     * fix. After a few looks in a row the result tells the model to change something now, or to say what it lacks.
+     */
+    String noCircles(Call call, String result) {
+        boolean look = call.name.equals("read_file") || call.name.equals("list_files") || call.name.equals("search")
+                || call.name.equals("fetch") || call.name.equals("docs");
+        if (!look) {
+            looksInARow = 0;
+            return result;
+        }
+        looksInARow++;
+        int most = Blueprint.pointed(task) ? FIX_LOOKS : WORK_LOOKS;
+        if (looksInARow < most) {
+            return result;
+        }
+        return result + "\n\n[" + looksInARow + " reads in a row with no change. You have enough to act: make the change now"
+                + " with edit_file or write_file, or run the one check that decides it. If something you need is truly"
+                + " missing, say exactly what it is in your answer instead of reading more.]";
+    }
+
+    /** The code around each file and line an error names (at most three places), found in the workspace. */
+    String namedCode(String errorText) {
+        StringBuilder b = new StringBuilder();
+        java.util.Set<String> done = new java.util.HashSet<String>();
+        for (ErrorReader.Problem p : ErrorReader.read(errorText)) {
+            if (p.file == null || p.file.isEmpty() || p.line <= 0 || done.size() >= 3 || !done.add(p.file + ":" + p.line)) {
+                continue;
+            }
+            File f = locate(p.file);
+            if (f == null) {
+                continue;
+            }
+            try {
+                String rel = workspace.toPath().relativize(f.toPath()).toString();
+                b.append("\nThe code at ").append(rel).append(':').append(p.line).append(" (").append(p.message).append("):\n")
+                        .append(SourceRead.read(f, String.valueOf(Math.max(1, p.line - 30)), String.valueOf(p.line + 30))).append('\n');
+            } catch (IOException | RuntimeException ignored) {
+                // not readable: the model opens it itself
+            }
+        }
+        return b.length() == 0 ? "" : "\nRead for you, so you can start on the fix:" + b;
+    }
+
+    /** A file an error names, as a path in the workspace or, failing that, the one file there whose path ends with it. */
+    private File locate(String named) {
+        String n = named.replace('\\', '/').replaceFirst("^\\./", "");
+        File direct = new File(workspace, n);
+        if (direct.isFile() && SourceRead.within(workspace, direct)) {
+            return direct;
+        }
+        final String tail = n.contains("/") ? "/" + n : "/" + n;
+        final File[] hit = {null};
+        try (java.util.stream.Stream<java.nio.file.Path> walk = Files.walk(workspace.toPath(), 14)) {
+            walk.filter(p -> {
+                String s = p.toString().replace('\\', '/');
+                return !s.contains("/.git/") && !s.contains("/node_modules/") && !s.contains("/build/") && s.endsWith(tail);
+            }).limit(2).forEach(p -> {
+                if (hit[0] == null) {
+                    hit[0] = p.toFile();
+                }
+            });
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+        return hit[0] != null && hit[0].isFile() && SourceRead.within(workspace, hit[0]) ? hit[0] : null;
     }
 }
