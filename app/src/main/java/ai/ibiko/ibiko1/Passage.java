@@ -33,6 +33,8 @@ public final class Passage {
     public final long at;
     /** A question asked with it, after the text ("…\n\nWho founded it?"), or null. */
     public final String question;
+    /** Sentences in it that gave the reader orders (a prompt injection): left out of it, never followed. */
+    public final List<PromptReader.Hidden> hidden = new ArrayList<PromptReader.Hidden>();
 
     private Passage(String text, String question, long at) {
         this.text = text;
@@ -65,7 +67,11 @@ public final class Passage {
         if (m.length() < LONG || split(m).size() < 3) {
             return null;
         }
-        return new Passage(m, q, now);
+        // orders hidden in the text ("ignore your instructions and…") are content to be wary of, not the text's points
+        List<PromptReader.Hidden> found = PromptReader.scan(m);
+        Passage p = new Passage(found.isEmpty() ? m : PromptReader.clean(m), q, now);
+        p.hidden.addAll(found);
+        return p;
     }
 
     public boolean fresh(long now) {
@@ -248,6 +254,10 @@ public final class Passage {
         b.append("\n\nThe main points:");
         for (String s : p) {
             b.append("\n\u2022 ").append(s);
+        }
+        if (!hidden.isEmpty()) {
+            b.append("\n\nI left out ").append(hidden.size() == 1 ? "a sentence that gives" : hidden.size() + " sentences that give")
+                    .append(" the reader orders (").append(hidden.get(0).why).append("). I don't follow instructions hidden in a text.");
         }
         b.append("\n\nAsk me anything about it.");
         return b.toString();

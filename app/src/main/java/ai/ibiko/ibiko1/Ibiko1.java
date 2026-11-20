@@ -523,10 +523,15 @@ public final class Ibiko1 {
             passage = pasted;
             final String done = tasks.reply();
             how = How.MEMORY;
-            think(Arrays.asList("Reading the passage and the " + tasks.tasks.size() + " tasks",
-                    "Tracking each person's counts and money step by step",
-                    "Answering only from the passage (nothing it doesn't say)", "Checking each answer against the task's rules"),
-                    () -> saysExact(who, done));
+            List<String> doing = new ArrayList<String>(Arrays.asList("Reading the passage and the " + tasks.tasks.size() + " tasks",
+                    "What each asks: " + intents(tasks.intents)));
+            String hiddenStep = PromptReader.step(tasks.hidden);
+            if (hiddenStep != null) {
+                doing.add(hiddenStep);
+            }
+            doing.addAll(Arrays.asList("Tracking each person's counts and money step by step",
+                    "Answering only from the passage (nothing it doesn't say)", "Checking each answer against the task's rules"));
+            think(doing, () -> saysExact(who, done));
             return;
         }
         if (pasted != null) {
@@ -546,9 +551,14 @@ public final class Ibiko1 {
                     : Passage.asksWhole(pasted.question) ? pasted.whole(pasted.question) : pasted.answer(pasted.question);
             final String reply = asked != null ? asked : pasted.readReply();
             String about = pasted.about();
-            think(Arrays.asList("Reading what you pasted", about.isEmpty() ? "Finding what it's about" : "Finding what it's about: " + about,
-                    asked != null ? "Finding the sentence that answers your question" : "Picking out the main points"),
-                    () -> saysPlain(who, reply));
+            List<String> reading = new ArrayList<String>(Arrays.asList("Reading what you pasted",
+                    about.isEmpty() ? "Finding what it's about" : "Finding what it's about: " + about));
+            String hiddenStep = PromptReader.step(pasted.hidden);
+            if (hiddenStep != null) {
+                reading.add(hiddenStep);
+            }
+            reading.add(asked != null ? "Finding the sentence that answers your question" : "Picking out the main points");
+            think(reading, () -> saysPlain(who, reply));
             return;
         }
         // a question about the text pasted earlier: answered from it, before anything else
@@ -1068,7 +1078,7 @@ public final class Ibiko1 {
         }, MODEL_WAIT_MS);
         new Thread(() -> {
             String asked = (known == null || known.trim().isEmpty() ? "" : "What Ibiko already knows:\n" + known.trim() + "\n\n")
-                    + "Question: " + t;
+                    + "Question: " + PromptReader.guard(t); // orders hidden in pasted text are fenced off as text
             String a = host.askModel(MODEL_SYSTEM, asked);
             final String said = a == null ? null : a.trim();
             host.onScreen(() -> {
@@ -1182,6 +1192,15 @@ public final class Ibiko1 {
     }
 
     /** A set reply (a greeting, its memory list, "noted", "I don't know"): no check and cancel, nothing to learn. */
+    /** The intents of the tasks, in order ("calculate, extract, summarize"). */
+    private static String intents(List<PromptReader.Intent> all) {
+        List<String> out = new ArrayList<String>();
+        for (PromptReader.Intent i : all) {
+            out.add(i.name().toLowerCase(Locale.ROOT).replace('_', '/'));
+        }
+        return String.join(", ", out);
+    }
+
     /** Said exactly as composed: answers under rules (a letter left out, raw JSON) are not redrafted by the inner voice. */
     private void saysExact(String who, String text) {
         host.noRating(text);

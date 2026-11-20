@@ -28,12 +28,21 @@ import java.util.regex.Pattern;
 public final class PassageTasks {
     public final String passage;
     public final List<String> tasks;
+    /** What each task wants, in order. */
+    public final List<PromptReader.Intent> intents = new ArrayList<PromptReader.Intent>();
+    /** Sentences in the passage that gave the reader orders: taken out before anything was read, never followed. */
+    public final List<PromptReader.Hidden> hidden = new ArrayList<PromptReader.Hidden>();
     final Tracker tracker;
 
     private PassageTasks(String passage, List<String> tasks) {
-        this.passage = passage;
+        List<PromptReader.Hidden> found = PromptReader.scan(passage);
+        this.hidden.addAll(found);
+        this.passage = found.isEmpty() ? passage : PromptReader.clean(passage);
         this.tasks = tasks;
-        this.tracker = Tracker.read(passage);
+        for (String t : tasks) {
+            intents.add(PromptReader.intent(t));
+        }
+        this.tracker = Tracker.read(this.passage);
     }
 
     private static final Pattern TASK = Pattern.compile("(?m)^\\s*(\\d{1,2})[.)]\\s+(.+)$");
@@ -43,6 +52,26 @@ public final class PassageTasks {
         if (message == null || message.length() < 200) {
             return null;
         }
+        PassageTasks numbered = numbered(message);
+        if (numbered != null) {
+            return numbered;
+        }
+        // the asks not numbered: questions and tasks before or after the material, found by reading it
+        PromptReader.Reading r = PromptReader.read(message);
+        if (!r.hasPassage() || r.asks.size() < 2) {
+            return null;
+        }
+        List<String> asks = new ArrayList<String>();
+        for (PromptReader.Ask a : r.asks) {
+            asks.add(a.text);
+        }
+        PassageTasks t = new PassageTasks(r.passage, asks);
+        t.hidden.addAll(r.hidden);
+        return t;
+    }
+
+    /** A passage with numbered (or labelled) tasks, or null. */
+    private static PassageTasks numbered(String message) {
         String m = message.replace("\r", "");
         int tasksAt = indexOfLabel(m, "tasks?|questions?|instructions?");
         int passageAt = indexOfLabel(m, "passage|text|story|article");
@@ -113,7 +142,7 @@ public final class PassageTasks {
         }
         List<String> parts = questions(t);
         if (parts.isEmpty()) {
-            return notStated;
+            return task(t, notStated); // a task, not a question ("List the couriers.", "Explain what went wrong.")
         }
         boolean steps = t.matches("(?is).*\\bshow\\b.{0,20}\\b(steps?|working|work)\\b.*");
         List<String> out = new ArrayList<String>();
@@ -133,6 +162,22 @@ public final class PassageTasks {
             return notStated;
         }
         return String.join(" ", out);
+    }
+
+    /** A task said as an order rather than a question, done by what it wants. */
+    private String task(String t, String notStated) {
+        PromptReader.Intent want = PromptReader.intent(t);
+        if (want == PromptReader.Intent.LIST) {
+            List<String> names = tracker.people.isEmpty() ? Passage.names(passage) : new ArrayList<String>(tracker.people.keySet());
+            if (!names.isEmpty()) {
+                return String.join(", ", names) + ".";
+            }
+        }
+        if (!grounded(t)) {
+            return notStated;
+        }
+        String s = sentenceFor(t);
+        return s == null ? notStated : s;
     }
 
     /** The questions a task asks: "Who signed, at what time, and what was the value?" is three. */
