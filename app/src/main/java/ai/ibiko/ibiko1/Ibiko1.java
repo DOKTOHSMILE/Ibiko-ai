@@ -473,12 +473,16 @@ public final class Ibiko1 {
         long heardAt = System.currentTimeMillis();
         // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
         // (not in the turn after it asked back, which is an explanation or a correction, read as said)
-        final Context.Resolved withContext = inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
+        // a long text pasted in: read and kept, never rewritten with the conversation's names
+        final Passage pasted = inquiry == null ? Passage.of(message, heardAt) : null;
+        final Context.Resolved withContext = pasted != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
         final String t = withContext.text;
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
         rolesStep = roleStep(t);
-        noteFocus(t, heardAt);
+        if (pasted == null) {
+            noteFocus(t, heardAt);
+        }
         if (worker != null) {
             Plug.workers.end(worker, false); // a newer message took over
         }
@@ -489,6 +493,39 @@ public final class Ibiko1 {
         kind = Methods.kind(t);
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
+        }
+        if (pasted != null) {
+            passage = pasted;
+            final String main = pasted.main();
+            for (String n : pasted.names) {
+                if (!n.equals(main)) {
+                    // the other names it is about: "the company", "it" (the main one is set last, so it leads)
+                    context.about("Tell me about " + n, n, n, Context.Kind.THING, heardAt);
+                }
+            }
+            if (main != null) {
+                // its main person or thing is who "he", "she" and "it" mean in the questions that follow
+                context.about("Tell me about " + main, main, main, pasted.kind(), heardAt);
+            }
+            String asked = pasted.question == null ? null
+                    : Passage.asksWhole(pasted.question) ? pasted.whole(pasted.question) : pasted.answer(pasted.question);
+            final String reply = asked != null ? asked : pasted.readReply();
+            String about = pasted.about();
+            think(Arrays.asList("Reading what you pasted", about.isEmpty() ? "Finding what it's about" : "Finding what it's about: " + about,
+                    asked != null ? "Finding the sentence that answers your question" : "Picking out the main points"),
+                    () -> saysPlain(who, reply));
+            return;
+        }
+        // a question about the text pasted earlier: answered from it, before anything else
+        final Passage held = passage;
+        if (held != null && held.fresh(heardAt)) {
+            final String fromText = Passage.asksWhole(message) || Passage.asksWhole(t) ? held.whole(message) : held.answer(t);
+            if (fromText != null) {
+                how = How.MEMORY;
+                think(Arrays.asList("Reading your question", "Looking in the text you pasted",
+                        "Taking what it says"), () -> saysPlain(who, fromText));
+                return;
+            }
         }
         // "tell me more", after something was said about a subject: what hasn't been said yet
         if (withContext.changed() && t.startsWith("Tell me more about ")) {
@@ -1156,6 +1193,9 @@ public final class Ibiko1 {
         host.answered(how);
     }
 
+    /** The text the person pasted last, for questions about it ({@link Passage}). */
+    private volatile Passage passage;
+
     /** What was said lately (the last few thousand characters), so "tell me more" goes on from it. */
     private volatile String lastSaid;
 
@@ -1234,12 +1274,26 @@ public final class Ibiko1 {
         if (t == null || SelfTalk.toMe(t) || !EncyclopediaQA.question(t) && !t.matches("(?i)^(tell me|explain|describe)\\b.*")) {
             return;
         }
+        Passage held = passage;
+        if (held != null && held.fresh(now)) {
+            for (String n : held.names) {
+                if (t.toLowerCase(Locale.ROOT).contains(n.toLowerCase(Locale.ROOT))) {
+                    return; // a question about the pasted text: its names stay what the conversation is about
+                }
+            }
+        }
         try {
             java.util.List<Object[]> subs = new EncyclopediaQA(encyclopedia()).subjects(t, 1);
             if (subs.isEmpty()) {
                 return;
             }
             Encyclopedia.Article a = (Encyclopedia.Article) subs.get(0)[0];
+            @SuppressWarnings("unchecked")
+            java.util.Set<String> named = (java.util.Set<String>) subs.get(0)[1];
+            if ((Double) subs.get(0)[2] < 10 && named.size() == 1
+                    && named.iterator().next().matches("born|died|dead|live|lived|work|worked|start|started|name|called|made|used|year|time")) {
+                return; // a word of the question ("born"), not what it is about
+            }
             @SuppressWarnings("unchecked")
             java.util.Set<String> words = (java.util.Set<String>) subs.get(0)[1];
             context.about(t, a.title, run(t, words), Context.kindOf(a, encyclopedia().facts(a.title)), now);

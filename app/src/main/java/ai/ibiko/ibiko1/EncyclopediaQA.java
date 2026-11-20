@@ -108,7 +108,8 @@ public final class EncyclopediaQA {
 
     /** A word's stem, enough to match "independence"/"independent", "founded"/"founder", "lives"/"living". */
     static String stem(String w) {
-        String s = w;
+        String base = w.matches("found|founded|left|set|born|bear|saw|rose|lead|led|met") ? null : ai.ibiko.ibiko1.formulas.Grammar.irregular(w);
+        String s = base != null ? base : w; // "won" is "win", "wrote" is "write"
         for (String end : new String[]{"ations", "ation", "ences", "ence", "ments", "ment", "ness", "ings", "ing", "edly", "ers",
                 "ies", "ied", "est", "ed", "er", "es", "ly", "s", "e"}) {
             if (s.length() >= end.length() + 3 && s.endsWith(end)) {
