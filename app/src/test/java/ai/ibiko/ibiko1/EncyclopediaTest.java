@@ -1,6 +1,7 @@
 package ai.ibiko.ibiko1;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -156,7 +157,7 @@ public class EncyclopediaTest {
         String a = ENC.answer("What is a volcano?");
         assertNotNull(a);
         assertTrue(a.startsWith("A volcano is an opening"));
-        assertTrue(a.contains("(From Simple English Wikipedia, “Volcano”.)"));
+        assertFalse("just the answer: no source line under it", a.contains("Simple English Wikipedia"));
         assertTrue(ENC.answer("who was Nelson Mandela").contains("anti-apartheid"));
         assertTrue(ENC.answer("Tell me about Lagos").startsWith("Lagos is the largest city"));
         assertTrue(ENC.answer("what is the United States").contains("North America"));

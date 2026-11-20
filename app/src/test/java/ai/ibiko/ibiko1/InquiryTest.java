@@ -44,7 +44,7 @@ public class InquiryTest {
         assertTrue(o.agree);
         assertTrue(o.text, o.text.startsWith("The zorblat is a dance from Lagos"));
         assertEquals(Arrays.asList("en.wikipedia.org", "example.org"), o.sources);
-        assertTrue(o.shown().endsWith(Inquiry.MAY_BE_WRONG));
+        assertEquals("just the answer, no note under it", o.text, o.shown());
     }
 
     @Test
@@ -54,14 +54,16 @@ public class InquiryTest {
         Inquiry.Outcome o = Inquiry.compare("What is a zorblat?", "a dance people do at weddings in Lagos", a, b);
         assertFalse(o.agree);
         assertTrue(o.text, o.text.startsWith("The zorblat is a dance from Lagos"));
-        assertTrue(o.text, o.text.contains("If you meant the other: Zorblat is a programming library"));
+        assertTrue(o.note, o.note.contains("If you meant the other: Zorblat is a programming library"));
+        assertFalse("the answer is just the answer", o.text.contains("If you meant the other"));
     }
 
     @Test
     public void oneSearchIsSaidToRestOnOneAndNoneIsNoAnswer() {
         ResearchAnswer b = ResearchAnswer.of("A zorblat is a wedding dance.", "example.org");
         Inquiry.Outcome o = Inquiry.compare("What is a zorblat?", "a dance", null, b);
-        assertTrue(o.text, o.text.contains("Only the search on what you explained found something"));
+        assertTrue(o.note, o.note.contains("Only the search on what you explained found something"));
+        assertEquals("A zorblat is a wedding dance.", o.text);
         assertNull(Inquiry.compare("What is a zorblat?", "a dance", null, null));
     }
 
@@ -89,7 +91,7 @@ public class InquiryTest {
         assertTrue(qs.toString(), qs.contains("What is Lagos?"));
         assertTrue(qs.toString(), qs.contains("What is a wedding?"));
         assertFalse(qs.contains("What is Python?"));
-        assertTrue(Inquiry.tiesIn(rel).startsWith("\nThis ties in with what I already know:"));
+        assertTrue("a step of its own", Inquiry.tiesIn(rel).startsWith("This ties in with what I already know:"));
         assertEquals("", Inquiry.tiesIn(new ArrayList<Knowledge.Fact>()));
         assertEquals("the same words, the same ids", Inquiry.ids("Lagos weddings"), Inquiry.ids("lagos wedding"));
     }

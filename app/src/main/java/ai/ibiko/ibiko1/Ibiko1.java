@@ -533,7 +533,7 @@ public final class Ibiko1 {
                         if (known.sure) {
                             saysSure(who, known.answer, ai.ibiko.ibiko1.formulas.Critical.Ground.CONFIRMED); // confirmed before: no need to ask again
                         } else {
-                            saysSure(who, known.answer + "\n(Learned in a learning session; not checked yet.)", ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED);
+                            saysSure(who, known.answer, ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED, "Learned in a learning session; not checked yet");
                             rateable(t, known.answer);
                         }
                     });
@@ -575,8 +575,11 @@ public final class Ibiko1 {
         final String explained = encyclopedia().answer(t);
         if (explained != null && !knowledge().rejected(t, explained)) {
             how = How.MEMORY;
-            think(Arrays.asList("Reading your question", "Checking what I already know", "Found it in my built-in encyclopedia"), () -> {
-                saysSure(who, explained, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN);
+            final Encyclopedia.Article seen = encyclopedia().find(Encyclopedia.asked(t));
+            think(Arrays.asList("Reading your question", "Checking what I already know",
+                    "Found it in my built-in encyclopedia" + (seen == null ? "" : ": \u201c" + seen.title + "\u201d (Simple English Wikipedia)")), () -> {
+                saysSure(who, explained, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                        seen == null ? null : "Source: Simple English Wikipedia, \u201c" + seen.title + "\u201d");
                 rateable(t, explained);
             });
             return;
@@ -587,7 +590,8 @@ public final class Ibiko1 {
             how = How.MEMORY;
             think(Arrays.asList("Reading your question", "Finding what it is about: " + read.title,
                     "Reading my encyclopedia's article on it", "Taking the sentence that answers it"), () -> {
-                saysSure(who, read.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN);
+                saysSure(who, read.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                        "Source: Simple English Wikipedia, \u201c" + read.title + "\u201d");
                 rateable(t, read.said());
             });
             return;
@@ -640,7 +644,7 @@ public final class Ibiko1 {
         if (learned != null && !knowledge().rejected(t, learned)) {
             how = How.MEMORY;
             think(Arrays.asList("Reading your question", "Checking what I already know", "Found an answer an earlier model gave"), () -> {
-                saysSure(who, learned + "\n(Learned from an earlier model.)", ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED);
+                saysSure(who, learned, ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED, "Learned from an earlier model");
                 rateable(t, learned);
             });
             return;
@@ -661,7 +665,7 @@ public final class Ibiko1 {
         if (!host.online()) {
             LearningJob.remember(host.context(), t);
             learner().unanswered(t, System.currentTimeMillis());
-            final String offline = Phrasing.unknown(ResearchAnswer.subject(t), false, LearningJob.plan(host.context()).on, times);
+            final String offline = noSureAnswer(t, ResearchAnswer.subject(t), false);
             think(Arrays.asList("Reading your question", "Checking what I already know"), () -> saysPlain(who, offline));
             return;
         }
@@ -669,8 +673,7 @@ public final class Ibiko1 {
         how = How.RESEARCH;
         final Methods.Way way = methods().recall(t);
         think(Arrays.asList("Reading your question", "Checking what I already know",
-                way != null ? "Following the way that worked before: " + way.said() :
-                subject != null ? "Not in my memory: looking up “" + subject + "”" : "Not in my memory: searching the web"), () -> {
+                way != null ? "Following the way that worked before: " + way.said() : "Thinking it through"), () -> {
                     final int mine = token;
                     new Thread(() -> {
                         ResearchAnswer r = null;
@@ -704,23 +707,23 @@ public final class Ibiko1 {
                                 return;
                             }
                             if (found == null && host.modelReady()) {
-                                think(Arrays.asList("Nothing I found answers it: asking the device's model"),
-                                        () -> fromModel(who, t, subject, true), false);
+                                think(Arrays.asList("Thinking it over more"), () -> fromModel(who, t, subject, true), false);
                                 return;
                             }
                             if (found == null) {
                                 LearningJob.remember(host.context(), t);
                                 learner().unanswered(t, System.currentTimeMillis());
-                                final String none = Phrasing.unknown(subject, true, LearningJob.plan(host.context()).on, times);
-                                think(Arrays.asList("Nothing I found answers it"), () -> saysPlain(who, none), false);
+                                final String none = noSureAnswer(t, subject, true);
+                                think(Arrays.asList("Putting together what I do know"), () -> saysPlain(who, none), false);
                                 return;
                             }
                             final String shown = found.shown();
                             List<String> more = new ArrayList<String>();
-                            more.add("Reading " + (found.sources.isEmpty() ? "what I found" : String.join(", ", found.sources)));
                             more.add("Writing the answer");
                             think(more, () -> {
-                                saysSure(who, shown, found.sources.size() >= 2 ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES : ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE); // one block
+                                saysSure(who, shown, found.sources.size() >= 2 ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
+                                        : ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE,
+                                        found.sources.isEmpty() ? null : "Read: " + String.join(", ", found.sources)); // one block
                                 rateable(t, shown);
                             }, false);
                         });
@@ -759,13 +762,14 @@ public final class Ibiko1 {
     /** "Just answer": what the first search found, as it would have said it. */
     private void answerFirst(final String who, final Inquiry.Pending p) {
         if (p.first == null) {
-            final String none = Phrasing.unknown(p.subject, true, LearningJob.plan(host.context()).on, times);
+            final String none = noSureAnswer(p.question, p.subject, true);
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, none));
             return;
         }
         how = How.RESEARCH;
         think(Arrays.asList("Reading your message", "Going with what I found"), () -> {
-            saysSure(who, p.first.shown() + "\n\n" + Inquiry.MAY_BE_WRONG, ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE);
+            saysSure(who, p.first.shown(), ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE,
+                    p.first.sources.isEmpty() ? null : "Read: " + String.join(", ", p.first.sources));
             opened(p.question, p.first.text);
         });
     }
@@ -795,11 +799,12 @@ public final class Ibiko1 {
                     if (o == null) {
                         LearningJob.remember(host.context(), p.question);
                         learner().unanswered(p.question, now);
-                        saysPlain(who, Phrasing.unknown(p.subject, true, LearningJob.plan(host.context()).on, times));
+                        saysPlain(who, noSureAnswer(p.question, p.subject, true));
                         return;
                     }
-                    saysSure(who, o.shown() + Inquiry.tiesIn(rel), o.agree ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
-                            : ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE);
+                    saysSure(who, o.shown(), o.agree ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
+                            : ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE, o.note, Inquiry.tiesIn(rel),
+                            o.sources.isEmpty() ? null : "Read: " + String.join(", ", o.sources));
                     opened(p.question, o.text);
                 });
             }, "ibiko1-inquiry").start();
@@ -843,22 +848,37 @@ public final class Ibiko1 {
             + ai.ibiko.suit.FunctionCode.directions()
             + " /no_think";
 
+    /** How long the device's model may take before it gives a proper reply from what it knows instead. */
+    static final long MODEL_WAIT_MS = 40_000;
+
     private void fromModel(final String who, final String t, final String subject, final boolean online) {
         final int mine = token;
         final String known = foundation(t);
+        final boolean[] settled = {false};
+        host.later(() -> {
+            if (mine == token && !settled[0]) {
+                // the model is taking too long: a proper reply from what it knows, and the late answer is let go
+                settled[0] = true;
+                token++;
+                LearningJob.remember(host.context(), t);
+                learner().unanswered(t, System.currentTimeMillis());
+                saysPlain(who, noSureAnswer(t, subject, online));
+            }
+        }, MODEL_WAIT_MS);
         new Thread(() -> {
             String asked = (known == null || known.trim().isEmpty() ? "" : "What Ibiko already knows:\n" + known.trim() + "\n\n")
                     + "Question: " + t;
             String a = host.askModel(MODEL_SYSTEM, asked);
             final String said = a == null ? null : a.trim();
             host.onScreen(() -> {
-                if (mine != token) {
-                    return; // a newer message took over
+                if (mine != token || settled[0]) {
+                    return; // a newer message took over, or it already replied
                 }
+                settled[0] = true;
                 if (said == null || said.isEmpty() || ai.ibiko.learn.Corroborate.failure(said)) {
                     LearningJob.remember(host.context(), t);
                     learner().unanswered(t, System.currentTimeMillis());
-                    saysPlain(who, Phrasing.unknown(subject, online, LearningJob.plan(host.context()).on, times));
+                    saysPlain(who, noSureAnswer(t, subject, online));
                     return;
                 }
                 ai.ibiko.suit.FunctionCode.Call call = ai.ibiko.suit.FunctionCode.parse(said);
@@ -881,11 +901,11 @@ public final class Ibiko1 {
                 if (shown == null || shown.trim().isEmpty()) {
                     LearningJob.remember(host.context(), t);
                     learner().unanswered(t, System.currentTimeMillis());
-                    saysPlain(who, Phrasing.unknown(subject, online, LearningJob.plan(host.context()).on, times));
+                    saysPlain(who, noSureAnswer(t, subject, online));
                     return;
                 }
                 how = How.OTHER;
-                saysSure(who, shown.trim() + "\n(From the device's model; not checked yet.)", ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED);
+                saysSure(who, shown.trim(), ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED, "Thought through with the device's model");
                 rateable(t, shown.trim()); // the pilot's check keeps it in Ibiko 1's memory (and in the next adapter's training)
             });
         }, "ibiko1-model").start();
@@ -1003,10 +1023,45 @@ public final class Ibiko1 {
      * A factual answer, said with critical reasoning: what the question took for granted or overstated (K3–K8), when it
      * matters, and how sure the answer is from how it was reached (K9), never more.
      */
-    private void saysSure(String who, String text, ai.ibiko.ibiko1.formulas.Critical.Ground ground) {
-        String notes = times > 0 ? "" : ai.ibiko.ibiko1.formulas.Critical.notes(critical); // the notes once, not every time
-        text = Phrasing.again(text, times);
-        says(who, text + (notes.isEmpty() ? "" : "\n\n" + notes) + "\n" + ai.ibiko.ibiko1.formulas.Critical.sure(ground));
+    /**
+     * An answer, said as just the answer: no line on how sure it is, no notes, no source under it (how it was reached
+     * is in its steps). {@code ground} is kept for the record of how answers are reached.
+     */
+    private void saysSure(String who, String text, ai.ibiko.ibiko1.formulas.Critical.Ground ground, String... notes) {
+        // how it was reached goes into the thinking (its steps), never under the answer
+        for (String n : notes) {
+            if (n != null && !n.trim().isEmpty()) {
+                host.step(n.trim());
+            }
+        }
+        String critical = times > 0 ? "" : ai.ibiko.ibiko1.formulas.Critical.notes(this.critical);
+        for (String n : critical.split("\n")) {
+            if (!n.trim().isEmpty()) {
+                host.step(n.trim());
+            }
+        }
+        host.step(ai.ibiko.ibiko1.formulas.Critical.sure(ground));
+        says(who, Phrasing.again(text, times));
+    }
+
+    /**
+     * The reply when nothing answers the question surely: what it does know about the subject (its encyclopedia's
+     * opening on it) when it has that, then plainly that it couldn't confirm the rest; otherwise the plain "I couldn't
+     * find a reliable answer". A proper answer either way, never a bare failure.
+     */
+    String noSureAnswer(String t, String subject, boolean online) {
+        Encyclopedia.Article a = subject == null ? null : encyclopedia().find(subject);
+        if (a == null) {
+            java.util.List<Object[]> subs = new EncyclopediaQA(encyclopedia()).subjects(t, 1);
+            a = subs.isEmpty() ? null : (Encyclopedia.Article) subs.get(0)[0];
+        }
+        if (a == null) {
+            return Phrasing.unknown(subject, online, LearningJob.plan(host.context()).on, times);
+        }
+        String[] s = a.text.split("(?<=[.!?])\\s+");
+        String opening = s[0] + (s.length > 1 && s[0].length() < 160 ? " " + s[1] : "");
+        return "I couldn't find a sure answer to exactly that, but here's what I know about " + a.title + ": " + opening
+                + "\n\nIf you tell me which part you need, I'll work from there.";
     }
 
     private void says(String who, String text) {

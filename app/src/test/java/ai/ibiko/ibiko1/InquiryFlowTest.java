@@ -2,6 +2,7 @@ package ai.ibiko.ibiko1;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -54,9 +55,10 @@ public class InquiryFlowTest {
 
     private static final class Chat implements Ibiko1.Host {
         final List<String> said = Collections.synchronizedList(new ArrayList<String>());
+        final List<String> steps = Collections.synchronizedList(new ArrayList<String>());
 
         @Override public String persona() { return "obi"; }
-        @Override public void step(String step) { }
+        @Override public void step(String step) { steps.add(step); }
         @Override public void stepsDone() { }
         @Override public void say(String persona, String text) { said.add(text); }
         @Override public void askRating(String question, String answer) { }
@@ -103,8 +105,12 @@ public class InquiryFlowTest {
         String answer = chat.next(1);
         assertNotNull("it answers after comparing", answer);
         assertTrue(answer, answer.contains("The zorblat is a dance from Lagos"));
-        assertTrue(answer, answer.contains("If you meant the other: Zorblat is a software library"));
-        assertTrue(answer, answer.contains(Inquiry.MAY_BE_WRONG));
+        assertFalse("just the answer: how it was reached is in the thinking", answer.contains("If you meant the other"));
+        boolean noted = false;
+        for (String s : new ArrayList<String>(chat.steps)) {
+            noted |= s.contains("If you meant the other: Zorblat is a software library");
+        }
+        assertTrue("the other reading is in the steps: " + chat.steps, noted);
 
         brain.answer("No, it's a wedding dance from Ibadan.");
         String thanks = chat.next(2);
@@ -141,6 +147,6 @@ public class InquiryFlowTest {
         String answer = chat.next(1);
         assertNotNull(answer);
         assertTrue(answer, answer.contains("Zorblat is a software library"));
-        assertTrue(answer, answer.contains(Inquiry.MAY_BE_WRONG));
+        assertFalse("just the answer, no note under it", answer.contains(Inquiry.MAY_BE_WRONG));
     }
 }

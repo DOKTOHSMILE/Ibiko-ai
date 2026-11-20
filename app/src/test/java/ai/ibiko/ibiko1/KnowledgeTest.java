@@ -79,7 +79,8 @@ public class KnowledgeTest {
         assertNotNull(a);
         assertTrue(a.text, a.text.startsWith("Microsoft was founded by Bill Gates and Paul Allen"));
         assertFalse(a.text.contains("Bananas"));
-        assertTrue(a.shown().contains("Source: en.wikipedia.org"));
+        assertTrue("its source is kept", a.sources.contains("en.wikipedia.org"));
+        assertEquals("but the answer is shown alone", a.text, a.shown());
         assertNull("nothing about the question", ResearchAnswer.from("Who painted the Mona Lisa?", research));
         assertNull(ResearchAnswer.from("anything", null));
     }

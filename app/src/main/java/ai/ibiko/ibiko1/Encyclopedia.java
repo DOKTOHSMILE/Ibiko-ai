@@ -318,7 +318,7 @@ public final class Encyclopedia {
         if (a == null) {
             return null;
         }
-        return a.text + "\n(From Simple English Wikipedia, “" + a.title + "”.)";
+        return a.text; // just the answer: the article it came from is named in the steps
     }
 
     /** One shard's bytes (empty when the file isn't there). */
