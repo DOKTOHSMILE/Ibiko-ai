@@ -217,7 +217,8 @@ public final class Ibiko1 {
         if (builtIn == null) {
             builtIn = new BuiltIn(TextCode.open(Plug.asset, "knowledge/world_facts.tsv"),
                     TextCode.open(Plug.asset, "knowledge/country_more.tsv"), TextCode.open(Plug.asset, "knowledge/elements_more.tsv"),
-                    TextCode.open(Plug.asset, "knowledge/local_facts.tsv"));
+                    TextCode.open(Plug.asset, "knowledge/local_facts.tsv"),
+                    TextCode.open(Plug.asset, "knowledge/wikidata_facts.tsv")); // Wikidata (CC0): see WIKIDATA_LICENSE.txt
         }
         return builtIn;
     }

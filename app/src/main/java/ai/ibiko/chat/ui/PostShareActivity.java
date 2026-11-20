@@ -38,6 +38,10 @@ public final class PostShareActivity extends Activity {
                 return new String[]{"com.instagram.android"};
             case "linkedin":
                 return new String[]{"com.linkedin.android"};
+            case "x":
+                return new String[]{"com.twitter.android", "com.twitter.android.lite"};
+            case "facebook":
+                return new String[]{"com.facebook.katana", "com.facebook.lite"};
             default:
                 return WhatsApp.APPS;
         }
@@ -81,10 +85,11 @@ public final class PostShareActivity extends Activity {
         } else {
             send.setType("text/plain");
         }
-        if ("instagram".equals(to) || "linkedin".equals(to)) {
+        if ("instagram".equals(to) || "linkedin".equals(to) || "facebook".equals(to)) {
             ClipboardManager cm = a.getSystemService(ClipboardManager.class);
             if (cm != null) {
-                cm.setPrimaryClip(ClipData.newPlainText("Post", text)); // Instagram drops shared words: pasted instead
+                // Instagram and the Facebook app drop shared words: they are pasted instead
+                cm.setPrimaryClip(ClipData.newPlainText("Post", text));
                 Toast.makeText(a, "The post's words are copied: paste them as the caption.", Toast.LENGTH_LONG).show();
             }
         }
@@ -134,6 +139,19 @@ public final class PostShareActivity extends Activity {
         notify(c, CHANNEL_DUE, "Posts to share", "A campaign post that is due on a network you post on yourself",
                 ("due-" + it.id).hashCode(), "Time to post on " + net + " (" + camp.name + ")",
                 "Tap to open " + net + " with the picture; the words are copied for the caption.\n\n" + it.text,
+                intent(c, camp.id, it.id, it.network));
+    }
+
+    /**
+     * A post Ibiko couldn't put out on the network's page itself: handed to the person, one tap opens the network's
+     * app with the picture and the words ready (copied too, where the app drops shared words). It isn't lost.
+     */
+    public static void offerFailed(Context c, Campaign camp, Campaign.Item it, String why) {
+        String net = CampaignRunner.shown(it.network);
+        notify(c, CHANNEL_DUE, "Posts to share", "A campaign post that is due on a network you post on yourself",
+                ("due-" + it.id).hashCode(), "Tap to post on " + net + " (" + camp.name + ")",
+                "I couldn't post it on " + net + "'s page myself (" + why.replaceAll("^I couldn't post on \\S+ myself: ", "").replaceAll("\\.$", "")
+                        + "). Tap: " + net + " opens with the picture and the words ready, and you press Post.\n\n" + it.text,
                 intent(c, camp.id, it.id, it.network));
     }
 
