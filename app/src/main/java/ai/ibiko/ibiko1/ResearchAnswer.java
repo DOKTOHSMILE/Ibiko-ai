@@ -35,8 +35,9 @@ public final class ResearchAnswer {
     }
 
     /** The answer for the pilot: the sentences, then the sources, as one block. */
+    /** The answer as shown: just its words (the sources it came from are named in the steps). */
     public String shown() {
-        return text + (sources.isEmpty() ? "" : "\nSource: " + String.join(", ", sources));
+        return text;
     }
 
     private static final Pattern ASKS_WHAT = Pattern.compile("(?i)^\\s*(?:what|who)(?:'s| is| are| was| were)\\s+(.+?)\\s*\\??$");

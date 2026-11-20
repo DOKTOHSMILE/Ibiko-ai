@@ -15,7 +15,7 @@ import java.util.Set;
  * <li>that explanation is researched too;</li>
  * <li>the two results are compared by their word ids ({@link #compare}): when they agree it answers; when they don't,
  * it answers with the one closest to what the person explained and names the other;</li>
- * <li>the answer ends with {@link #MAY_BE_WRONG}, and a correction ("no, it's …") replaces it in memory
+ * <li>the answer is said plainly, and a correction ("no, it's …") replaces it in memory
  * ({@link #correction});</li>
  * <li>what was learned is matched by its word ids against what it already knows for sure ({@link #related}), so new
  * knowledge is filed beside the old knowledge it belongs with.</li>
@@ -83,16 +83,19 @@ public final class Inquiry {
         public final List<String> sources;
         /** Both searches found something and it says the same thing. */
         public final boolean agree;
+        /** How it was reached, for the thinking (never under the answer). */
+        public final String note;
 
-        Outcome(String text, List<String> sources, boolean agree) {
+        Outcome(String text, List<String> sources, boolean agree, String note) {
             this.text = text;
             this.sources = sources;
             this.agree = agree;
+            this.note = note;
         }
 
-        /** The answer for the chat: the text, its sources, and the invitation to correct it. */
+        /** The answer for the chat: just the answer (its sources are in the steps; a correction is always welcome). */
         public String shown() {
-            return text + (sources.isEmpty() ? "" : "\nSource: " + String.join(", ", sources)) + "\n\n" + MAY_BE_WRONG;
+            return text;
         }
     }
 
@@ -106,8 +109,8 @@ public final class Inquiry {
         }
         if (first == null || second == null) {
             ResearchAnswer only = first != null ? first : second;
-            return new Outcome(only.text + "\n(Only the search on " + (first != null ? "your question" : "what you explained")
-                    + " found something, so this rests on one search.)", only.sources, false);
+            return new Outcome(only.text, only.sources, false, "Only the search on " + (first != null ? "your question"
+                    : "what you explained") + " found something, so this rests on one search");
         }
         // the subject is in both by how they were searched: agreement is in what they say about it
         Set<Integer> asked = ids(question), a = ids(first.text), b = ids(second.text);
@@ -115,16 +118,16 @@ public final class Inquiry {
         b.removeAll(asked);
         List<String> sources = new ArrayList<String>(new LinkedHashSet<String>(join(first.sources, second.sources)));
         if (similarity(a, b) >= AGREE) {
-            return new Outcome(first.text + "\n(Both searches agree: the one on your question and the one on what you explained.)",
-                    sources, true);
+            return new Outcome(first.text, sources, true,
+                    "Both searches agree: the one on your question and the one on what you explained");
         }
         // they differ: the person's own words decide which one they meant
         Set<Integer> meant = ids(explanation);
         meant.addAll(ids(question));
         boolean secondCloser = similarity(b, meant) > similarity(a, meant);
         ResearchAnswer best = secondCloser ? second : first, other = secondCloser ? first : second;
-        return new Outcome(best.text + "\n\nThe two searches found different things; I went with the one closest to what you"
-                + " explained. If you meant the other: " + firstSentence(other.text), sources, false);
+        return new Outcome(best.text, sources, false, "The two searches found different things; I went with the one closest"
+                + " to what you explained. If you meant the other: " + firstSentence(other.text));
     }
 
     /** "No, it's X" / "Actually, X" / "Wrong. X": a correction of the answer just given. */
@@ -234,7 +237,7 @@ public final class Inquiry {
         for (Knowledge.Fact f : related) {
             said.add("“" + f.question.replaceAll("[?.!]+$", "") + "” (" + firstSentence(f.answer) + ")");
         }
-        return "\nThis ties in with what I already know: " + String.join("; ", said) + ".";
+        return "This ties in with what I already know: " + String.join("; ", said) + ".";
     }
 
     private static List<String> join(List<String> a, List<String> b) {

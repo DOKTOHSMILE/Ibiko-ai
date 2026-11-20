@@ -66,7 +66,8 @@ public class Ibiko1ModelTest {
             assertTrue("memory answers first: the model isn't asked", asked.isEmpty());
             Ibiko1Model.Reply made = brain.reply("What is a zorblax?", 15000);
             assertNotNull(made.text);
-            assertTrue(made.text, made.text.contains("made up for this test") && made.text.contains("From the device's model"));
+            assertTrue(made.text, made.text.contains("made up for this test") && !made.text.contains("device's model"));
+            assertTrue("how it was reached is in its steps: " + made.steps, String.join("|", made.steps).contains("device's model"));
             assertTrue(asked.get(0), asked.get(0).endsWith("Question: What is a zorblax?"));
             Ibiko1Model.Reply failed = brain.reply("What is a quuxleplat?", 15000);
             assertTrue("a failure is never passed off as an answer: " + failed.text, !failed.text.contains("couldn't reach"));

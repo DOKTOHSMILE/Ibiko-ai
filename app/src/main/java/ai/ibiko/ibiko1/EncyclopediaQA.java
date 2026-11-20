@@ -28,9 +28,9 @@ public final class EncyclopediaQA {
             this.score = score;
         }
 
-        /** The answer as said, with where it was read. */
+        /** The answer as said: just the words that answer it. */
         public String said() {
-            return text + "\n(From Simple English Wikipedia, “" + title + "”.)";
+            return text; // just the answer: the article is named in the steps
         }
     }
 
