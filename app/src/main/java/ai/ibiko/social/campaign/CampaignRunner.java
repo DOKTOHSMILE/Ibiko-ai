@@ -312,7 +312,22 @@ public final class CampaignRunner extends BroadcastReceiver {
             it.result = "waiting: " + r.said;
             return;
         }
+        if (handOver(r.said)) {
+            // the network's page didn't do its part (its composer, its picture field, its Post button): the post is
+            // handed to the person, ready in the app, rather than lost
+            it.state = Campaign.State.FAILED;
+            it.result = "Handed to you to post (" + r.said + ")";
+            ai.ibiko.chat.ui.PostShareActivity.offerFailed(c, camp, it, r.said);
+            return;
+        }
         fail(c, camp, it, r.said);
+    }
+
+    /** The page, not the account, stopped the post: the person can post it in the app with one tap. */
+    static boolean handOver(String said) {
+        return said != null && said.matches("(?s).*(composer didn't open|couldn't attach the picture|Post button wasn't on the page"
+                + "|Post button stayed greyed out|words didn't go into its composer|couldn't post on .* myself).*")
+                && !said.matches("(?s).*signed out.*");
     }
 
     /**

@@ -82,4 +82,15 @@ public class CampaignRunnerTest {
         assertEquals(Campaign.State.POSTED, back.items.get(0).state);
         assertEquals("the edit is kept", "Edited meanwhile", back.items.get(1).text);
     }
+
+    /** A post the network's page wouldn't take is handed to the person, ready in the app; an account problem isn't. */
+    @org.junit.Test
+    public void aPageFailureIsHandedOverNotLost() {
+        org.junit.Assert.assertTrue(CampaignRunner.handOver("I couldn't post on X myself: its composer didn't open."));
+        org.junit.Assert.assertTrue(CampaignRunner.handOver("I couldn't post on Facebook myself: its composer didn't open."));
+        org.junit.Assert.assertTrue(CampaignRunner.handOver("I couldn't attach the picture on Facebook, so I didn't post it."));
+        org.junit.Assert.assertTrue(CampaignRunner.handOver("I couldn't post on X myself: its Post button stayed greyed out."));
+        org.junit.Assert.assertFalse(CampaignRunner.handOver("Your X account is signed out here. Sign in again under Social accounts."));
+        org.junit.Assert.assertFalse(CampaignRunner.handOver("Not posted: X allows 50 posts a day."));
+    }
 }
