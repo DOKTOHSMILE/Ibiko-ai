@@ -60,6 +60,9 @@ public class Ibiko1ModelTest {
             asked.add(q);
             return q.contains("zorblax") ? "A zorblax is a word made up for this test." : "I couldn't reach the network.";
         });
+        // the app plugs in the real web when it starts; this is about the device's model, so the web is unplugged (a
+        // live search that happens to find "zorblax" would make it ask back instead)
+        Plug.web = Plug.NONE;
         try {
             Ibiko1Model.Reply known = brain.reply("What is the capital of Ghana?", 15000);
             assertTrue(known.text, known.text.contains("Accra"));
