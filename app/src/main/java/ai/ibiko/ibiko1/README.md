@@ -11,6 +11,13 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   title, a name before a common word), then the sentence that answers it (the question's words, and the kind of answer
   it wants: a date, a number in the right measure, a place, a name, a reason). When no sentence answers it surely it
   says nothing rather than something wrong;
+- answers exactly from its fact tables (`FactsQA`): the facts in each article's information box (born, died, where,
+  capital, population, area, founded, founder, author, director, leader, currency, languages and more), kept in
+  `encyclopedia/facts/` and built by `tools/build_facts.py`. "When was Nelson Mandela born?", "How old is Wizkid?",
+  "Who founded Microsoft?" and "What is the population of Lagos?" get one exact sentence;
+- answers questions put to itself as itself (`SelfTalk`): "Where are you from?", "Can you cook?", "Are you human?";
+- writes short letters, notes, emails and messages offline (`Letters`), in the tone that suits who they're to, with
+  blanks in [brackets] for what only the writer knows;
 - remembers what it is taught, and learns from "right" and "wrong";
 - researches the web only when the app gives it a way to (`Plug.web`);
 - writes a function line (`§XX …`) when a message asks the app to do something;

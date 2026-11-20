@@ -321,6 +321,74 @@ public final class Encyclopedia {
         return a.text; // just the answer: the article it came from is named in the steps
     }
 
+    /** Where the fact tables are ({@code tools/build_facts.py}). */
+    static final String FACTS = DIR + "facts/";
+    /** Fact shards read, as their bytes. */
+    private final LinkedHashMap<Integer, byte[]> factCache = new LinkedHashMap<Integer, byte[]>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Integer, byte[]> eldest) {
+            return size() > KEEP;
+        }
+    };
+    /** The relations' names, by number ({@code facts/relations.ibk}). */
+    private String[] relations;
+
+    /**
+     * The facts the article's information box gives ("born" → "18 July 1918", "capital" → "Abuja"), by relation, in
+     * the box's order; empty when it has none. {@code title} is the article's own title (as {@link #get} gives it).
+     */
+    public synchronized LinkedHashMap<String, String> facts(String title) {
+        LinkedHashMap<String, String> out = new LinkedHashMap<String, String>();
+        String k = key(title);
+        if (k.isEmpty()) {
+            return out;
+        }
+        if (relations == null) {
+            byte[] r = readAll(files.apply(FACTS + "relations.ibk"));
+            if (r.length < 5 || r[0] != 'I' || r[4] != 'R') {
+                relations = new String[0];
+            } else {
+                int[] p = {5};
+                relations = new String[varint(r, p)];
+                for (int i = 0; i < relations.length; i++) {
+                    int n = varint(r, p);
+                    relations[i] = new String(r, p[0], n, StandardCharsets.UTF_8);
+                    p[0] += n;
+                }
+            }
+        }
+        int sh = shard(k);
+        byte[] b = factCache.get(sh);
+        if (b == null) {
+            b = readAll(files.apply(FACTS + String.format(Locale.ROOT, "%03d.ibk", sh)));
+            factCache.put(sh, b);
+        }
+        if (b.length < 5 || b[0] != 'I' || b[4] != 'F') {
+            return out;
+        }
+        byte[] want = k.getBytes(StandardCharsets.UTF_8);
+        int[] p = {5};
+        int count = varint(b, p);
+        for (int e = 0; e < count && p[0] < b.length; e++) {
+            int kl = varint(b, p), ks = p[0];
+            p[0] += kl;
+            int n = varint(b, p);
+            boolean mine = kl == want.length && same(b, ks, want);
+            for (int f = 0; f < n && p[0] < b.length; f++) {
+                int rel = b[p[0]++] & 0xff;
+                int pl = varint(b, p), ps = p[0];
+                p[0] += pl;
+                if (mine && rel < relations.length) {
+                    out.put(relations[rel], decode(b, ps, pl));
+                }
+            }
+            if (mine) {
+                return out;
+            }
+        }
+        return out;
+    }
+
     /** One shard's bytes (empty when the file isn't there). */
     private byte[] load(int n) {
         byte[] got = cache.get(n);

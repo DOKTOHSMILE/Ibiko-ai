@@ -511,6 +511,19 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Looking through my memory"), () -> saysPlain(who, self));
             return;
         }
+        // a question put to Ibiko itself ("where are you from", "can you cook"): answered as itself, not from an article
+        final String asMe = SelfTalk.reply(t);
+        if (asMe != null) {
+            think(Arrays.asList("Reading your question", "That's about me"), () -> saysPlain(who, asMe));
+            return;
+        }
+        // a letter, note, email or message to write: put together offline, with blanks for what only the writer knows
+        final String letter = Letters.write(t);
+        if (letter != null) {
+            think(Arrays.asList("Reading your message", "Working out who it's to and what it's for", "Writing it"),
+                    () -> saysPlain(who, letter));
+            return;
+        }
         if (t.trim().matches("(?i)(stop|cancel|halt|wait|pause)( it| that| please)?[.!]*")) {
             // "Stop" with nothing of Ibiko 1's running: said plainly, not kept as a fact ("Noted.")
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "Nothing is running right now, so there's nothing to stop."));
@@ -568,6 +581,18 @@ public final class Ibiko1 {
             think(steps, () -> {
                 saysSure(who, reasoned.text, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED);
                 rateable(t, reasoned.text);
+            });
+            return;
+        }
+        // a fact its encyclopedia's tables give exactly ("when was Nelson Mandela born", "who founded Microsoft")
+        final FactsQA.Found fact = new FactsQA(encyclopedia()).answer(t);
+        if (fact != null && !knowledge().rejected(t, fact.text)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question", "Finding what it is about: " + fact.title,
+                    "Looking it up in my encyclopedia's facts"), () -> {
+                saysSure(who, fact.text, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                        "Source: Simple English Wikipedia, \u201c" + fact.title + "\u201d (its information box)");
+                rateable(t, fact.text);
             });
             return;
         }
@@ -1050,6 +1075,10 @@ public final class Ibiko1 {
      * find a reliable answer". A proper answer either way, never a bare failure.
      */
     String noSureAnswer(String t, String subject, boolean online) {
+        if (!EncyclopediaQA.question(t) || SelfTalk.toMe(t)) {
+            // a request ("write…", "make…") or a question to Ibiko itself: an article on a word in it is no answer
+            return Phrasing.cantYet(online, times);
+        }
         Encyclopedia.Article a = subject == null ? null : encyclopedia().find(subject);
         if (a == null) {
             java.util.List<Object[]> subs = new EncyclopediaQA(encyclopedia()).subjects(t, 1);

@@ -202,7 +202,7 @@ public final class EncyclopediaQA {
 
     /** The answer to {@code q} from the encyclopedia, or null when no sentence answers it surely. */
     public Found answer(String q) {
-        if (q == null || !question(q) || ai.ibiko.ibiko1.formulas.Critical.decision(q)) {
+        if (q == null || !question(q) || ai.ibiko.ibiko1.formulas.Critical.decision(q) || SelfTalk.toMe(q)) {
             return null;
         }
         List<Object[]> subs = subjects(q, 3);

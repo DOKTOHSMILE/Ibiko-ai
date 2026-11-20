@@ -45,6 +45,17 @@ final class Phrasing {
      * What it doesn't know, said professionally: the subject named, why it can't answer now, what it has done and
      * what the person can do; worded differently each time the same question comes back.
      */
+    /** The reply to a request it can't carry out well on its own yet: plainly, with what will. */
+    static String cantYet(boolean online, int before) {
+        String[] ways = {
+            "That's more than I can do well on my own yet. Choose an API model from the model menu at the top"
+                    + (online ? "" : " (once you're online)") + ", or a larger offline model, and it'll take this on; I learn from how it does it.",
+            "I'd rather not hand you a weak attempt at that. A bigger model from the menu at the top will do it properly, and I'll"
+                    + " learn from its answer for next time.",
+        };
+        return ways[before % ways.length];
+    }
+
     static String unknown(String subject, boolean online, boolean nightLearning, int before) {
         String about = subject == null || subject.isEmpty() ? "that" : "“" + subject + "”";
         String later = nightLearning ? " I've also noted it for my next learning session." : " I've noted the question.";
