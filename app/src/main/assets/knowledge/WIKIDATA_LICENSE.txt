@@ -1,0 +1,8 @@
+Ibiko's Wikidata knowledge (tools/build_wikidata_facts.py writes wikidata_facts.tsv)
+
+wikidata_facts.tsv
+  Nigeria's local government areas, states and towns; the world's cities of 100,000 people or more; inventions and
+  discoveries; notable people (born, died, nationality, occupation); mountains, rivers and lakes. From Wikidata
+  (https://www.wikidata.org), whose structured data is released under Creative Commons CC0 1.0 (public domain
+  dedication): https://creativecommons.org/publicdomain/zero/1.0/ . No attribution is required; it is given here
+  with thanks to the Wikidata community.

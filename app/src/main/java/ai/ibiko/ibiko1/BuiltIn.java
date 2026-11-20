@@ -64,7 +64,23 @@ public final class BuiltIn {
         DIAMETER("diameter", "\\b(diameter|how wide|how big across|how big)\\b", "%s is about %s kilometres across."),
         ORBIT("orbital period", "\\b(orbital period|year on|long is a year|orbit the sun|round the sun|around the sun|revolve)\\b",
                 "A year on %s lasts about %s."),
-        PLANET("planet type", "\\b(what (kind|type|sort) of planet|gas giant|ice giant|rocky planet|terrestrial planet)\\b", "%s is %s.");
+        PLANET("planet type", "\\b(what (kind|type|sort) of planet|gas giant|ice giant|rocky planet|terrestrial planet)\\b", "%s is %s."),
+        // wikidata_facts.tsv (Wikidata, CC0): Nigeria's local government areas, states and towns; the world's cities,
+        // inventions, notable people, mountains, rivers and lakes
+        LGA_COUNT("local government area count", "\\b(local government areas?|lgas?|local governments?)\\b", "%s"),
+        LGA("local government area", "(?!)", "%s"),
+        STATE("state", "\\b(which state|what state|state is|in which state|state does|state of origin)\\b", "%s is in %s."),
+        COUNTRY("country", "\\b(which country|what country|country is|in which country|country does|where is)\\b", "%s is in %s."),
+        CREATED("created", "\\b(created|formed|established|founded|when was|what year was|which year was|how old is)\\b", "%s was created in %s."),
+        INVENTOR("inventor", "\\b(who (invented|discovered|created|made|came up with)|inventor|invented by|discovered by|discoverer)\\b", "%s"),
+        INVENTED("invented", "\\b(when was|what year|which year|invented in|discovered in|how long ago)\\b", "%s was invented in %s."),
+        BORN("born", "\\b(born|birthday|date of birth|birth date|year of birth|how old)\\b", "%s"),
+        DIED("died", "\\b(died|die|death|passed away|pass away|is .* (still )?alive|still alive)\\b", "%s"),
+        NATIONALITY("nationality", "\\b(nationality|citizen(ship)?|where (is|was) .* from|what country (is|was) .* from|which country (is|was) .* from)\\b", "%s"),
+        // only an explicit job question: "who was X" keeps the encyclopedia's fuller answer
+        OCCUPATION("occupation", "\\b(occupation|profession|job|what (does|did|do) .* do( for a living)?)\\b", "%s"),
+        ELEVATION("elevation", "\\b(how (high|tall)|height|elevation|altitude)\\b", "%s is %s high."),
+        LENGTH("length", "\\b(how long|length)\\b", "%s is %s long.");
 
         final String name;
         final java.util.regex.Pattern asks;
@@ -126,7 +142,7 @@ public final class BuiltIn {
                     values = new ArrayList<String>();
                     of.put(a, values);
                 }
-                if (!values.contains(p[2].trim()) && values.size() < 20) {
+                if (!values.contains(p[2].trim()) && values.size() < (a == About.LGA ? 80 : 20)) {
                     values.add(p[2].trim());
                     count++;
                 }
@@ -290,6 +306,52 @@ public final class BuiltIn {
             String said = String.format(Locale.US, about.said, name, grouped(values.get(0)));
             return year == null || year.isEmpty() ? said : said.substring(0, said.length() - 1) + " (" + year.get(0) + " estimate).";
         }
+        if (about == About.LGA_COUNT) {
+            // the official count; the names too when they are known to match it (and weren't asked away)
+            List<String> names = facts.get(thing).get(About.LGA);
+            boolean many = q.matches(".*\\bhow many\\b.*");
+            return name + " has " + values.get(0) + " local government areas" + (many || names == null || names.isEmpty() ? "." : ": " + list(names) + ".");
+        }
+        boolean gone = !facts.get(thing).getOrDefault(About.DIED, java.util.Collections.<String>emptyList()).isEmpty();
+        if (about == About.INVENTOR) {
+            List<String> year = facts.get(thing).get(About.INVENTED);
+            String what = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+            String verb = q.matches(".*\\bdiscover.*") ? "discovered" : "invented";
+            String when = year == null || year.isEmpty() ? "" : " (" + year.get(0) + ")";
+            return values.size() == 1 ? what + " was " + verb + " by " + values.get(0) + (when.isEmpty() ? "" : " in " + year.get(0)) + "."
+                    : list(values) + " are each credited with the " + (verb.equals("discovered") ? "discovery" : "invention") + " of the "
+                    + name + when + ".";
+        }
+        if (about == About.INVENTED) {
+            List<String> by = facts.get(thing).get(About.INVENTOR);
+            String what = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+            String verb = q.matches(".*\\bdiscover.*") ? "discovered" : "invented";
+            return what + " was " + verb + " in " + values.get(0) + (by == null || by.isEmpty() ? "" : by.size() == 1 ? " by " + by.get(0)
+                    : " (credited to " + list(by) + ")") + ".";
+        }
+        if (about == About.BORN) {
+            String when = values.get(0);
+            String said = name + " was born " + (when.matches("\\d{3,4}") ? "in " : "on ") + when;
+            if (q.matches(".*\\bhow old\\b.*") && !gone) {
+                int y = (int) number(when.replaceAll("^.*?(\\d{4})$", "$1"));
+                return said + ", so is about " + (java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) - y) + " years old.";
+            }
+            List<String> died = facts.get(thing).get(About.DIED);
+            return said + (died == null || died.isEmpty() ? "" : " and died " + (died.get(0).matches("\\d{3,4}") ? "in " : "on ") + died.get(0)) + ".";
+        }
+        if (about == About.DIED) {
+            String when = values.get(0);
+            return name + " died " + (when.matches("\\d{3,4}") ? "in " : "on ") + when + ".";
+        }
+        if (about == About.NATIONALITY) {
+            return name + (gone ? " was" : " is") + " a citizen of " + values.get(0) + ".";
+        }
+        if (about == About.OCCUPATION) {
+            String job = values.get(0);
+            List<String> nat = facts.get(thing).get(About.NATIONALITY);
+            return name + (gone ? " was " : " is ") + (job.matches("(?i)^[aeiou].*") ? "an " : "a ") + job
+                    + (nat == null || nat.isEmpty() ? "" : " from " + nat.get(0)) + ".";
+        }
         if (about == About.AREA) {
             return String.format(Locale.US, about.said, name, grouped(values.get(0)));
         }
@@ -300,6 +362,11 @@ public final class BuiltIn {
                     : about == About.CURRENCY ? "The currencies of " + name + " are the " + all + "." : name + " is in " + all + ".";
         }
         return String.format(Locale.US, about.said, name, values.get(0));
+    }
+
+    /** "a, b and c". */
+    static String list(List<String> v) {
+        return v.size() == 1 ? v.get(0) : String.join(", ", v.subList(0, v.size() - 1)) + " and " + v.get(v.size() - 1);
     }
 
     /** What a sentence can be judged on, and the words that show it states one (G8). */
