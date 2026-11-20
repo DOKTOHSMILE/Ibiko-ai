@@ -154,24 +154,43 @@ public final class FactsQA {
                 continue;
             }
             Encyclopedia.Article a = article(said);
-            if (a == null) {
+            // a name with no article of its own may still have ones titled "Name (kind)"
+            String name = a != null ? a.title : said;
+            Found found = a == null ? null : from(f, m, a.title);
+            if (found != null) {
+                return found;
+            }
+            // the plain name's own facts don't say ("Titanic" is the ship): the articles it may also mean, the
+            // commonest kind first ("Titanic (1997 movie)")
+            String see = enc.facts(name).get("see");
+            if (see != null) {
+                for (String other : see.split("\\s*\\|\\s*")) {
+                    found = from(f, m, other);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The form's fact from one article, said; null when it hasn't got it. */
+    private Found from(Form f, Matcher m, String title) {
+        LinkedHashMap<String, String> all = enc.facts(title);
+        String shown = title.replaceFirst("\\s*\\([^()]+\\)$", ""); // "Titanic (1997 movie)" is said "Titanic"
+        for (String rel : f.relations) {
+            String v = all.get(rel);
+            v = v == null ? null : clean(rel, v);
+            if (v == null || v.isEmpty()) {
                 continue;
             }
-            LinkedHashMap<String, String> all = enc.facts(a.title);
-            for (String rel : f.relations) {
-                String v = all.get(rel);
-                v = v == null ? null : clean(rel, v);
-                if (v == null || v.isEmpty()) {
-                    continue;
-                }
-                if (rel.equals("leader") || rel.equals("key_people")) {
-                    String role = role(m);
-                    v = role + "\u0001" + v; // the role asked for travels with the value to the sentence
-                }
-                String text = f.say.say(a.title, v, all);
-                if (text != null) {
-                    return new Found(tidy(text), a.title, rel);
-                }
+            if (rel.equals("leader") || rel.equals("key_people")) {
+                v = role(m) + "\u0001" + v; // the role asked for travels with the value to the sentence
+            }
+            String text = f.say.say(shown, v, all);
+            if (text != null) {
+                return new Found(tidy(text), title, rel);
             }
         }
         return null;

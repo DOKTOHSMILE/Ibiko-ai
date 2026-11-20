@@ -486,6 +486,12 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
             return;
         }
+        // units, dates and percentages: worked out exactly, on the device
+        final String everyday = Everyday.answer(t);
+        if (everyday != null) {
+            think(Arrays.asList("Reading your question", "Working it out exactly"), () -> saysPlain(who, everyday));
+            return;
+        }
         if (parse.intent == Grammar.Intent.GREETING) {
             final String hello = greeting(host.pilotName(), java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY),
                     greeted++);

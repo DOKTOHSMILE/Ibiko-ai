@@ -15,6 +15,10 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   capital, population, area, founded, founder, author, director, leader, currency, languages and more), kept in
   `encyclopedia/facts/` and built by `tools/build_facts.py`. "When was Nelson Mandela born?", "How old is Wizkid?",
   "Who founded Microsoft?" and "What is the population of Lagos?" get one exact sentence;
+  A name that means several things ("Titanic") also tries the articles titled after it ("Titanic (1997 movie)"),
+  linked by `tools/facts_variants.py`;
+- works out units, dates and percentages exactly (`Everyday`): "convert 5 km to miles", "how many days until
+  Christmas", "what day of the week was 1 October 1960", "15% of 200";
 - answers questions put to itself as itself (`SelfTalk`): "Where are you from?", "Can you cook?", "Are you human?";
 - writes short letters, notes, emails and messages offline (`Letters`), in the tone that suits who they're to, with
   blanks in [brackets] for what only the writer knows;

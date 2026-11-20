@@ -49,6 +49,14 @@ public class FactsQATest {
     }
 
     @Test
+    public void aNameThatMeansSeveralThingsTriesTheOthers() {
+        String film = said("Who directed Titanic?");
+        assertTrue(film, film != null && film.startsWith("Titanic was directed by James Cameron"));
+        String song = said("Who sang Thriller?");
+        assertTrue(song, song != null && song.contains("Michael Jackson"));
+    }
+
+    @Test
     public void nothingWhenTheBoxDoesntSay() {
         assertNull(said("What is the capital of Lagos?")); // Lagos's box has no capital
         assertNull(said("What is a volcano?"));
