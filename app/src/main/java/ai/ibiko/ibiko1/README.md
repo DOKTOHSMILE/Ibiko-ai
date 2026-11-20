@@ -6,6 +6,11 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   and an encyclopedia: the opening of every Simple English Wikipedia article, with other names for each (CC BY-SA 4.0,
   `assets/knowledge/encyclopedia/`, built by `tools/build_encyclopedia.py`). "What is a volcano", "who was Nelson
   Mandela" and "tell me about Lagos" are answered offline, saying which article it read;
+- answers other questions from those articles too (`EncyclopediaQA`): "When did Nigeria gain independence?", "How many
+  people live in Lagos?". It finds what the question is about (the longest run of its words that is an article's
+  title, a name before a common word), then the sentence that answers it (the question's words, and the kind of answer
+  it wants: a date, a number in the right measure, a place, a name, a reason). When no sentence answers it surely it
+  says nothing rather than something wrong;
 - remembers what it is taught, and learns from "right" and "wrong";
 - researches the web only when the app gives it a way to (`Plug.web`);
 - writes a function line (`§XX …`) when a message asks the app to do something;

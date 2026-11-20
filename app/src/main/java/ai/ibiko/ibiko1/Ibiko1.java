@@ -581,6 +581,17 @@ public final class Ibiko1 {
             });
             return;
         }
+        // any other question its articles answer ("when did Nigeria gain independence"): the sentence that says it
+        final EncyclopediaQA.Found read = new EncyclopediaQA(encyclopedia()).answer(t);
+        if (read != null && !knowledge().rejected(t, read.said())) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question", "Finding what it is about: " + read.title,
+                    "Reading my encyclopedia's article on it", "Taking the sentence that answers it"), () -> {
+                saysSure(who, read.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN);
+                rateable(t, read.said());
+            });
+            return;
+        }
         // a word's meaning: from its own dictionary, or learned from Wiktionary now
         final String word = Lexicon.asked(t);
         if (word != null) {
