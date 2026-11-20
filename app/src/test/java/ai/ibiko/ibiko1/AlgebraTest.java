@@ -95,4 +95,17 @@ public class AlgebraTest {
         assertTrue(s, s.contains("(g)") && s.contains("(7.04"));
         assertTrue(s, s.contains("Final challenge") && s.contains("1.3447") && s.contains("0.914") && s.contains("3.2268") && s.contains("7.0113"));
     }
+
+    /** Maths in words, inside a sentence, with "x3" read both ways. */
+    @Test
+    public void mathsInWords() {
+        String s = r("what is this 2 plus x3 equals 9\nFind x");
+        assertTrue(s, s.contains("two ways") && s.contains("Solve 2 + 3x = 9") && s.contains("x = 7/3"));
+        assertTrue(s, s.contains("\u221b7") && s.contains("1.9129"));
+        s = r("Find x if 5 times x minus 4 equals 11");
+        assertTrue(s, s.contains("x = 3"));
+        s = r("x squared minus 9 equals 0, what is x?");
+        assertTrue(s, s.contains("x = \u22123, or x = 3"));
+        assertNull(Algebra.reply("My son is 2 years older and the roots are equal in this plant"));
+    }
 }
