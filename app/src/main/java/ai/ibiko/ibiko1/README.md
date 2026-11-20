@@ -29,6 +29,11 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   sentence of an article with the same action and object, active or passive ("painted in oil by Leonardo da Vinci");
 - works out units, dates and percentages exactly (`Everyday`): "convert 5 km to miles", "how many days until
   Christmas", "what day of the week was 1 October 1960", "15% of 200";
+- reads a sentence as nested constituents (`formulas/Syntax`, `SyntaxTalk`): phrase structure rules (S → NP VP,
+  NP → (Det) (AdjP) N (PP), VP → V (NP) (PP) (AdvP), PP → P NP, AdjP → (Deg) Adj), recursive, parsed bottom up with a
+  chart (CYK) so every reading is found. "Parse: the engineer deployed the node on the server" draws its tree and
+  brackets; "is 'on the server' a constituent in …" runs the substitution, movement and fragment tests; "why is 'I saw
+  the user with the telescope' ambiguous?" shows both trees and where the PP attaches in each;
 - knows itself (`SelfModel`): what it is, what it can do right now (from what is loaded and plugged in), how it works,
   its state (online, a model on the phone, what this chat is about, what was just asked), and an honest view of its
   feelings and opinions; any question put to it is answered as itself, never from an article on one of its words;

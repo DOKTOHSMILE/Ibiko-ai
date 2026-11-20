@@ -65,6 +65,7 @@ public final class SelfModel {
         out.add("read a text you paste and answer questions about it");
         out.add("work out sums, unit conversions, dates and percentages exactly");
         out.add("write letters, notes and messages");
+        out.add("draw a sentence's syntax tree, test its constituents and explain why it is ambiguous");
         out.add(s.words() > 0 ? "explain words (" + n(s.words()) + " in my dictionary)" : "explain words and what they mean");
         out.add("remember what you tell me about yourself, and what you confirm");
         if (s.online()) {

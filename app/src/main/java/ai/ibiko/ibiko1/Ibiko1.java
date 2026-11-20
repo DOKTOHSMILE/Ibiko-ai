@@ -549,6 +549,13 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
             return;
         }
+        // a sentence's structure: its syntax tree, its constituents, why it is ambiguous
+        final String structure = SyntaxTalk.reply(message);
+        if (structure != null) {
+            think(Arrays.asList("Reading the sentence", "Tagging each word's part of speech", "Grouping the words into phrases, bottom up",
+                    "Checking every way the rules allow"), () -> saysPlain(who, structure));
+            return;
+        }
         // units, dates and percentages: worked out exactly, on the device
         final String everyday = Everyday.answer(t);
         if (everyday != null) {
