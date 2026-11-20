@@ -202,6 +202,7 @@ public final class Ibiko1 {
         ai.ibiko.ibiko1.words.MeaningIndex.of(lexicon); // the dictionary turned both ways: built once, then loaded
         builtIn();
         ai.ibiko.ibiko1.neural.Neural.get(); // the tokenizer and word vectors (docs/IBIKO_NEURAL.md), read once
+        meanings(k); // the dictionary both ways, shared: memory and the truth checks match reworded questions through it
         Store.unpacked(k, "concepts.tsv");
         // what was kept in older forms is brought to format 2, the same text: each chat's conversation (its script file)
         // and every coded store (answers learned, facts, words, meanings, the brain box)

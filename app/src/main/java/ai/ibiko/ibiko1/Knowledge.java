@@ -266,7 +266,39 @@ public final class Knowledge {
                 best = f;
             }
         }
-        return top >= CLOSE ? best : null;
+        if (top >= CLOSE) {
+            return best;
+        }
+        // said another way: the guarded gate (the dictionary and the word vectors, names, numbers and "not" the same)
+        Fact again = sameAsked(question, k, true);
+        return again;
+    }
+
+    /**
+     * The fact whose question asks the same thing as {@code question} in other words ({@link
+     * ai.ibiko.ibiko1.words.Meanings#sameAsked}), among those sharing at least a word with it; a confirmed one first.
+     * {@code right}: the answers taken as right, else those the pilot rejected. Null when none, or no dictionary.
+     */
+    private Fact sameAsked(String question, Kind k, boolean right) {
+        ai.ibiko.ibiko1.words.Meanings gate = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (gate == null) {
+            return null;
+        }
+        List<String> m = meaning(question);
+        List<Fact> near = new ArrayList<Fact>();
+        for (Fact f : facts) {
+            if (f.right == right && (k == null || compatible(k, f.kind)) && similarity(m, f.meaning) >= 0.25) {
+                near.add(f);
+            }
+        }
+        // the closest few by words are judged by the gate (it reads the dictionary, so not all twenty thousand)
+        near.sort((a, b) -> Double.compare(similarity(m, b.meaning) + (b.sure ? 0.01 : 0), similarity(m, a.meaning) + (a.sure ? 0.01 : 0)));
+        for (int i = 0; i < Math.min(12, near.size()); i++) {
+            if (gate.sameAsked(question, near.get(i).question)) {
+                return near.get(i);
+            }
+        }
+        return null;
     }
 
     /**
@@ -317,6 +349,15 @@ public final class Knowledge {
         for (Fact f : facts) {
             if (!f.right && f.answer.equals(a) && similarity(m, f.meaning) >= CLOSE) {
                 return true;
+            }
+        }
+        // the same question reworded keeps the answer the pilot rejected rejected
+        ai.ibiko.ibiko1.words.Meanings gate = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (gate != null) {
+            for (Fact f : facts) {
+                if (!f.right && f.answer.equals(a) && similarity(m, f.meaning) >= 0.25 && gate.sameAsked(question, f.question)) {
+                    return true;
+                }
             }
         }
         return false;

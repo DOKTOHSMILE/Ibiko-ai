@@ -301,6 +301,85 @@ public class NeuralTest {
         return false;
     }
 
+    /**
+     * The gate that lets memory and the truth checks use the vectors: the same question said another way passes; a
+     * question about a different thing that merely sounds alike never does (a wrong match would be a wrong fact).
+     */
+    @Test
+    public void theTruthGateMatchesParaphrasesAndNeverLookAlikes() {
+        ai.ibiko.ibiko1.words.Meanings m = new ai.ibiko.ibiko1.words.Meanings(
+                ai.ibiko.ibiko1.words.MeaningIndex.of(ai.ibiko.PlainAsset.of("knowledge/lexicon.tsv")));
+        String[][] same = {
+            {"What is the capital of Kenya?", "Which city is the capital of Kenya?"},
+            {"Where can I buy a car?", "Where can I purchase a car?"},
+            {"How big is the ocean?", "How large is the ocean?"},
+            {"Who started the company?", "Who founded the company?"},
+            {"What does a physician do?", "What does a doctor do?"},
+            {"When did the war end?", "When did the war finish?"},
+            {"How fast can a cheetah run?", "How quickly can a cheetah run?"},
+            {"Is the film good?", "Is the movie good?"},
+        };
+        String[][] different = {
+            {"What is the capital of Kenya?", "What is the capital of Uganda?"},
+            {"What colour is the car?", "What colour is the bus?"},
+            {"Is the shop open on Monday?", "Is the shop open on Tuesday?"},
+            {"Did prices rise in 2020?", "Did prices fall in 2020?"},
+            {"Did prices rise in 2020?", "Did prices rise in 2021?"},
+            {"Is the water hot?", "Is the water cold?"},
+            {"Is the car red?", "Is the car blue?"},
+            {"Is the bridge safe?", "Is the bridge not safe?"},
+            {"Who wrote Hamlet?", "Who wrote Macbeth?"},
+            {"How tall is Everest?", "How tall is Kilimanjaro?"},
+            {"What is the capital of Kenya?", "What is the population of Kenya?"},
+            {"Who is the president of Nigeria?", "Who is the president of Ghana?"},
+        };
+        int ok = 0;
+        for (String[] p : same) {
+            if (m.sameAsked(p[0], p[1])) {
+                ok++;
+            } else {
+                System.out.println("gate missed paraphrase: " + p[0] + " | " + p[1]);
+            }
+        }
+        for (String[] p : different) {
+            assertTrue("look-alike passed the gate: " + p[0] + " | " + p[1], !m.sameAsked(p[0], p[1]));
+        }
+        System.out.println("truth gate: paraphrases " + ok + "/" + same.length + ", look-alikes 0/" + different.length);
+        assertTrue(ok + "/" + same.length, ok >= same.length * 3 / 4);
+    }
+
+    /** Memory, the truth ledger and Reflection all know a reworded question, and none mistakes a look-alike for it. */
+    @Test
+    public void theBrainKnowsARewordedQuestionAndNotALookAlike() throws Exception {
+        new ai.ibiko.ibiko1.words.Meanings(
+                ai.ibiko.ibiko1.words.MeaningIndex.of(ai.ibiko.PlainAsset.of("knowledge/lexicon.tsv"))); // the shared one
+        File dir = java.nio.file.Files.createTempDirectory("brain").toFile();
+        Knowledge k = new Knowledge(new File(dir, "knowledge.txt"));
+        k.confirm("Who founded Greenleaf Farms?", "Chika Obi founded Greenleaf Farms in 2015.");
+        Knowledge.Fact f = k.recall("Who started Greenleaf Farms?");
+        assertNotNull("a reworded question finds the confirmed answer", f);
+        assertTrue(f.answer.contains("Chika Obi"));
+        k.confirm("What is the capital of Kenya?", "Nairobi.");
+        Knowledge.Fact other = k.recall("What is the capital of Uganda?");
+        assertTrue("never the answer about another country", other == null || !other.answer.contains("Nairobi"));
+        k.reject("Is the movie good?", "Yes.");
+        assertTrue("a rejected answer stays rejected when reworded", k.rejected("Is the film good?", "Yes."));
+
+        ai.ibiko.ibiko1.formulas.TruthLedger ledger = new ai.ibiko.ibiko1.formulas.TruthLedger(new File(dir, "ledger.txt"));
+        ledger.record(java.util.Collections.singletonList(new ai.ibiko.ibiko1.formulas.Truth.Checked(
+                ai.ibiko.ibiko1.formulas.Truth.Verdict.FALSE, "Lagos is the capital of Nigeria.", "Abuja is.", "a source")),
+                "test", 1L);
+        assertEquals(ai.ibiko.ibiko1.formulas.Truth.Verdict.FALSE,
+                ledger.check("Lagos is the capital city of Nigeria.").verdict);
+        assertEquals("a different claim borrows no verdict", ai.ibiko.ibiko1.formulas.Truth.Verdict.UNKNOWN,
+                ledger.check("Abuja is the capital of Nigeria.").verdict);
+
+        assertEquals(ai.ibiko.ibiko1.formulas.Reflection.Outcome.RETRIED,
+                ai.ibiko.ibiko1.formulas.Reflection.outcome("Who founded Greenleaf Farms?", "Who started Greenleaf Farms?"));
+        assertTrue(ai.ibiko.ibiko1.formulas.Reflection.outcome("What is the capital of Kenya?", "What is the capital of Uganda?")
+                != ai.ibiko.ibiko1.formulas.Reflection.Outcome.RETRIED);
+    }
+
     static double dot(float[] a, float[] b) {
         double s = 0;
         for (int i = 0; i < a.length; i++) {
