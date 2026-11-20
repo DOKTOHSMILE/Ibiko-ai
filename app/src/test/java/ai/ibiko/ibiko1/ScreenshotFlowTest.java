@@ -90,6 +90,28 @@ public class ScreenshotFlowTest {
     }
 
     @Test
+    public void aGapItAskedBackAboutIsFilledWithAProperSentence() throws Exception {
+        Store.reset();
+        Chat chat = new Chat();
+        Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+        assertEquals("I don't know that about you yet. Tell me, and I'll remember it.", ask(brain, chat, "What is my favourite colour?"));
+        String check = ask(brain, chat, "I think it's blue");
+        assertTrue(check, check.endsWith("So, put properly: “Your favourite colour is blue.” Is that right?"));
+        String kept = ask(brain, chat, "yes");
+        assertTrue(kept, kept.startsWith("Thanks, kept: “Your favourite colour is blue.”"));
+        String again = ask(brain, chat, "What is my favourite colour?");
+        assertTrue(again, again.endsWith("Your favourite colour is blue."));
+        // a sure reply is kept straight away, formed, not as typed
+        ask(brain, chat, "Where do I work?");
+        String work = ask(brain, chat, "at Dangote refinery lol");
+        assertTrue(work, work.startsWith("Thanks, that fills a gap. I've kept it as: “You work at Dangote refinery.”"));
+        // "I don't know" keeps nothing
+        String blood = ask(brain, chat, "What is my blood group?");
+        String dunno = ask(brain, chat, "I don't know");
+        assertTrue(blood + " / " + dunno, dunno.startsWith("No problem."));
+    }
+
+    @Test
     public void aMarkedAnswerIsOnlyReplacedByAnAnswer() {
         assertTrue(Ibiko1.answers("Who wrote Hamlet?", "Shakespeare"));
         assertTrue(Ibiko1.answers("What is the capital of Nigeria?", "No, it's Abuja"));
