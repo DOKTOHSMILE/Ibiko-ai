@@ -97,11 +97,7 @@ public final class CampaignReview {
             if (sheet[0] != null) {
                 sheet[0].dismiss();
             }
-            try {
-                CampaignRunner.store(a).remove(c.id);
-            } catch (java.io.IOException ignored) {
-                // the list shows what was kept
-            }
+            CampaignRunner.delete(a, c); // everything of it, for good: planning stopped, nothing brings it back
             android.widget.Toast.makeText(a, "Campaign discarded. Nothing was posted.", android.widget.Toast.LENGTH_SHORT).show();
             if (done != null) {
                 done.run();

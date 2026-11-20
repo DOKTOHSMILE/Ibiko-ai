@@ -35,9 +35,14 @@ public final class CampaignChat {
     }
 
     private final File file;
+    /** Where it is kept and whose it is: a deleted campaign's conversation gets nothing new. */
+    private final File dir;
+    private final String id;
     private final List<Entry> all = new ArrayList<Entry>();
 
     public CampaignChat(File dir, String campaignId) {
+        this.dir = dir;
+        this.id = campaignId;
         this.file = new File(dir, "chat-" + CampaignRunner.safe(campaignId) + ".json");
         if (!file.isFile()) {
             return;
@@ -60,8 +65,8 @@ public final class CampaignChat {
     }
 
     public synchronized void add(String who, String kind, String text, long at) {
-        if (text == null || text.trim().isEmpty()) {
-            return;
+        if (text == null || text.trim().isEmpty() || CampaignStore.deleted(dir, id)) {
+            return; // a deleted campaign's conversation gets nothing new (a late planning message would bring it back)
         }
         all.add(new Entry(at, who, kind, text.trim()));
         while (all.size() > MOST) {

@@ -64,7 +64,18 @@ public final class CampaignDraft {
     }
 
     /** The planning notification: ongoing while it works, then one that opens Social accounts to review the plan. */
+    /** Takes the campaign's planning notification away (it was deleted). */
+    public static void cancel(Context c, String id) {
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        if (nm != null) {
+            nm.cancel(("plan-" + id).hashCode());
+        }
+    }
+
     public static void show(Context c, String id, String title, String text, boolean ongoing) {
+        if (CampaignStore.deleted(new java.io.File(c.getFilesDir(), "campaigns"), id)) {
+            return; // deleted while planning: no notice brings it back to mind
+        }
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm == null) {
             return;

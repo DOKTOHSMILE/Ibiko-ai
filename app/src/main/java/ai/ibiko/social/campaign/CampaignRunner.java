@@ -383,6 +383,8 @@ public final class CampaignRunner extends BroadcastReceiver {
 
     /** Deletes a campaign with its leads and results; posts already out stay on the networks. */
     public static void delete(Context c, Campaign camp) {
+        CampaignDraft.stop(camp.id); // planning it stops at the next post, and what it writes after is refused
+        CampaignDraft.cancel(c, camp.id);
         try {
             store(c).remove(camp.id);
             LeadSender.store(c).forget(camp.id);
