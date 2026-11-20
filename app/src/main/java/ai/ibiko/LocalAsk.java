@@ -336,6 +336,8 @@ final class LocalAsk {
             String subject = ai.ibiko.llm.ThinkTwo.subject(english, carry,
                     carry && act.activeQuestion != null && !act.activeQuestion.equalsIgnoreCase(english) ? act.activeQuestion : null,
                     carry ? act.lastReply() : null);
+            // the council reasons over exact numbers: the question's maths is worked out by Ibiko first
+            subject = ai.ibiko.ibiko1.formulas.Maths.forModel(subject);
             java.util.List<ai.ibiko.llm.ThinkTwo.Thinker> thinkers = pageTools.round() && act.model.remoteOn()
                     ? act.model.thinkers() : java.util.Collections.<ai.ibiko.llm.ThinkTwo.Thinker>emptyList();
             // work to be done (an audit, a fix, files to read, a search, a post) is started by the brain's code, not
@@ -368,7 +370,7 @@ final class LocalAsk {
                 // deep thinking, switched on for this chat: the same brain plans, drafts, checks and revises
                 raw = ai.ibiko.suit.DeepThink.think(
                         (sys, prompt) -> act.model.task(sys, prompt, length, null), system,
-                        context + "\n\nThe user says: " + english, 3, (pass, result) -> {
+                        context + "\n\nThe user says: " + ai.ibiko.ibiko1.formulas.Maths.forModel(english), 3, (pass, result) -> {
                             if (result != null && !result.isEmpty()
                                     && (pass.startsWith("Understood")
                                             || pass.startsWith("Reviewed"))) {

@@ -592,11 +592,25 @@ public final class Ibiko1 {
             }
         }
         Grammar.Parse parse = Grammar.parse(t);
+        // calculus on polynomials, exact and offline: derivatives, integrals, areas, stationary points, tangents
+        final String calculus = ai.ibiko.ibiko1.formulas.Calculus.reply(message);
+        if (calculus != null) {
+            think(Arrays.asList("Reading the maths", "Applying the power rule term by term", "Working it out exactly"),
+                    () -> saysExact(who, calculus));
+            return;
+        }
         // algebra, exact and offline: equations, inequalities, systems, a quadratic with a parameter, with the working
         final String solved = ai.ibiko.ibiko1.formulas.Algebra.reply(message);
         if (solved != null) {
             think(Arrays.asList("Reading the maths", "Putting everything on one side", "Working it out exactly, step by step",
                     "Checking the answer"), () -> saysExact(who, solved));
+            return;
+        }
+        // a real-world problem (money, interest, loans, break-even, travel, percentages) turned into its formula
+        final String real = ai.ibiko.ibiko1.formulas.WordProblems.reply(message);
+        if (real != null) {
+            think(Arrays.asList("Reading the problem", "Picking out what's known and what's asked", "Choosing the formula that joins them",
+                    "Putting the numbers in"), () -> saysExact(who, real));
             return;
         }
         final String sum = host.sum(t);

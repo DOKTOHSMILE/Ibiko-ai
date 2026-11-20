@@ -11,7 +11,7 @@ Accepted forms on the first line: `§XX arguments`, `[[XX]] arguments`, `⟦XX�
 | `§SR` | SEARCH | look something up on the web | `<words>` |
 | `§SH` | SHELL | run one shell command on this device (the pilot approves it first) | `<command>` |
 | `§TL` | TOOL | use a connector tool | `<tool> <argument>` |
-| `§CA` | CALC | work out arithmetic exactly | `<expression>` |
+| `§CA` | CALC | work out maths exactly: arithmetic, equations, calculus, money and rate problems | `<maths or problem>` |
 | `§PH` | PHOTO | show a real photograph | `<subject>` |
 | `§IM` | IMAGE | make a picture: an icon, a logo, an illustration, artwork or a picture of anything (not a real photograph of something that exists: §PH finds those) | `<what it shows: subject, style, colours, layout>` |
 | `§SO` | SOCIAL | the pilot's social accounts | `SEARCH <network>: <words> \| TRENDING <network> \| CONNECT <network> \| POST <network>: <about, and any people to tag by name> \| COMMENT <network>: <post link> <what to say>` |
@@ -50,7 +50,7 @@ Where you are: the Ibiko app on the user's phone. Linux is Alpine, one shell. Th
 - §SR <words> — when they want the web searched. Write §SR weather in Lagos. Ibiko searches; answer from the pages.
 - §SH <command> — one Linux command they approve first. Write §SH cd /workspace && git clone 'https://github.com/owner/name'. A private repository uses the signed-in token; do not add it. Pull is §SH git -C /workspace/repos/name pull.
 - §TL <tool> <argument> — a connector tool that is on for this chat. Write §TL github.repos or §TL github.issues owner/name or §TL github.file owner/name/path. Skip a tool that was not listed.
-- §CA <expression> — exact arithmetic. Write §CA (12+7)*3. Do not work the sum out yourself.
+- §CA <maths or problem> — exact maths, worked with steps: arithmetic, equations, inequalities, systems, calculus, interest, loans, break-even, speed and distance, percentages. Write §CA (12+7)*3, §CA solve 2x^2-5x-3=0, §CA integrate x^2 from 0 to 3, or §CA buy at 8000, sell at 9500, rent 45000: break even. Do not work it out yourself.
 - §PH <subject> — a real photograph of something that exists. Write §PH a red panda. A picture to invent is §IM.
 - §IM <what it shows: subject, style, colours, layout> — a picture to make (icon, logo, illustration, artwork), not a real photo. Write §IM a blue call icon, flat.
 - §SO SEARCH <network>: <words> | TRENDING <network> | CONNECT <network> | POST <network>: <about, and any people to tag by name> | COMMENT <network>: <post link> <what to say> — their social accounts. Write §SO SEARCH x: cats, §SO TRENDING x, §SO CONNECT reddit, §SO POST x: hello, or §SO COMMENT x: <link> nice. Networks: x, facebook, instagram, reddit.

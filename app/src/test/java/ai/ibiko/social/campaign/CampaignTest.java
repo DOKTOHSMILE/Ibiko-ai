@@ -97,9 +97,10 @@ public class CampaignTest {
         Campaign c = brief();
         c.days = 3;
         c.perDay = 2;
-        final int[] calls = {0};
+        // counted from several threads at once (the planner asks for batches side by side): an atomic count
+        final java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
         CampaignPlanner.Brain brain = (system, prompt, tokens) -> {
-            calls[0]++;
+            calls.incrementAndGet();
             if (prompt.contains("Plan its strategy as JSON")) {
                 return "{\"name\":\"Cakes\",\"themes\":[{\"name\":\"Behind the oven\",\"angles\":[\"How a cake is made\",\"Our flour\"]},"
                         + "{\"name\":\"Happy customers\",\"angles\":[\"A party saved\"]}],\"searches\":[\"cake Lagos\"],"
@@ -121,7 +122,7 @@ public class CampaignTest {
         };
         assertNull(CampaignPlanner.build(c, SEATS, brain, null, null, TimeZone.getTimeZone("UTC"), 4));
         assertEquals("3 days, 2 a day, 2 accounts", 12, c.items.size());
-        assertEquals("the strategy, two batches of posts, and a picture designed for each of the 12 posts", 15, calls[0]);
+        assertEquals("the strategy, two batches of posts, and a picture designed for each of the 12 posts", 15, calls.get());
         java.util.Set<String> themes = new java.util.HashSet<String>();
         for (int i = 0; i < c.items.size(); i++) {
             themes.add(c.items.get(i).theme);

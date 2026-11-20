@@ -100,8 +100,10 @@ final class PhoneActs {
                 return;
             case CALC: {
                 // exact arithmetic by the suit: the model asked, Ibiko computes, nothing is guessed
-                java.math.BigDecimal v = ai.ibiko.suit.Arithmetic.eval(order.arg);
-                a.play(LocalTurn.speakAs(agent, v == null ? "I couldn't work out \u201c" + order.arg + "\u201d."
+                // equations, calculus and real-world problems through Ibiko's maths engine; plain sums as before
+                String worked = ai.ibiko.ibiko1.formulas.Maths.answer(order.arg);
+                java.math.BigDecimal v = worked != null ? null : ai.ibiko.suit.Arithmetic.eval(order.arg);
+                a.play(LocalTurn.speakAs(agent, worked != null ? worked : v == null ? "I couldn't work out \u201c" + order.arg + "\u201d."
                         : order.arg + " = " + ai.ibiko.suit.Arithmetic.show(v)), null);
                 return;
             }
