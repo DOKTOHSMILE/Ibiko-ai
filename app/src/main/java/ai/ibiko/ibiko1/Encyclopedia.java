@@ -26,7 +26,7 @@ public final class Encyclopedia {
     public static final int SHARDS = 512;
     static final String DIR = "knowledge/encyclopedia/";
     /** Shards kept in memory once read (the most recent). */
-    static final int KEEP = 12;
+    static final int KEEP = 32;
     /** Redirects followed before giving up (a chain that loops is cut). */
     static final int HOPS = 3;
 
