@@ -528,11 +528,36 @@ public final class Algebra {
         deg = c.size() - 1;
         if (deg == 1) {
             Q r = c.get(0).neg().div(c.get(1));
+            if (show && w.roots.isEmpty()) {
+                Q k = c.get(1), rhs = c.get(0).neg();
+                String lhs = (k.equals(Q.ONE) ? "" : k.equals(Q.ONE.neg()) ? "\u2212" : k.d.equals(BigInteger.ONE) ? k.toString() : "(" + k + ")") + v;
+                w.steps.add(k.equals(Q.ONE) ? v + " = " + rhs + "." : lhs + " = " + rhs + ", so divide both sides by " + k + ": " + v + " = " + r + ".");
+            }
             if (!contains(w.roots, r)) {
                 w.roots.add(new Root(r.value(), 0, r.toString()));
             }
         } else if (deg == 2) {
             quadratic(c, v, show, w);
+        } else if (deg >= 3 && pureRoot(c) != null) {
+            // a·xⁿ + c = 0: xⁿ = −c/a, so the real n-th root (and its negative too when n is even)
+            Q k = c.get(0).neg().div(c.get(deg));
+            double real = Math.signum(k.value()) * Math.pow(Math.abs(k.value()), 1.0 / deg);
+            String root = (deg == 3 ? "\u221b" : deg == 4 ? "\u221c" : sup(deg) + "\u221a");
+            String kk = k.sign() < 0 ? "(" + k + ")" : k.toString();
+            if (show) {
+                w.steps.add(v + sup(deg) + " = " + k + ", so " + v + " = " + root + kk + ".");
+            }
+            if (deg % 2 == 1 || k.sign() > 0) {
+                w.roots.add(new Root(real, 0, root + kk + " \u2248 " + dec(real)));
+                if (deg % 2 == 0) {
+                    w.roots.add(new Root(-real, 0, "\u2212" + root + kk + " \u2248 " + dec(-real)));
+                }
+            }
+            for (double[] z : numeric(c)) {
+                if (Math.abs(z[1]) > 1e-9) {
+                    w.roots.add(new Root(z[0], z[1], null));
+                }
+            }
         } else if (deg >= 3) {
             if (show) {
                 w.steps.add("No more whole or fractional roots: the rest found numerically (to 4 decimals).");
@@ -542,6 +567,16 @@ public final class Algebra {
             }
         }
         return w;
+    }
+
+    /** For a·xⁿ + c (only those two terms): the form x = ⁿ√(−c/a) applies; null otherwise. */
+    static Q pureRoot(List<Q> c) {
+        for (int i = 1; i < c.size() - 1; i++) {
+            if (!c.get(i).zero()) {
+                return null;
+            }
+        }
+        return c.get(0).zero() ? null : c.get(0);
     }
 
     static boolean contains(List<Root> roots, Q r) {
@@ -801,8 +836,21 @@ public final class Algebra {
         if (message == null || message.length() > 2000) {
             return null;
         }
-        String m = message.trim();
+        String m = spoken(message.trim());
         try {
+            // "x3" (a letter with a number straight after it) is either 3x or x³: both readings are worked out
+            String eqSpan = span(m);
+            Matcher amb = Pattern.compile("(?<![a-zA-Z^])([a-zA-Z])(\\d+)(?![\\d.])").matcher(eqSpan == null ? "" : eqSpan);
+            if (amb.find() && !eqSpan.contains("^")) {
+                String letter = amb.group(1), n = amb.group(2);
+                String times = single(m.replace(amb.group(), (amb.start() > 0 && Character.isDigit(eqSpan.charAt(amb.start() - 1)) ? "*" : "") + n + letter)), power = single(m.replace(amb.group(), letter + "^" + n));
+                String a = times == null ? null : solve(times), b = power == null ? null : solve(power);
+                if (a != null && b != null) {
+                    return "\u201c" + amb.group() + "\u201d can be read two ways, so here are both.\n\nIf it means " + n + letter + " ("
+                            + letter + " times " + n + "):\n" + a + "\n\nIf it means " + letter + sup(Integer.parseInt(n)) + " (" + letter
+                            + (n.equals("2") ? " squared" : n.equals("3") ? " cubed" : " to the power " + n) + "):\n" + b;
+                }
+            }
             String param = parametric(m);
             if (param != null) {
                 return param;
@@ -827,20 +875,86 @@ public final class Algebra {
 
     /** The one equation or inequality in the message, or null (plain sums stay with the calculator). */
     static String single(String m) {
-        Matcher x = Pattern.compile("([0-9a-zA-Z+\\-−*/^()\\[\\]²³×.\\s]+?)\\s*(<=|>=|≤|≥|=|<|>)\\s*([0-9a-zA-Z+\\-−*/^()\\[\\]²³×.\\s]+)").matcher(stripAsk(m));
-        if (!x.find()) {
+        String eq = span(m);
+        if (eq == null) {
             Matcher r = Pattern.compile("(?is)(?:roots?|solutions?|zeros?) of\\s+(.+?)\\s*[.?]*$").matcher(m);
             return r.find() && read(r.group(1)).letters().size() == 1 ? r.group(1) + "=0" : null;
         }
-        String left = x.group(1).trim(), right = x.group(3).trim().replaceAll("[.?]+$", "");
-        Poly l = read(left), r = read(right);
-        if (l.sub(r).letters().size() != 1 || l.sub(r).letters().isEmpty()) {
+        Matcher x = Pattern.compile("(.+?)(<=|>=|\u2264|\u2265|=|<|>)(.+)").matcher(eq);
+        if (!x.matches()) {
             return null;
         }
-        if (!ASK.matcher(m).matches() && !m.trim().matches("(?s)^[0-9a-zA-Z+\\-−*/^()²³.\\s]+(<=|>=|≤|≥|=|<|>)[0-9a-zA-Z+\\-−*/^()²³.\\s]+[?.]?$")) {
-            return null; // a sentence that only contains an equation somewhere isn't asking to solve it
+        Poly l = read(x.group(1)), r = read(x.group(3));
+        if (l.sub(r).letters().size() != 1) {
+            return null;
         }
-        return left + x.group(2) + right;
+        // asked to solve: "solve …", "find x", "what is x", or the message is just the equation
+        boolean asked = ASK.matcher(m).matches() || Pattern.compile("(?is).*\\b(find|solve(?: for)?|work out|what is|what's|calculate|determine|get)\\s+(?:the\\s+(?:value\\s+of\\s+)?)?([a-z])\\b.*").matcher(m).matches()
+                || m.replaceAll("[\\s?.!]", "").equals(eq.replaceAll("\\s", ""));
+        return asked ? eq : null;
+    }
+
+    /** Maths written in words made symbols: "2 plus x3 equals 9" → "2 + x3 = 9". */
+    static String spoken(String m) {
+        return m.replaceAll("(?i)\\bis equal to\\b|\\bequals\\b", " = ") // "the roots are equal" stays words
+                .replaceAll("(?i)\\bis greater than or equal to\\b|\\bis at least\\b", " >= ").replaceAll("(?i)\\bis less than or equal to\\b|\\bis at most\\b", " <= ")
+                .replaceAll("(?i)\\bis (?:greater|more) than\\b", " > ").replaceAll("(?i)\\bis (?:less|smaller) than\\b", " < ")
+                .replaceAll("(?i)\\bplus\\b|\\badded to\\b", " + ").replaceAll("(?i)\\bminus\\b", " - ")
+                .replaceAll("(?i)\\bmultiplied by\\b|\\btimes\\b", " * ").replaceAll("(?i)\\bdivided by\\b", " / ")
+                .replaceAll("(?i)\\s*\\bsquared\\b", "^2").replaceAll("(?i)\\s*\\bcubed\\b", "^3")
+                .replaceAll("(?i)\\s*\\bto the power (?:of )?(\\d+)", "^$1");
+    }
+
+    /**
+     * The equation or inequality inside a sentence: the run of maths around its "=" (numbers, single letters like x,
+     * signs and brackets), stopping at the first ordinary word ("what is this 2 + x3 = 9 find x" → "2 + x3 = 9").
+     */
+    static String span(String m) {
+        String t = m.replace('\u2212', '-').replace("\u2264", "<=").replace("\u2265", ">=").replace("\n", " \n ");
+        Matcher op = Pattern.compile("<=|>=|=|<|>").matcher(t);
+        if (!op.find()) {
+            return null;
+        }
+        String left = t.substring(0, op.start()), right = t.substring(op.end());
+        String l = mathEnd(left, true), r = mathEnd(right, false);
+        if (l.isEmpty() || r.isEmpty() || !(l + r).matches(".*[a-zA-Z].*")) {
+            return null;
+        }
+        return l + op.group() + r;
+    }
+
+    /** The maths at the end of {@code s} (or its start, when {@code end} is false), as far as it goes. */
+    private static String mathEnd(String s, boolean end) {
+        String[] tokens = s.trim().split("(?<=[\\s])|(?=[\\s])");
+        List<String> parts = new ArrayList<String>();
+        for (String raw : s.trim().split("\\s+")) {
+            parts.add(raw);
+        }
+        if (end) {
+            Collections.reverse(parts);
+        }
+        List<String> kept = new ArrayList<String>();
+        for (String tok : parts) {
+            String tk = tok.replaceAll(end ? "^[:,]+" : "[.?!,;:]+$", "");
+            if (tk.isEmpty() || tk.equals("\n")) {
+                if (!kept.isEmpty() && tok.equals("\n")) {
+                    break;
+                }
+                continue;
+            }
+            // maths: numbers, one letter (with a number or power), signs, brackets; never an ordinary word
+            boolean maths = tk.matches("[0-9.+\\-*/^()\u00b2\u00b3\u00d7]*([a-zA-Z](?![a-zA-Z])[0-9.+\\-*/^()\u00b2\u00b3\u00d7]*)*")
+                    && !tk.matches("(?i)a|i") || tk.matches("(?i)[a-z]") && !kept.isEmpty() && !tk.matches("(?i)a|i");
+            if (!maths) {
+                break;
+            }
+            kept.add(tk);
+        }
+        if (end) {
+            Collections.reverse(kept);
+        }
+        String out = String.join(" ", kept).trim();
+        return out.replaceAll("^[+*/=]+|[+\\-*/=]+$", "").trim();
     }
 
     static String stripAsk(String m) {
