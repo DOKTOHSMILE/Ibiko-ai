@@ -21,10 +21,28 @@ import ai.ibiko.ibiko1.words.Morphology;
 public final class WordTalk {
     private final Meanings meanings;
     private final Morphology morphology;
+    /** Meanings by subject and the context tags ("n.root@computing"); null without them. */
+    private final ai.ibiko.ibiko1.words.SenseTags tags;
+    /** What the conversation is about ("computing"), so "what is root?" means the right root; null when unknown. */
+    private volatile String topic;
 
     public WordTalk(Meanings meanings) {
+        this(meanings, null);
+    }
+
+    public WordTalk(Meanings meanings, ai.ibiko.ibiko1.words.SenseTags tags) {
         this.meanings = meanings;
         this.morphology = new Morphology(meanings);
+        this.tags = tags;
+    }
+
+    /** What the conversation is about now, or null. */
+    public void topic(String subject) {
+        topic = subject;
+    }
+
+    public ai.ibiko.ibiko1.words.SenseTags tags() {
+        return tags;
     }
 
     private static final String Q = "[\"“”'‘’]?";
@@ -32,6 +50,11 @@ public final class WordTalk {
     private static final String S = Q + "(.+?)" + Q;
     private static final String END = "\\s*[?.!]*$";
 
+    private static final Pattern TAGS = Pattern.compile("(?is)^(?:(?:sense|context)[- ]?tag|tag(?: the words (?:of|in))?|"
+            + "(?:show|give) me the (?:context |sense )?(?:tags|code) (?:of|for))\\s+(?:this|the)?\\s*(?:sentence|text)?\\s*[:\\-]\\s*" + "(.+?)"
+            + "\\s*$");
+    private static final Pattern WHAT_IS = Pattern.compile("(?is)^(?:what(?:'s| is| are)|define|meaning of|what does)\\s+(?:an?\\s+|the\\s+)?" + W
+            + "(?:\\s+mean)?(?:\\s+(?:in|for|when talking about)\\s+([\\p{L} ]+?))?" + END);
     private static final Pattern IN_CONTEXT = Pattern.compile("(?is)^(?:what does|what is the meaning of|what's the meaning of|meaning of)\\s+" + W
             + "\\s+(?:mean\\s+)?(?:in|here in|in the sentence|in this sentence)\\s*[:\\-]?\\s*" + S + END);
     private static final Pattern MEANS = Pattern.compile("(?is)^(?:what does\\s+" + W + "\\s+mean|what is the meaning of\\s+" + W
@@ -95,7 +118,7 @@ public final class WordTalk {
             return false;
         }
         String m = message.trim();
-        for (Pattern p : new Pattern[]{IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
+        for (Pattern p : new Pattern[]{TAGS, IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
             if (p.matcher(m).matches()) {
                 return true;
             }
@@ -111,6 +134,9 @@ public final class WordTalk {
         }
         String m = message.trim();
         Matcher x;
+        if (tags != null && (x = TAGS.matcher(m)).matches()) {
+            return code(x.group(1));
+        }
         if ((x = IN_CONTEXT.matcher(m)).matches()) {
             return inContext(x.group(1), x.group(2));
         }
@@ -169,7 +195,81 @@ public final class WordTalk {
 
     // ------------------------------------------------------------------ answers
 
+    /**
+     * "What is root?" while talking about Linux: the word's meaning in the subject at hand, said first, with its other
+     * meanings after. Null unless the word means different things in different subjects and the question (or the
+     * conversation) says which subject: otherwise the encyclopedia and the dictionary answer as before.
+     */
+    public String inSubject(String message) {
+        if (tags == null || message == null) {
+            return null;
+        }
+        Matcher x = WHAT_IS.matcher(message.trim());
+        if (!x.matches()) {
+            return null;
+        }
+        String word = first(x);
+        String said = x.group(x.groupCount());
+        if (word == null || !tags.ambiguous(word)) {
+            return null;
+        }
+        String about = said == null ? null : ai.ibiko.ibiko1.words.SenseTags.subject(said);
+        if (about == null) {
+            about = topic;
+        }
+        if (about == null) {
+            return null;
+        }
+        MeaningIndex.Sense s = tags.meant(word, said == null ? "" : said, about, null);
+        if (s == null || !about.equals(tags.subjectOf(s))) {
+            return null;
+        }
+        return subjectAnswer(word, s, about);
+    }
+
+    private String subjectAnswer(String word, MeaningIndex.Sense s, String about) {
+        StringBuilder b = new StringBuilder(cap(ai.ibiko.ibiko1.words.SenseTags.in(about))).append(", “").append(word.toLowerCase(Locale.ROOT))
+                .append("” means ").append(s.definition).append('.');
+        List<String> others = new ArrayList<String>();
+        java.util.Set<String> said = new java.util.HashSet<String>();
+        said.add(about);
+        for (MeaningIndex.Sense o : tags.senses(word)) {
+            String sub = tags.subjectOf(o);
+            if (sub != null && said.add(sub) && others.size() < 3) {
+                others.add(ai.ibiko.ibiko1.words.SenseTags.in(sub) + ", " + o.definition);
+            }
+        }
+        if (!others.isEmpty()) {
+            b.append("\n\nIt means other things elsewhere: ").append(String.join("; ", others)).append('.');
+        }
+        return b.toString();
+    }
+
+    /** A sentence's context code, explained. */
+    private String code(String sentence) {
+        String code = tags.code(sentence, topic);
+        StringBuilder b = new StringBuilder("Context code: ").append(code);
+        List<String> notes = new ArrayList<String>();
+        for (ai.ibiko.ibiko1.words.SenseTags.Tag t : tags.tag(sentence, topic)) {
+            if (t.subject != null && t.sense != null && notes.size() < 4) {
+                notes.add("“" + t.word + "” " + ai.ibiko.ibiko1.words.SenseTags.in(t.subject) + ": " + t.sense.definition);
+            }
+        }
+        if (!notes.isEmpty()) {
+            b.append("\n\nThe words with more than one meaning, read in context:\n• ").append(String.join("\n• ", notes));
+        }
+        b.append("\n\nKey: n noun, m name, p pronoun, v verb, b helping verb, a adjective, r adverb, i preposition, c conjunction, "
+                + "d determiner, u number; @ marks the subject a word means here.");
+        return b.toString();
+    }
+
     private String means(String word) {
+        if (tags != null && topic != null && tags.ambiguous(word)) {
+            MeaningIndex.Sense s = tags.meant(word, "", topic, null);
+            if (s != null && topic.equals(tags.subjectOf(s))) {
+                return subjectAnswer(word, s, topic); // the meaning in what we're talking about, first
+            }
+        }
         List<MeaningIndex.Sense> senses = meanings.senses(word);
         if (senses.isEmpty()) {
             return null; // the older dictionary path (and learning a new word) takes it
@@ -187,16 +287,27 @@ public final class WordTalk {
                 shown++;
             }
         }
+        if (tags != null) {
+            // meanings in other subjects the dictionary hasn't got: "root" in computing and maths
+            int more = 0;
+            for (MeaningIndex.Sense s : tags.senses(word)) {
+                String sub = tags.subjectOf(s);
+                if (s.id < 0 && sub != null && more < 2) {
+                    b.append("\nAlso, ").append(ai.ibiko.ibiko1.words.SenseTags.in(sub)).append(": ").append(s.definition).append('.');
+                    more++;
+                }
+            }
+        }
         return b.toString();
     }
 
     private String inContext(String word, String sentence) {
-        MeaningIndex.Sense s = meanings.meant(word, sentence, null);
+        MeaningIndex.Sense s = tags != null ? tags.meant(word, sentence, topic, null) : meanings.meant(word, sentence, null);
         if (s == null) {
             return "I don't have “" + word + "” in my dictionary.";
         }
-        String plain = meanings.plain(s, word);
-        int count = meanings.senses(word).size();
+        String plain = s.id < 0 ? null : meanings.plain(s, word);
+        int count = tags != null ? tags.senses(word).size() : meanings.senses(word).size();
         return "Here, “" + word + "” means " + (plain != null && !plain.equalsIgnoreCase(s.definition) ? "“" + plain + "”: " : "")
                 + s.definition + "." + (count > 1 ? " (It has " + count + " meanings; the words around it pick this one.)" : "");
     }
