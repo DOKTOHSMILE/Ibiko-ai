@@ -69,6 +69,12 @@ final class VoiceWiring {
             playerBar.loading(now);
         });
         // one voice only: when it can't start, nothing reads in another voice; the pilot is told once, and why
+        // the voice made nothing for a long while: the reading ends and Listen can be tapped again, never a ring for ever
+        a.talk.setStalledListener(() -> {
+            a.readAloudHelper.stop();
+            playerBar.loading(false);
+            android.widget.Toast.makeText(a, "The voice didn't start. Tap Listen to try again.", android.widget.Toast.LENGTH_LONG).show();
+        });
         a.talk.setProblemListener(why -> android.widget.Toast.makeText(a, "The voice couldn't start on this device ("
                 + why + "). Settings \u203a Voice has more.", android.widget.Toast.LENGTH_LONG).show());
     }
