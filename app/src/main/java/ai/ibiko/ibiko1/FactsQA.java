@@ -160,6 +160,7 @@ public final class FactsQA {
             LinkedHashMap<String, String> all = enc.facts(a.title);
             for (String rel : f.relations) {
                 String v = all.get(rel);
+                v = v == null ? null : clean(rel, v);
                 if (v == null || v.isEmpty()) {
                     continue;
                 }
@@ -375,6 +376,23 @@ public final class FactsQA {
             }
         }
         return 1;
+    }
+
+    /** A box value as said: no "List of …" links in a list, no stray comma before a bracket, a party without its dates. */
+    static String clean(String rel, String v) {
+        StringBuilder b = new StringBuilder();
+        for (String part : v.split(",\\s+(?![^()]*\\))")) {
+            String p = part.trim();
+            if (p.isEmpty() || p.startsWith("List of") || p.startsWith("(") && b.length() > 0 && rel.equals("party")) {
+                continue;
+            }
+            b.append(b.length() == 0 ? "" : ", ").append(p);
+        }
+        String out = b.toString().replaceAll(",\\s*\\(", " (");
+        if (rel.equals("party")) {
+            out = out.replaceAll("\\s*\\([^)]*\\)", "").trim();
+        }
+        return out;
     }
 
     private static String tidy(String s) {
