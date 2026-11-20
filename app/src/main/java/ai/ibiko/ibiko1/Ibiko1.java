@@ -130,6 +130,8 @@ public final class Ibiko1 {
     private String ratingQuestion;
     /** A question waiting for the person's own explanation ({@link Inquiry}), or null. */
     private volatile Inquiry.Pending inquiry;
+    /** A question it couldn't answer and asked the person back about: their reply is formed before it is kept. */
+    private volatile Curiosity.Gap gap;
     /** The last answer worked out by asking back, open to "no, it's …" for {@link Inquiry#WAIT_MS}. */
     private volatile String inquiryQuestion, inquiryAnswer;
     private volatile long inquiryAnsweredAt;
@@ -518,6 +520,9 @@ public final class Ibiko1 {
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
         }
+        if (inquiry == null && curiousTurn(who, message.trim())) {
+            return; // the answer to what it asked back about, formed into a sentence before it is kept
+        }
         // a maths problem in lettered parts about one equation: each part worked out, or said plainly that it can't be yet
         final String partsDone = inquiry == null ? ai.ibiko.ibiko1.formulas.Algebra.parts(message) : null;
         if (partsDone != null) {
@@ -754,6 +759,15 @@ public final class Ibiko1 {
                     () -> saysPlain(who, mentioned));
             return;
         }
+        // a question about the person ("what's my current location?", "what is my favourite colour?") is never
+        // searched for or answered from the encyclopedia (my blood group is not the article on
+        // blood groups): only they know it, so it asks
+        if (aboutThePerson(t)) {
+            gap = Curiosity.open(t, System.currentTimeMillis());
+            final String unknownYou = "I don't know that about you yet. Tell me, and I'll remember it.";
+            think(Arrays.asList("Reading your question", "That's about you: not something to search for"), () -> saysPlain(who, unknownYou));
+            return;
+        }
         // data in the message (a list of numbers, a table): analysed with the data formula (formulas/Analyst), exactly
         if (ai.ibiko.ibiko1.formulas.Analyst.hasData(t)) {
             final java.util.List<ai.ibiko.ibiko1.formulas.Analyst.Profile> data = ai.ibiko.ibiko1.formulas.Analyst.read(t);
@@ -886,13 +900,6 @@ public final class Ibiko1 {
             // K7, K10: a judgement no fact settles gets the way to decide it, not a verdict found on some page
             think(Arrays.asList("Reading your question", "That's a judgement, not a fact", "Naming what would decide it",
                     "Weighing the other side"), () -> saysPlain(who, ai.ibiko.ibiko1.formulas.Critical.deliberate(t)));
-            return;
-        }
-        // a question about the person ("what's my current location?", "what is my favourite colour?") is never
-        // searched for on the web: only they know it
-        if (aboutThePerson(t)) {
-            final String unknownYou = "I don't know that about you yet. Tell me, and I'll remember it.";
-            think(Arrays.asList("Reading your question", "That's about you: not something to search for"), () -> saysPlain(who, unknownYou));
             return;
         }
         if (!host.online() && host.modelReady()) {
@@ -1332,13 +1339,108 @@ public final class Ibiko1 {
             java.util.List<Object[]> subs = new EncyclopediaQA(encyclopedia()).subjects(t, 1);
             a = subs.isEmpty() ? null : (Encyclopedia.Article) subs.get(0)[0];
         }
+        // the gap it couldn't fill: it asks the person back, and forms their answer before keeping it
+        gap = Curiosity.open(t, System.currentTimeMillis());
+        String askBack = gap == null ? "" : "\n\n" + Curiosity.askBack(t);
         if (a == null) {
-            return Phrasing.unknown(subject, online, LearningJob.plan(host.context()).on, times);
+            return Phrasing.unknown(subject, online, LearningJob.plan(host.context()).on, times) + askBack;
         }
         String[] s = a.text.split("(?<=[.!?])\\s+");
         String opening = s[0] + (s.length > 1 && s[0].length() < 160 ? " " + s[1] : "");
         return "I couldn't find a sure answer to exactly that, but here's what I know about " + a.title + ": " + opening
-                + "\n\nIf you tell me which part you need, I'll work from there.";
+                + "\n\nIf you tell me which part you need, I'll work from there." + (gap == null ? "" : " Or, if you know the answer, "
+                + "tell me: I'll put it into a proper sentence and check it with you before I keep it.");
+    }
+
+    /**
+     * The turn after it asked back about a gap: the reply is read against the question, hedges and filler come off,
+     * and it is formed into one complete sentence. A sure reply is kept as that sentence (and shown, so a wrong reading
+     * can be put right); an unsure one ("I think…") is checked first. "I don't know" leaves the question for a learning
+     * session; a new question or a request goes its own way.
+     */
+    private boolean curiousTurn(final String who, final String t) {
+        final Curiosity.Gap g = gap;
+        long now = System.currentTimeMillis();
+        if (g == null) {
+            return false;
+        }
+        if (g.expired(now)) {
+            gap = null;
+            return false;
+        }
+        if (g.formed != null) {
+            if (Curiosity.yes(t)) {
+                gap = null;
+                keepFilled(g.question, g.formed);
+                final String kept = "Thanks, kept: “" + g.formed + "” Ask me “" + g.question + "” any time.";
+                think(Arrays.asList("Reading your message", "You confirmed it", "Keeping it"), () -> saysPlain(who, kept));
+                return true;
+            }
+            if (Curiosity.no(t)) {
+                String other = Curiosity.instead(t);
+                if (other == null) {
+                    gap = new Curiosity.Gap(g.question, now, null);
+                    final String again = "Then I won't keep that. What is it, then?";
+                    think(Arrays.asList("Reading your message", "Not keeping it"), () -> saysPlain(who, again));
+                    return true;
+                }
+                fillGap(who, new Curiosity.Gap(g.question, now, null), other);
+                return true;
+            }
+            gap = null; // neither: nothing is kept, and the message is answered as it is
+            return false;
+        }
+        if (Curiosity.movesOn(g, t)) {
+            gap = null;
+            return false;
+        }
+        fillGap(who, g, t);
+        return true;
+    }
+
+    private void fillGap(final String who, final Curiosity.Gap g, final String reply) {
+        final Curiosity.Reading r = Curiosity.read(g, reply);
+        final long now = System.currentTimeMillis();
+        if (r.declined) {
+            gap = null;
+            LearningJob.remember(host.context(), g.question);
+            learner().unanswered(g.question, now);
+            final String later = "No problem. I'll keep the question and look into it in my next learning session.";
+            think(Arrays.asList("Reading your message"), () -> saysPlain(who, later));
+            return;
+        }
+        if (r.statement == null || r.statement.isEmpty()) {
+            gap = null;
+            final String none = "I couldn't take an answer to “" + g.question + "” out of that, so I haven't kept anything.";
+            think(Arrays.asList("Reading your message", "Looking for the answer in it"), () -> saysPlain(who, none));
+            return;
+        }
+        final String differs = questionReply(r.statement, "pilot"); // what it already holds to be otherwise
+        if (r.unsure || differs != null) {
+            gap = new Curiosity.Gap(g.question, now, r.statement);
+            final String check = (differs == null ? "" : "Before I keep it: " + differs.replaceFirst("^A correction to what I just said: ", "")
+                    + "\n\n") + "So, put properly: “" + r.statement + "” Is that right?";
+            think(Arrays.asList("Reading your answer", "Taking off the filler and the “I think”", "Putting it into a proper sentence",
+                    r.unsure ? "You sounded unsure: checking it with you first" : "It differs from what I hold: checking with you first"),
+                    () -> saysPlain(who, check));
+            return;
+        }
+        gap = null;
+        keepFilled(g.question, r.statement);
+        final String kept = "Thanks, that fills a gap. I've kept it as: “" + r.statement + "” If I've put it wrong, just say no.";
+        think(Arrays.asList("Reading your answer", "Taking off the filler", "Putting it into a proper sentence", "Keeping it"), () -> {
+            saysPlain(who, kept);
+            opened(g.question, r.statement); // "no, it's …" right after still corrects it
+        });
+    }
+
+    /** A filled gap kept everywhere a confirmed answer goes: memory, the fact store, and the language it learns from. */
+    private void keepFilled(String question, String statement) {
+        long now = System.currentTimeMillis();
+        knowledge().confirm(question, statement);
+        facts().learn(statement, null, 2, now);
+        learner().read(statement, Learner.Source.PILOT, now);
+        host.learnTalk(question, statement);
     }
 
     private void says(String who, String reply) {
@@ -1614,9 +1716,13 @@ public final class Ibiko1 {
             String q = ratingQuestion;
             ratingQuestion = null;
             host.clearRating();
-            knowledge().confirm(q, said);
-            host.learnTalk(q, said);
-            return "Got it. When you ask “" + q + "”, I'll answer: " + said;
+            // not kept as typed: the answer is taken out of the reply and put into a proper sentence
+            String given = Curiosity.no(said) && Curiosity.instead(said) != null ? Curiosity.instead(said) : said;
+            String cleaned = Curiosity.clean(given);
+            String formed = cleaned.isEmpty() ? said : Curiosity.form(q, cleaned);
+            knowledge().confirm(q, formed);
+            host.learnTalk(q, formed);
+            return "Got it. When you ask “" + q + "”, I'll answer: " + formed;
         }
         // talk before the statement ("Well, ", "So ", "Oh ") is not part of what it says
         said = said.replaceFirst("(?i)^(well|so|oh|um+|hmm+|ok|okay|yes|no|and|but|like|now)\\b[,!.]?\\s+(?=\\S)", "");
@@ -1633,6 +1739,7 @@ public final class Ibiko1 {
             String subject = (m.group(1) == null ? "" : m.group(1) + " ") + m.group(2);
             String verb = m.group(3).toLowerCase(Locale.US);
             String differs = questionReply(said, "pilot"); // G8: the pilot's word is kept, and a difference is said
+            said = Curiosity.tidy(said); // one clean sentence, not the message as typed
             knowledge().confirm("What " + verb + " " + subject + "?", said);
             facts().learn(said, null, 2, System.currentTimeMillis()); // the pilot's own words: as good as a source
             // a name ("Abuja", "Ngozi Okonjo-Iweala") is kept for "who" too; every word starts with a capital, not only the

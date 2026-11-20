@@ -961,7 +961,7 @@ public class LaunchTest {
         ai.ibiko.ibiko1.Ibiko1 ibiko = ibiko1(c.get());
         org.junit.Assert.assertTrue(ibiko.learnStatement("A pig is an animal").startsWith("Noted."));
         ai.ibiko.ibiko1.Knowledge k = new ai.ibiko.ibiko1.Knowledge(new java.io.File(c.get().getFilesDir(), "brain/knowledge.tsv"));
-        org.junit.Assert.assertEquals("A pig is an animal", k.recall("what's a pig?").answer);
+        org.junit.Assert.assertEquals("A pig is an animal.", k.recall("what's a pig?").answer);
         String said = ibiko.aboutMe("What have you learned so far?");
         org.junit.Assert.assertTrue(said, said.contains("A pig is an animal"));
         org.junit.Assert.assertNull(ibiko.aboutMe("What is a pig?"));
