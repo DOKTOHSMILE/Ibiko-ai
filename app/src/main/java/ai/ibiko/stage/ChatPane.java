@@ -441,6 +441,7 @@ public final class ChatPane extends LinearLayout {
                 View bar;
                 // at the end: Copy for the whole reply at once, and Listen to all of it, as icons
                 boolean lastReply = i == msgs.size() - 1;
+                footerRetry = lastReply && !stoppedReply(reply.toString()); // Retry in the newest reply's footer
                 if (rateAnswer != null && lastReply && reply.toString().contains(rateAnswer)) {
                     // Ibiko asks whether its answer was right: check and cancel beside Copy and Listen
                     bar = actions(reply.toString(), reply.toString(), rateQuestion, rateAnswer);
@@ -452,16 +453,20 @@ public final class ChatPane extends LinearLayout {
                 } else {
                     bar = actions(reply.toString(), reply.toString());
                 }
+                // the answers the newest reply waits for, as cards above its footer: the choices it offered, or the
+                // replies its last question can take in a few words ("Yes, please", "A shorter test")
+                List<String> follow = !lastReply ? null : newestButtons != null && !newestButtons.isEmpty() ? newestButtons
+                        : stoppedReply(reply.toString()) ? null : FollowUps.of(reply.toString());
+                if (follow != null && !follow.isEmpty()) {
+                    thread.addView(cards(follow));
+                }
                 thread.addView(bar);
                 turnBars.add(bar);
                 if (lastReply && stoppedReply(reply.toString())) {
                     thread.addView(retryButton()); // a reply that stopped: one tap asks again, always in view
                 }
-                if (lastReply && newestButtons != null && !newestButtons.isEmpty()) {
-                    thread.addView(replyButtons(newestButtons)); // the choices the reply offered, always in view
-                }
-                // Copy, Listen and the rest stay out of the way: a tap on the reply shows them, another hides them
-                tapGroup(new ArrayList<View>(turnParts), new ArrayList<View>(turnBars), "asked".equals(bar.getTag()));
+                // the newest reply's footer stays in view; an older reply's shows on a tap, and hides on another
+                tapGroup(new ArrayList<View>(turnParts), new ArrayList<View>(turnBars), "asked".equals(bar.getTag()) || lastReply);
                 turnParts.clear();
                 turnBars.clear();
                 reply.setLength(0);
@@ -2544,41 +2549,6 @@ public final class ChatPane extends LinearLayout {
     /** The newest reply's buttons, found while drawing the chat. */
     private List<String> newestButtons;
 
-    /** A reply's choices as buttons: a tap sends that choice as the person's next message. */
-    private View replyButtons(List<String> choices) {
-        android.widget.HorizontalScrollView sv = new android.widget.HorizontalScrollView(getContext());
-        sv.setHorizontalScrollBarEnabled(false);
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(2), 0, dp(10));
-        for (final String c : choices) {
-            TextView b = new TextView(getContext());
-            b.setText(c);
-            b.setTextSize(14f);
-            b.setTextColor(getContext().getColor(R.color.accent));
-            b.setGravity(Gravity.CENTER);
-            b.setMinHeight(dp(40));
-            b.setPadding(dp(14), 0, dp(14), 0);
-            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setCornerRadius(dp(20));
-            bg.setStroke(dp(1), getContext().getColor(R.color.accent));
-            b.setBackground(new android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(0x33808080), bg, bg));
-            b.setContentDescription(c + ", reply button");
-            b.setOnClickListener(v -> {
-                newestButtons = null; // a choice is made: the buttons go with the next redraw
-                if (host != null) {
-                    host.onSend(c);
-                }
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.rightMargin = dp(8);
-            row.addView(b, lp);
-        }
-        sv.addView(row);
-        return sv;
-    }
-
     /** The Listen under the part drawn last (removed when the reply has only that part). */
     private View lastPartBar;
     /** While drawing: the persona whose words the next Listen reads, and whether their name is already shown. */
@@ -2594,32 +2564,174 @@ public final class ChatPane extends LinearLayout {
         return bar;
     }
 
-    /** Copy and Listen, once, under the whole of a reply: small icons with 40 dp targets. */
+    /** The footer under a reply with nothing to rate against (an older reply, or one already rated). */
     private View actions(final String all, final String spoken) {
+        return footer(all, spoken, null, null);
+    }
+
+    /** The footer under a reply that can be rated: the thumbs teach Ibiko from this answer. */
+    private View actions(final String all, final String spoken, final String question, final String answer) {
+        return footer(all, spoken, question, answer);
+    }
+
+    /** Retry goes in the footer being drawn (the newest reply's). */
+    private boolean footerRetry;
+    /** How each reply was rated in this session (true: good), so the thumbs keep showing it after a redraw. */
+    private final java.util.Map<String, Boolean> rating = new java.util.HashMap<String, Boolean>();
+
+    /**
+     * Under a reply, in one quiet colour: thumbs up, thumbs down, retry (the newest reply), copy and more on the left,
+     * read aloud on the right. A thumb tapped stays lit and the other dims; with the question known, it teaches Ibiko.
+     */
+    private View footer(final String all, final String spoken, final String question, final String answer) {
         LinearLayout bar = new LinearLayout(getContext());
         bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(0, dp(2), 0, dp(10));
-        bar.addView(icon(R.drawable.ic_copy, "Copy", v -> {
+        final String key = all == null ? "" : all.trim();
+        Boolean was = rating.get(key);
+        final android.widget.ImageButton up = (android.widget.ImageButton) quiet(icon(R.drawable.ic_thumb_up, "Good response", null));
+        final android.widget.ImageButton down = (android.widget.ImageButton) quiet(icon(R.drawable.ic_thumb_down, "Bad response", null));
+        showRated(up, down, was);
+        up.setOnClickListener(v -> rate(key, all, question, answer, true, up, down));
+        down.setOnClickListener(v -> rate(key, all, question, answer, false, up, down));
+        bar.addView(up);
+        bar.addView(down);
+        if (footerRetry) {
+            bar.addView(quiet(icon(R.drawable.ic_retry, "Try again", v -> host.onRetry())));
+        }
+        bar.addView(quiet(icon(R.drawable.ic_copy, "Copy", v -> {
             if (copyText(all)) {
                 android.widget.Toast.makeText(getContext(), "Copied", android.widget.Toast.LENGTH_SHORT).show();
             }
-        }));
-        bar.addView(listenButton(spoken, "Read aloud"));
+        })));
+        final View more = quiet(icon(R.drawable.ic_more_horiz, "More", null));
+        more.setOnClickListener(v -> moreMenu(more, all));
+        bar.addView(more);
+        View gap = new View(getContext());
+        bar.addView(gap, new LinearLayout.LayoutParams(0, 1, 1f));
+        bar.addView(quiet(listenButton(spoken, "Read aloud")));
         return bar;
     }
 
-    /** Copy and Listen, then a check (right) and a cancel (wrong) that teach Ibiko from this answer. */
-    private View actions(final String all, final String spoken, final String question, final String answer) {
-        LinearLayout bar = (LinearLayout) actions(all, spoken);
-        bar.addView(icon(R.drawable.ic_rate_right, "Correct", v -> {
+    /** A footer icon in the one quiet colour of the footer (no red or green). */
+    private View quiet(View v) {
+        if (v instanceof android.widget.ImageView) {
+            ((android.widget.ImageView) v).setImageTintList(android.content.res.ColorStateList.valueOf(getContext().getColor(R.color.icon)));
+        }
+        return v;
+    }
+
+    private void rate(String key, String all, String question, String answer, boolean good,
+            android.widget.ImageButton up, android.widget.ImageButton down) {
+        Boolean before = rating.get(key);
+        if (before != null && before == good) {
+            rating.remove(key); // tapped again: taken back
+            showRated(up, down, null);
+            return;
+        }
+        rating.put(key, good);
+        showRated(up, down, good);
+        android.widget.Toast.makeText(getContext(), good ? "Thanks: Ibiko keeps this way of answering"
+                : "Thanks: Ibiko won't answer it this way again", android.widget.Toast.LENGTH_SHORT).show();
+        if (question != null && answer != null) {
             ratedReply = all;
-            rated(question, answer, true);
-        }));
-        bar.addView(icon(R.drawable.ic_rate_wrong, "Wrong", v -> {
-            ratedReply = all;
-            rated(question, answer, false);
-        }));
-        return bar;
+            rated(question, answer, good); // Ibiko learns from it
+        }
+    }
+
+    private static void showRated(android.widget.ImageButton up, android.widget.ImageButton down, Boolean good) {
+        up.setAlpha(good == null || good ? 1f : 0.35f);
+        down.setAlpha(good == null || !good ? 1f : 0.35f);
+        up.setSelected(good != null && good);
+        down.setSelected(good != null && !good);
+        up.setContentDescription(good != null && good ? "Rated good (tap to undo)" : "Good response");
+        down.setContentDescription(good != null && !good ? "Rated bad (tap to undo)" : "Bad response");
+    }
+
+    /** More: share the reply, or select part of its text. */
+    private void moreMenu(View anchor, final String all) {
+        android.widget.PopupMenu menu = new android.widget.PopupMenu(getContext(), anchor);
+        menu.getMenu().add(0, 1, 0, "Share");
+        menu.getMenu().add(0, 2, 1, "Select text");
+        menu.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 1) {
+                android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(android.content.Intent.EXTRA_TEXT, all);
+                getContext().startActivity(android.content.Intent.createChooser(send, "Share reply"));
+            } else {
+                TextView t = new TextView(getContext());
+                t.setText(all);
+                t.setTextIsSelectable(true);
+                t.setTextColor(getContext().getColor(R.color.text_primary));
+                t.setPadding(dp(20), dp(16), dp(20), dp(8));
+                ScrollView sv = new ScrollView(getContext());
+                sv.addView(t);
+                new android.app.AlertDialog.Builder(getContext()).setView(sv).setPositiveButton("Done", null).show();
+            }
+            return true;
+        });
+        menu.show();
+    }
+
+    /**
+     * The answers a reply waits for, as cards two to a row: its words, and an arrow. A tap sends it as the next
+     * message.
+     */
+    private View cards(List<String> choices) {
+        LinearLayout grid = new LinearLayout(getContext());
+        grid.setOrientation(LinearLayout.VERTICAL);
+        grid.setPadding(0, dp(6), 0, dp(4));
+        for (int i = 0; i < choices.size(); i += 2) {
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int k = i; k < i + 2; k++) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f);
+                lp.rightMargin = k == i ? dp(8) : 0;
+                lp.bottomMargin = dp(8);
+                if (k < choices.size()) {
+                    row.addView(card(choices.get(k)), lp);
+                } else {
+                    row.addView(new View(getContext()), lp);
+                }
+            }
+            grid.addView(row);
+        }
+        return grid;
+    }
+
+    private View card(final String choice) {
+        LinearLayout c = new LinearLayout(getContext());
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(dp(16), dp(14), dp(16), dp(12));
+        c.setMinimumHeight(dp(96));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(dp(22));
+        bg.setColor(getContext().getColor(R.color.surface_high));
+        c.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(0x33808080), bg, bg));
+        TextView t = new TextView(getContext());
+        t.setText(choice);
+        t.setTextSize(15f);
+        t.setTextColor(getContext().getColor(R.color.text_primary));
+        t.setMaxLines(4);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        c.addView(t, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
+        android.widget.ImageView arrow = new android.widget.ImageView(getContext());
+        arrow.setImageResource(R.drawable.ic_follow_up);
+        arrow.setImageTintList(android.content.res.ColorStateList.valueOf(getContext().getColor(R.color.icon)));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(22), dp(22));
+        ap.topMargin = dp(10);
+        c.addView(arrow, ap);
+        c.setContentDescription(choice + ", send as your reply");
+        c.setOnClickListener(v -> {
+            newestButtons = null; // answered: the cards go with the next redraw
+            if (host != null) {
+                host.onSend(choice);
+            }
+        });
+        return c;
     }
 
     /** The user's message the latest reply answers, while drawing; the reply already marked right or wrong. */
@@ -3160,7 +3272,8 @@ public final class ChatPane extends LinearLayout {
         if (text == null || text.isEmpty()) {
             return "";
         }
-        ai.ibiko.chat.ReplyMarks.Result ready = ai.ibiko.chat.ReplyMarks.of(text);
+        // LaTeX maths from a model (\\( \\frac{a}{b} \\neq 0 \\)) shown as readable maths, not its source
+        ai.ibiko.chat.ReplyMarks.Result ready = ai.ibiko.chat.ReplyMarks.of(ai.ibiko.chat.MathText.readable(text));
         if (ready.marks.isEmpty()) {
             return ready.text;
         }

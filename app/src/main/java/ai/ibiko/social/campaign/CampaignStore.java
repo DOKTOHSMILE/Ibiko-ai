@@ -23,6 +23,28 @@ public final class CampaignStore {
     public CampaignStore(File dir) {
         this.file = new File(dir, "campaigns.json");
         load();
+        all.removeIf(c -> deleted(dir, c.id)); // one written back by a late save before this fix: gone for good
+    }
+
+    /** The campaigns deleted, kept by id so that nothing still working on one (planning, posting) brings it back. */
+    static final String DELETED = "deleted.txt";
+
+    /** Whether the campaign {@code id} was deleted (kept in {@code dir}, the campaigns folder). */
+    public static boolean deleted(File dir, String id) {
+        File f = new File(dir, DELETED);
+        if (id == null || !f.isFile()) {
+            return false;
+        }
+        try {
+            for (String line : Files.readAllLines(f.toPath(), StandardCharsets.UTF_8)) {
+                if (line.trim().equals(id)) {
+                    return true;
+                }
+            }
+        } catch (IOException ignored) {
+            // unreadable: treated as not deleted
+        }
+        return false;
     }
 
     private void load() {
@@ -61,6 +83,9 @@ public final class CampaignStore {
 
     /** Keeps a campaign (a new one, or a changed one replacing its old copy) and saves. */
     public synchronized void put(Campaign c) throws IOException {
+        if (deleted(file.getParentFile(), c.id)) {
+            return; // deleted: a planner or a posting run still holding it never writes it back
+        }
         all.removeIf(o -> o.id.equals(c.id));
         all.add(c);
         while (all.size() > MOST) {
@@ -79,6 +104,12 @@ public final class CampaignStore {
     }
 
     public synchronized void remove(String id) throws IOException {
+        File dir = file.getParentFile();
+        if (dir != null && !deleted(dir, id)) {
+            dir.mkdirs();
+            Files.write(new File(dir, DELETED).toPath(), (id + "\n").getBytes(StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        }
         all.removeIf(o -> o.id.equals(id));
         save();
     }

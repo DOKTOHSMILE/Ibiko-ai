@@ -35,7 +35,17 @@ public final class CampaignPlanner {
     /** What the planner is doing, for the screen ("Writing post 3 of 14"). */
     public interface Progress {
         void at(String what);
+
+        /**
+         * Posts are written into the campaign as they come back: {@code ready} of {@code total} so far, in time order,
+         * so they can be read while the rest are still being written. Called on the planning thread.
+         */
+        default void ready(Campaign c, int ready, int total) {
+        }
     }
+
+    /** How long one call for a batch of posts may take before its posts are counted as not written. */
+    static final long POST_WAIT_MINUTES = 8;
 
     public static final int MOST_POSTS = 120, MOST_DAYS = 90, MOST_PER_DAY = 6;
     /** A picture's HTML larger than this is dropped (the post goes out with words only). */
@@ -514,7 +524,6 @@ public final class CampaignPlanner {
         // own model, one call at a time, uses the built-in cards instead of spending a long call on a design
         // the pictures use Ibiko's designed layouts (one a theme in turn): more polished than a design written in one
         // call, and no call spent on it
-        final java.util.concurrent.Future<String> design = null;
         String reply;
         try {
             reply = brain.ask(OUTLINE_SYSTEM, outlinePrompt(c.brief, seats, c.days, c.perDay), 1500);
@@ -539,78 +548,50 @@ public final class CampaignPlanner {
         }
         final String brand = clip(c.brief.business.replaceAll("[,.(].*$", ""), 40);
         try {
-            // one picture design for the campaign, made alongside the strategy (not one a theme, nor one a post)
-            java.util.Map<String, java.util.concurrent.Future<String>> templates = new java.util.HashMap<String, java.util.concurrent.Future<String>>();
-            for (Slot slot : o.slots) {
-                if (design != null) {
-                    templates.put(slot.theme, design);
-                }
-            }
-            List<java.util.concurrent.Future<java.util.Map<Integer, String[]>>> batches = new ArrayList<java.util.concurrent.Future<java.util.Map<Integer, String[]>>>();
-            List<List<String[]>> asked = new ArrayList<List<String[]>>();
+            // every batch is asked at once (as many at a time as the brain takes) and handled as it comes back, not in
+            // order: a slow batch never holds back the finished ones, and each one's posts are in the plan at once
+            final java.util.concurrent.CompletionService<Done> back = new java.util.concurrent.ExecutorCompletionService<Done>(pool);
+            int pending = 0;
             for (int at = 0; at < o.slots.size(); at += BATCH) {
-                final List<String[]> part = new ArrayList<String[]>();
-                for (Slot slot : o.slots.subList(at, Math.min(o.slots.size(), at + BATCH))) {
-                    part.add(new String[]{network.get(slot.account), slot.theme, slot.angle
-                            + (slot.product >= 0 ? " (shows P" + (slot.product + 1) + ": " + c.brief.products.get(slot.product).name + ")" : "")});
+                final List<Integer> slots = new ArrayList<Integer>();
+                for (int i = at; i < Math.min(o.slots.size(), at + BATCH); i++) {
+                    slots.add(i);
                 }
-                asked.add(part);
-                batches.add(pool.submit(() -> posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 4000), part)));
+                back.submit(ask(brain, c, o, network, slots, false));
+                pending++;
             }
             int n = 0;
-            for (int b = 0; b < batches.size(); b++) {
+            final int total = o.slots.size();
+            say(progress, "Writing " + total + " posts");
+            while (pending > 0) {
                 if (stop != null && stop.getAsBoolean()) {
                     return "Stopped.";
                 }
-                int from = b * BATCH;
-                say(progress, "Writing posts " + (from + 1) + "\u2013" + Math.min(o.slots.size(), from + BATCH) + " of " + o.slots.size());
-                java.util.Map<Integer, String[]> got;
+                java.util.concurrent.Future<Done> f;
                 try {
-                    got = batches.get(b).get(10, java.util.concurrent.TimeUnit.MINUTES);
+                    f = back.poll(POST_WAIT_MINUTES, java.util.concurrent.TimeUnit.MINUTES);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                if (f == null) {
+                    break; // nothing came back in the time a batch may take: what is left is counted as not written
+                }
+                pending--;
+                Done d;
+                try {
+                    d = f.get();
                 } catch (Exception e) {
-                    got = new java.util.HashMap<Integer, String[]>();
+                    continue;
                 }
-                // posts the brain left out or couldn't write (a busy server, a cut-off reply): asked for once more
                 List<Integer> missing = new ArrayList<Integer>();
-                for (int i = 0; i < asked.get(b).size(); i++) {
-                    if (!got.containsKey(i)) {
-                        missing.add(i);
-                    }
-                }
-                if (!missing.isEmpty() && (stop == null || !stop.getAsBoolean())) {
-                    List<String[]> again = new ArrayList<String[]>();
-                    for (int i : missing) {
-                        again.add(asked.get(b).get(i));
-                    }
-                    say(progress, "Writing posts again that didn't come back (" + missing.size() + ")");
-                    java.util.Map<Integer, String[]> second;
-                    try {
-                        second = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, again), 4000), again);
-                    } catch (RuntimeException e) {
-                        second = new java.util.HashMap<Integer, String[]>();
-                    }
-                    for (int k = 0; k < missing.size(); k++) {
-                        if (second.containsKey(k)) {
-                            got.put(missing.get(k), second.get(k));
-                        } else {
-                            c.unwritten++;
-                        }
-                    }
-                }
-                for (int i = 0; i < asked.get(b).size(); i++) {
-                    String[] p = got.get(i);
+                for (int k = 0; k < d.slots.size(); k++) {
+                    String[] p = d.got.get(k);
                     if (p == null) {
+                        missing.add(d.slots.get(k));
                         continue;
                     }
-                    Slot slot = o.slots.get(from + i);
-                    String tpl;
-                    try {
-                        java.util.concurrent.Future<String> f = templates.get(slot.theme);
-                        tpl = f == null ? "" : f.get(5, java.util.concurrent.TimeUnit.MINUTES);
-                    } catch (Exception e) {
-                        tpl = "";
-                    }
-
+                    Slot slot = o.slots.get(d.slots.get(k));
                     n++;
                     Campaign.Item it = new Campaign.Item();
                     it.id = c.id + "-" + n;
@@ -630,7 +611,23 @@ public final class CampaignPlanner {
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }
+                if (!missing.isEmpty()) {
+                    if (!d.again && (stop == null || !stop.getAsBoolean())) {
+                        // posts the brain left out or couldn't write (a busy server, a cut-off reply): asked once more,
+                        // alongside the rest, never waited for in line
+                        back.submit(ask(brain, c, o, network, missing, true));
+                        pending++;
+                    } else {
+                        c.unwritten += missing.size();
+                    }
+                }
+                c.items.sort((x, y) -> Long.compare(x.at, y.at));
+                say(progress, "Writing posts: " + c.items.size() + " of " + total + " ready to read");
+                if (progress != null && !d.got.isEmpty()) {
+                    progress.ready(c, c.items.size(), total);
+                }
             }
+            c.unwritten = Math.max(c.unwritten, total - c.items.size());
             if (workers > 1) {
                 designAll(c, brain, progress, stop, pool);
             }
@@ -639,6 +636,39 @@ public final class CampaignPlanner {
         }
         c.items.sort((a, b) -> Long.compare(a.at, b.at));
         return c.items.isEmpty() ? "No post could be written. Try again." : null;
+    }
+
+    /** One batch's answer: which slots it was for, the posts that came back (by place in the batch), and if a retry. */
+    static final class Done {
+        final List<Integer> slots;
+        final java.util.Map<Integer, String[]> got;
+        final boolean again;
+
+        Done(List<Integer> slots, java.util.Map<Integer, String[]> got, boolean again) {
+            this.slots = slots;
+            this.got = got;
+            this.again = again;
+        }
+    }
+
+    /** The call that writes the posts for these slots; never throws (a failed call is a batch with nothing back). */
+    private static java.util.concurrent.Callable<Done> ask(final Brain brain, final Campaign c, final Outline o,
+            final java.util.Map<String, String> network, final List<Integer> slots, final boolean again) {
+        final List<String[]> part = new ArrayList<String[]>();
+        for (int i : slots) {
+            Slot slot = o.slots.get(i);
+            part.add(new String[]{network.get(slot.account), slot.theme, slot.angle
+                    + (slot.product >= 0 ? " (shows P" + (slot.product + 1) + ": " + c.brief.products.get(slot.product).name + ")" : "")});
+        }
+        return () -> {
+            java.util.Map<Integer, String[]> got;
+            try {
+                got = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 4000), part);
+            } catch (RuntimeException e) {
+                got = new java.util.HashMap<Integer, String[]>();
+            }
+            return new Done(slots, got == null ? new java.util.HashMap<Integer, String[]>() : got, again);
+        };
     }
 
     /** The moment of day {@code day} (1 is the start day) at {@code minute}, in the phone's time zone. */

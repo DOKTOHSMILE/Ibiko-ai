@@ -200,12 +200,41 @@ public final class CampaignStudio {
                 c.brief.lessons = "";
             }
             final boolean api = api(app);
+            final java.util.Set<String> shown = new java.util.HashSet<String>();
+            final int[] told = {0};
+            CampaignPlanner.Progress progress = new CampaignPlanner.Progress() {
+                @Override
+                public void at(String what) {
+                    CampaignDraft.at(app, c.id, title, what);
+                }
+
+                @Override
+                public void ready(Campaign plan, int ready, int total) {
+                    // the posts written so far go on the phone at once, to read and edit while the rest are written
+                    publish(app, plan, shown);
+                    int quarter = Math.max(1, total / 4);
+                    if (told[0] == 0 || ready - told[0] >= quarter) {
+                        chat.add(CampaignChat.STUDIO, "text", (told[0] == 0 ? "The first posts are ready: " : "More posts are ready: ")
+                                + ready + " of " + total + ". Tap “All posts” to read them and tell me what to change while I"
+                                + " write the rest. Nothing is posted before you approve.", System.currentTimeMillis());
+                        told[0] = ready;
+                    }
+                }
+            };
             String why;
             try {
-                why = CampaignPlanner.build(c, seats(app, c, true), brain, line -> CampaignDraft.at(app, c.id, title, line),
+                why = CampaignPlanner.build(c, seats(app, c, true), brain, progress,
                         () -> CampaignDraft.isStopped(c.id), TimeZone.getDefault(), api ? CampaignPlanner.WORKERS : 1);
             } catch (RuntimeException e) {
                 why = "something went wrong while planning (" + e.getClass().getSimpleName() + ")";
+            }
+            if (!shown.isEmpty()) {
+                publish(app, c, shown); // the last posts in, on top of any edits made while planning
+                Campaign kept = CampaignRunner.store(app).get(c.id);
+                if (kept != null) {
+                    c.items.clear();
+                    c.items.addAll(kept.items);
+                }
             }
             boolean stopped = CampaignDraft.isStopped(c.id);
             if (why == null && !stopped) {
@@ -222,6 +251,18 @@ public final class CampaignStudio {
                 stopped = CampaignDraft.isStopped(c.id);
             }
             CampaignDraft.finished(app, c.id);
+            if ((why != null || stopped) && !c.items.isEmpty()) {
+                // stopped or cut short with posts already written: they are kept to review, never thrown away
+                c.unwritten = Math.max(c.unwritten, 0);
+                save(app, c);
+                chat.add(CampaignChat.STUDIO, "plan", (stopped ? "Planning stopped. " : "Planning ended early (" + why + "). ")
+                        + c.items.size() + (c.items.size() == 1 ? " post is" : " posts are") + " written and kept: tap “All posts”"
+                        + " to review them. Say “add the missing posts” to write the rest. Nothing was posted.",
+                        System.currentTimeMillis());
+                CampaignDraft.show(app, c.id, "“" + title + "”: " + c.items.size() + " posts to review",
+                        "Planning " + (stopped ? "stopped" : "ended early") + "; the posts written are kept. Nothing was posted.", false);
+                return;
+            }
             if (why != null || stopped) {
                 c.items.clear(); // a draft with no plan: shown as "Planning stopped", to plan again or delete
                 save(app, c);
@@ -260,6 +301,33 @@ public final class CampaignStudio {
             }
         }
         return CampaignRunner.redraw(app, camp, it, null);
+    }
+
+    /**
+     * Puts the posts written so far on the phone, keeping what the person did meanwhile: a post already shown stays as
+     * they left it (edited, or taken out), and only posts not shown before are added. {@code shown} remembers which.
+     */
+    static synchronized void publish(Context app, Campaign plan, java.util.Set<String> shown) {
+        Campaign stored = CampaignRunner.store(app).get(plan.id);
+        Campaign out = stored != null ? stored : plan;
+        if (stored != null) {
+            stored.name = plan.name;
+            stored.themes.clear();
+            stored.themes.addAll(plan.themes);
+            stored.searches.clear();
+            stored.searches.addAll(plan.searches);
+            stored.unwritten = plan.unwritten;
+            for (Campaign.Item it : plan.items) {
+                if (!shown.contains(it.id)) {
+                    stored.items.add(it);
+                }
+            }
+            stored.items.sort((x, y) -> Long.compare(x.at, y.at));
+        }
+        for (Campaign.Item it : plan.items) {
+            shown.add(it.id);
+        }
+        save(app, out);
     }
 
     private static void save(Context app, Campaign c) {

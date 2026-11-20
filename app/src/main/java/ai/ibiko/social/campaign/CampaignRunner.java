@@ -47,20 +47,45 @@ public final class CampaignRunner extends BroadcastReceiver {
         return new Catalog(new File(c.getFilesDir(), "catalog"));
     }
 
+    /** A run is going: an alarm that comes meanwhile steps aside (the run sets the next alarm when it ends). */
+    private static final java.util.concurrent.atomic.AtomicBoolean RUNNING = new java.util.concurrent.atomic.AtomicBoolean();
+    /** If a run is cut off (the app killed mid-post), this alarm comes back for it. */
+    static final long SAFETY_MS = 15 * 60_000L;
+
     @Override
     public void onReceive(Context c, Intent intent) {
-        final PendingResult later = goAsync(); // posting waits for the page: off the main thread
         final Context app = c.getApplicationContext();
+        if (!RUNNING.compareAndSet(false, true)) {
+            return; // one run at a time; a second waiting on the first held the alarm open until Android said "not responding"
+        }
+        // posting waits for pages and for each post to show (minutes): it runs on its own thread, and the alarm's
+        // broadcast is let go at once rather than held open for all of it (which froze the app on a long run)
+        safety(app, System.currentTimeMillis() + SAFETY_MS);
         new Thread(() -> {
             try {
                 run(app, System.currentTimeMillis());
                 LeadSender.remind(app, System.currentTimeMillis()); // pitches waiting for a follow-up
             } catch (RuntimeException e) {
-                // the next alarm tries again
+                // the safety alarm tries again
             } finally {
-                later.finish();
+                RUNNING.set(false);
             }
         }, "ibiko-campaign").start();
+    }
+
+    /** The alarm, set for exactly {@code at}: replaced by {@link #arm} when the run ends. */
+    static void safety(Context c, long at) {
+        AlarmManager am = c.getSystemService(AlarmManager.class);
+        if (am == null) {
+            return;
+        }
+        PendingIntent fire = PendingIntent.getBroadcast(c, 1, new Intent(c, CampaignRunner.class).setAction(DUE),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        try {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, fire);
+        } catch (RuntimeException ignored) {
+            // the run's own alarm still comes
+        }
     }
 
     /** One run: every due post that can go now, one an account; then the next alarm. */
@@ -358,6 +383,8 @@ public final class CampaignRunner extends BroadcastReceiver {
 
     /** Deletes a campaign with its leads and results; posts already out stay on the networks. */
     public static void delete(Context c, Campaign camp) {
+        CampaignDraft.stop(camp.id); // planning it stops at the next post, and what it writes after is refused
+        CampaignDraft.cancel(c, camp.id);
         try {
             store(c).remove(camp.id);
             LeadSender.store(c).forget(camp.id);
