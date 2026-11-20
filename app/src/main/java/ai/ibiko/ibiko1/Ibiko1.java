@@ -478,6 +478,10 @@ public final class Ibiko1 {
         final Context.Resolved withContext = pasted != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
         final String t = withContext.text;
+        if (leadIn == null) {
+            previous = current; // a message's own rest (after "I'm a man, …") isn't a new question
+            current = message;
+        }
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
         rolesStep = roleStep(t);
         if (pasted == null) {
@@ -489,7 +493,7 @@ public final class Ibiko1 {
         worker = Plug.workers.start(cap(who) + " · " + NAME, t, NAME);
         how = How.OTHER;
         critical = ai.ibiko.ibiko1.formulas.Critical.read(t); // K1–K8: what it asks and what it takes for granted
-        times = Phrasing.heard(t); // a question asked again is answered as a person would, not word for word
+        times = Phrasing.heard(askedHere, t); // a question asked again (in this chat) is answered as a person would
         kind = Methods.kind(t);
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
@@ -571,15 +575,53 @@ public final class Ibiko1 {
             });
             return;
         }
+        // what the person says about themselves ("I'm a man", "my name is Ada", "I live in Lagos"): understood, kept and
+        // said back; the rest of the message ("…, what are you?") is answered after it
+        if (pasted == null) {
+            List<String> parts = SelfModel.clauses(t);
+            StringBuilder took = new StringBuilder();
+            List<String> rest = new ArrayList<String>();
+            for (String part : parts) {
+                String ack = person().heard(part);
+                if (ack != null) {
+                    took.append(took.length() == 0 ? "" : " ").append(ack);
+                } else {
+                    rest.add(part);
+                }
+            }
+            if (took.length() > 0) {
+                if (rest.isEmpty()) {
+                    final String ack = took.toString();
+                    think(Arrays.asList("Reading what you said", "That's about you: keeping it"), () -> saysPlain(who, ack));
+                    return;
+                }
+                leadIn = took.toString(); // said first, then the answer to the rest
+                answer(String.join(" ", rest));
+                return;
+            }
+        }
+        // a question about the person ("who am I?", "what's my name?", "what do you know about me?")
+        final String aboutYou = person().asked(t, host.aboutPilot());
+        if (aboutYou != null) {
+            think(Arrays.asList("Reading your question", "That's about you", "Recalling what you told me"), () -> saysPlain(who, aboutYou));
+            return;
+        }
+        // a question about Ibiko itself: answered from its picture of itself, never from an article on one of its words
+        final String me = SelfModel.reply(t, selfState(), encyclopedia());
+        if (me != null) {
+            think(Arrays.asList("Reading your question", "That's about me", "Checking what I am and what I can do right now"),
+                    () -> saysPlain(who, me));
+            return;
+        }
         final String self = aboutMe(t);
         if (self != null) {
             think(Arrays.asList("Reading your question", "Looking through my memory"), () -> saysPlain(who, self));
             return;
         }
-        // a question put to Ibiko itself ("where are you from", "can you cook"): answered as itself, not from an article
-        final String asMe = SelfTalk.reply(t);
-        if (asMe != null) {
-            think(Arrays.asList("Reading your question", "That's about me"), () -> saysPlain(who, asMe));
+        // any other question about Ibiko itself ("do you dream?", "what's your purpose?"): honest, as itself
+        if (SelfModel.aboutSelf(t)) {
+            final String honest = SelfModel.fallback(t);
+            think(Arrays.asList("Reading your question", "That's about me"), () -> saysPlain(who, honest));
             return;
         }
         // a letter, note, email or message to write: put together offline, with blanks for what only the writer knows
@@ -1181,7 +1223,10 @@ public final class Ibiko1 {
                 + "\n\nIf you tell me which part you need, I'll work from there.";
     }
 
-    private void says(String who, String text) {
+    private void says(String who, String reply) {
+        String lead = leadIn;
+        leadIn = null;
+        String text = lead == null ? reply : lead + " " + reply; // "Got it, you're a man. I'm Ibiko, …"
         String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
         lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all; // what was said lately
         host.stepsDone();
@@ -1250,6 +1295,46 @@ public final class Ibiko1 {
         return list.length() == 0 ? null : "More about " + a.title.replaceFirst("\\s*\\([^()]+\\)$", "") + ":" + list;
     }
 
+    /** What the person said about themselves, said before the answer to the rest of their message. */
+    private volatile String leadIn;
+    /** The person Ibiko talks with, as they described themselves. */
+    private Person person;
+    /** The message before this one, for "what did I just ask?". */
+    private volatile String previous, current;
+
+    synchronized Person person() {
+        if (person == null) {
+            person = new Person(dir);
+        }
+        return person;
+    }
+
+    /** What Ibiko can tell about itself right now, for its picture of itself ({@link SelfModel}). */
+    private SelfModel.State selfState() {
+        final long now = System.currentTimeMillis();
+        return new SelfModel.State() {
+            @Override public boolean online() { return host.online(); }
+            @Override public boolean modelReady() { return host.modelReady(); }
+            @Override public int words() { return lexicon().size(); }
+            @Override public int factsRead() { return facts().size(); }
+            @Override public int confirmed() { return knowledge().confirmed().size(); }
+            @Override public String focus() {
+                Context.Focus f = context.focus(now);
+                return f == null ? null : f.name;
+            }
+            @Override public String pasted() {
+                Passage p = passage;
+                return p != null && p.fresh(now) ? p.about() : null;
+            }
+            @Override public int asked() { return askedHere.size(); }
+            @Override public String lastQuestion() { return previous; }
+            @Override public String personName() { return person().name() != null ? person().name() : host.pilotName(); }
+        };
+    }
+
+    /** The questions asked in this conversation (one brain per chat), for "as I mentioned a moment ago". */
+    private final java.util.Map<String, Integer> askedHere = Phrasing.conversation();
+
     /** What the conversation is about (per brain: one chat). */
     private final Context context = new Context();
     /** The steps that say how the message was read: the context put in, and its roles. */
@@ -1271,7 +1356,7 @@ public final class Ibiko1 {
      * the words that named it, and its kind (he, she, it, they, a place).
      */
     private void noteFocus(String t, long now) {
-        if (t == null || SelfTalk.toMe(t) || !EncyclopediaQA.question(t) && !t.matches("(?i)^(tell me|explain|describe)\\b.*")) {
+        if (t == null || SelfTalk.toMe(t) || t.matches("(?i).*\\b(we|us|our)\\b.*") || !EncyclopediaQA.question(t) && !t.matches("(?i)^(tell me|explain|describe)\\b.*")) {
             return;
         }
         Passage held = passage;
@@ -1353,11 +1438,6 @@ public final class Ibiko1 {
                         .append(shapes).append(shapes == 1 ? " action shape." : " action shapes.");
             }
             return b.toString();
-        }
-        if (q.matches("(?s)\\s*(who|what) are you\\??\\s*|.*\\bwhat can you do\\b.*")) {
-            return "I'm " + NAME + ", Ibiko's own brain, running on this device with no model loaded. I work out sums exactly,"
-                    + " answer what you've confirmed before however it's asked, research what I don't know and learn from your"
-                    + " check and cancel. For open-ended writing or reasoning, pick an API or offline model: I learn from them too.";
         }
         return null;
     }

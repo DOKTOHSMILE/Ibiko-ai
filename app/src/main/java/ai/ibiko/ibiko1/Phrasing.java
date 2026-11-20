@@ -26,10 +26,27 @@ final class Phrasing {
 
     /** Counts a question and says how many times it was asked before (0 the first time). */
     static synchronized int heard(String q) {
-        String k = key(q);
-        Integer n = asked.get(k);
-        asked.put(k, n == null ? 1 : n + 1);
-        return n == null ? 0 : n;
+        return heard(asked, q);
+    }
+
+    /** The questions one conversation has asked, so "as I mentioned" is never said in a chat that didn't hear it. */
+    static Map<String, Integer> conversation() {
+        return new java.util.LinkedHashMap<String, Integer>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, Integer> e) {
+                return size() > 200;
+            }
+        };
+    }
+
+    /** Counts a question in {@code memory} and says how many times it was asked there before (0 the first time). */
+    static int heard(Map<String, Integer> memory, String q) {
+        synchronized (memory) {
+            String k = key(q);
+            Integer n = memory.get(k);
+            memory.put(k, n == null ? 1 : n + 1);
+            return n == null ? 0 : n;
+        }
     }
 
     /** The same answer to a question asked again, said as a person would. */

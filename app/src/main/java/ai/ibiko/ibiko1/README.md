@@ -29,6 +29,15 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   sentence of an article with the same action and object, active or passive ("painted in oil by Leonardo da Vinci");
 - works out units, dates and percentages exactly (`Everyday`): "convert 5 km to miles", "how many days until
   Christmas", "what day of the week was 1 October 1960", "15% of 200";
+- knows itself (`SelfModel`): what it is, what it can do right now (from what is loaded and plugged in), how it works,
+  its state (online, a model on the phone, what this chat is about, what was just asked), and an honest view of its
+  feelings and opinions; any question put to it is answered as itself, never from an article on one of its words;
+- knows the person (`Person`): "I'm a man", "my name is Emeka", "I live in Lagos", "I like football", "I'm tired" are
+  understood, kept and said back; "who am I?" and "what do you know about me?" are answered from them. "I'm a man,
+  what are you?" is both: the person's part is taken in, then the question answered;
+- reads every way a thing is said as one (`Paraphrase`): slang ("wat r u"), contractions, greetings and fillers, its own
+  name, polite wrappers ("can you tell me…") and synonyms ("chat about", "discuss") are brought to one plain form before
+  the rules read it. `ManyWaysTest` says each message over 250,000 ways and checks every one reaches the same answer;
 - answers questions put to itself as itself (`SelfTalk`): "Where are you from?", "Can you cook?", "Are you human?";
 - writes short letters, notes, emails and messages offline (`Letters`), in the tone that suits who they're to, with
   blanks in [brackets] for what only the writer knows;
