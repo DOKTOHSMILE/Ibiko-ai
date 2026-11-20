@@ -137,6 +137,11 @@ public final class Grammar {
         return out;
     }
 
+    /** The base of an irregular past form ("won" → "win", "wrote" → "write"), or null when it isn't one. */
+    public static String irregular(String word) {
+        return word == null ? null : IRREGULAR.get(word.toLowerCase(Locale.US));
+    }
+
     /** A verb's base form: "founded" → "found", "invented" → "invent", "wrote" → "write", "studies" → "study". */
     public static String base(String verb) {
         String v = verb == null ? "" : verb.toLowerCase(Locale.US).trim();
