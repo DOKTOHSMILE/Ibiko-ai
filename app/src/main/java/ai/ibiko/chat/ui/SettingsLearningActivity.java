@@ -13,7 +13,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import ai.ibiko.llm.LocalModel;
 import ai.ibiko.llm.ModelHub;
 
-/** Settings \u203A Ibiko 1 and learning: its own screen and layout (activity_settings_learning.xml), opened from the list of sections. */
+/** Settings \u203A Ibiko v1 and learning: its own screen and layout (activity_settings_learning.xml), opened from the list of sections. */
 public class SettingsLearningActivity extends SettingsActivity {
     @Override
     protected int layoutRes() {
@@ -22,13 +22,13 @@ public class SettingsLearningActivity extends SettingsActivity {
 
     @Override
     protected String sectionTitle() {
-        return "Ibiko 1 and learning";
+        return "Ibiko v1 and learning";
     }
 
     @Override
     protected void buildSection() {
-            // ---- Ibiko 1, the work in the chat, and actions (in step with the model menu and the tools sheet)
-            LinearLayout own = group("Ibiko 1 and learning", "The brain in use, the learning schedule, training file");
+            // ---- Ibiko v1, the work in the chat, and actions (in step with the model menu and the tools sheet)
+            LinearLayout own = group("Ibiko v1 and learning", "The brain in use, the learning schedule, training file");
             String pick = prefs.getString("brain_pick", "api");
             own.addView(Ui.text(this, "Answering now: " + ("ibiko".equals(pick) ? ai.ibiko.ibiko1.Ibiko1.NAME : "device".equals(pick)
                     ? "the offline model" : "your API models") + ". Change it from the model name under the chat's title.", 14, Ui.SUB, false));
@@ -49,10 +49,10 @@ public class SettingsLearningActivity extends SettingsActivity {
                 android.widget.Toast.makeText(this, "Learning now. The Workload sheet shows it.", android.widget.Toast.LENGTH_SHORT).show();
             });
             own.addView(learnNow, Ui.wide(this, 10));
-            android.view.View train = Ui.button(this, "Export Ibiko 1's training file", false);
+            android.view.View train = Ui.button(this, "Export Ibiko v1's training file", false);
             train.setOnClickListener(v -> exportTraining());
             own.addView(train, Ui.wide(this, 8));
-            own.addView(Ui.text(this, "Everything Ibiko 1 learned (confirmed answers, facts, words) as a JSONL file in Downloads/Ibiko,"
+            own.addView(Ui.text(this, "Everything Ibiko v1 learned (confirmed answers, facts, words) as a JSONL file in Downloads/Ibiko,"
                     + " for training a model of your own.", 13, Ui.SUB, false), Ui.wide(this, 6));
 
             // ---- imported knowledge: reviewed datasets (a dictionary, relations) that every model is given for the
@@ -77,7 +77,7 @@ public class SettingsLearningActivity extends SettingsActivity {
                     + " Relations need subject, predicate and object. You say the licence; nothing is downloaded.", 13, Ui.SUB, false),
                     Ui.wide(this, 6));
             android.view.View clear = Ui.button(this, "Remove imported knowledge", false);
-            clear.setOnClickListener(v -> confirm("Remove every imported dataset? What Ibiko 1 learned from you stays.", () ->
+            clear.setOnClickListener(v -> confirm("Remove every imported dataset? What Ibiko v1 learned from you stays.", () ->
                     new Thread(() -> {
                         store().clearImported();
                         runOnUiThread(this::fillKnowledge);

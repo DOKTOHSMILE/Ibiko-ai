@@ -56,7 +56,7 @@ final class ThinkTurns {
         final String chatKey = a.chatContextKey();
         final String comprehension = ai.ibiko.suit.ConversationContext.build(a.ibiko1(), a.cortex(),
                 question, question, chatKey, a.chatSpace());
-        // Keep this route aligned with the ordinary model route: Ibiko 1's UCL, settled evidence, foresight,
+        // Keep this route aligned with the ordinary model route: Ibiko v1's UCL, settled evidence, foresight,
         // critical reading and Wisdom all accompany the selected model. None of these notes is an executable action.
         final String premeditation = a.ibiko1().premeditate(question, chatKey);
         final String wisdom = a.cortex().wisdomContext(question);

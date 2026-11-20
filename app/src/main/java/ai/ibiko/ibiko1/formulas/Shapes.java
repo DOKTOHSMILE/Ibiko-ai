@@ -7,7 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Sentence shapes: how Ibiko 1 learns new ways a fact is written. When a sentence holds a fact it already knows (a
+ * Sentence shapes: how Ibiko v1 learns new ways a fact is written. When a sentence holds a fact it already knows (a
  * subject and its value), the two words on each side of the value become a shape with the value masked ("was born in
  * {V} ,"). Each shape is then tried on everything it reads; it is promoted to a reading rule once it has proved right,
  * and pruned when it keeps being wrong or goes unused.

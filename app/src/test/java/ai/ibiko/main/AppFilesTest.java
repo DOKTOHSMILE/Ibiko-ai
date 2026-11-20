@@ -72,4 +72,34 @@ public class AppFilesTest {
         assertFalse(AppFiles.ready(files));
         assertEquals("the pilot is never told the file's name", "Downloading app files", AppFiles.TITLE);
     }
+
+    @Test
+    public void filesCarriedInTheAppNeedNoInternet() throws Exception {
+        File files = Files.createTempDirectory("files").toFile();
+        // the app's own assets: the table and the voice the build put inside it
+        java.util.function.Function<String, java.io.InputStream> assets = name -> {
+            try {
+                if (name.equals("appfiles/" + GZ.getName())) {
+                    return new FileInputStream(GZ);
+                }
+                if (name.equals("appfiles/tiny-voice.tar.bz2")) {
+                    return new FileInputStream(new File("src/test/resources/voice/tiny-voice.tar.bz2"));
+                }
+            } catch (IOException e) {
+                return null;
+            }
+            return null;
+        };
+        AppFiles.Source noInternet = (url, from, length) -> {
+            throw new IOException("no internet: " + url);
+        };
+        AppFiles.fetch(files, AppFiles.bundled(assets, noInternet), null, ai.ibiko.voice.VoicePacksTest.TINY);
+        assertTrue("set up from inside the app, offline", AppFiles.ready(files, ai.ibiko.voice.VoicePacksTest.TINY));
+        try {
+            AppFiles.bundled(name -> null, noInternet).open("https://example.org/missing.bz2", 0, new long[2]);
+            fail("a file the app doesn't carry comes from the fallback");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("no internet"));
+        }
+    }
 }

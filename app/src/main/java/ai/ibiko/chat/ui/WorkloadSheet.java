@@ -33,7 +33,7 @@ public final class WorkloadSheet {
     }
 
     /**
-     * {@code brain}: the brain answering now (its name in the header); {@code own}: Ibiko 1 is answering, which has no
+     * {@code brain}: the brain answering now (its name in the header); {@code own}: Ibiko v1 is answering, which has no
      * context window to fill.
      */
     public static Dialog show(final Activity a, final LocalModel model, final String brain, final boolean own) {
@@ -71,7 +71,7 @@ public final class WorkloadSheet {
             body.addView(who, Ui.wide(a, 4));
         }
 
-        // ---- context window (a model's working memory; Ibiko 1 has none to fill)
+        // ---- context window (a model's working memory; Ibiko v1 has none to fill)
         body.addView(label(a, "Context"));
         LinearLayout card = card(a);
         int heat;
@@ -82,7 +82,7 @@ public final class WorkloadSheet {
             top.addView(Ui.text(a, "never fills", 15, Ui.SUB, false));
             card.addView(top);
             card.addView(bar(a, 0f, heat), Ui.wide(a, 12));
-            card.addView(Ui.text(a, "Ibiko 1 answers from what it has learned and from research, without a context window,"
+            card.addView(Ui.text(a, "Ibiko v1 answers from what it has learned and from research, without a context window,"
                     + " so nothing here fills up or needs clearing.", 13, Ui.SUB, false), Ui.wide(a, 8));
             ai.ibiko.ibiko1.Knowledge k = ai.ibiko.ibiko1.Store.knowledge(new java.io.File(a.getFilesDir(), "brain"));
             card.addView(row(a, "Answers you confirmed", String.valueOf(k.size())), Ui.wide(a, 10));
@@ -210,7 +210,7 @@ public final class WorkloadSheet {
         today.addView(row(a, "Tokens written", tokens(model.usage.outToday(t))), Ui.wide(a, 6));
         today.addView(row(a, "Failed replies", String.valueOf(model.usage.failedToday(t))), Ui.wide(a, 6));
         int mine = model.usage.ownToday(t);
-        today.addView(row(a, "Ibiko 1 answers", mine == 0 ? "0" : mine + " (" + model.usage.ownMemoryToday(t) + " from memory, "
+        today.addView(row(a, "Ibiko v1 answers", mine == 0 ? "0" : mine + " (" + model.usage.ownMemoryToday(t) + " from memory, "
                 + model.usage.ownResearchToday(t) + " researched)"), Ui.wide(a, 6));
         body.addView(today, Ui.wide(a, 4));
     }

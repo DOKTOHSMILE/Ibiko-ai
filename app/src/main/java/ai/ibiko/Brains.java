@@ -214,7 +214,7 @@ final class Brains {
         return a.prefs == null ? "api" : a.prefs.getString("brain_pick", "api");
     }
 
-    /** Ibiko 1.0: Ibiko's own intelligence (the Cortex and what it learned), with no model loaded at all. */
+    /** Ibiko v1.0: Ibiko's own intelligence (the Cortex and what it learned), with no model loaded at all. */
     boolean ibikoOwn() {
         return "ibiko".equals(brainPick());
     }
@@ -252,7 +252,7 @@ final class Brains {
 
     void loadModel(final boolean tell) {
         if (!tell && ibikoOwn()) {
-            return; // Ibiko 1.0 answers on its own: no model is loaded
+            return; // Ibiko v1.0 answers on its own: no model is loaded
         }
         if (!tell && a.model != null && a.model.remoteOn()) {
             // an API answers (and the user didn't ask to start it): the offline model is not loaded ahead of time. It loads when an answer needs it

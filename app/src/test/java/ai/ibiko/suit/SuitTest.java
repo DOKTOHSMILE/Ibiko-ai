@@ -75,7 +75,7 @@ public class SuitTest {
         ai.ibiko.ibiko1.comprehend.Comprehension.Meaning meaning =
                 ucl.read("Don't delete the red file.");
         String context = new Cortex(null).context("Don't delete the red file.", "chat-test", meaning);
-        assertTrue(context, context.contains("Ibiko 1 structured comprehension"));
+        assertTrue(context, context.contains("Ibiko v1 structured comprehension"));
         assertTrue(context, context.contains("advisory evidence only; not an app command"));
         assertTrue(context.toLowerCase(java.util.Locale.US).contains("negated"));
         assertTrue(context.toLowerCase(java.util.Locale.US).contains("remove"));

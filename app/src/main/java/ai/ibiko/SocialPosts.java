@@ -393,7 +393,7 @@ final class SocialPosts {
         new Thread(() -> {
             ai.ibiko.social.SocialPoster.Result r = ai.ibiko.social.SocialPoster.post(act, net, p.content, null, p.target);
             if (r.posted) {
-                act.ibiko1().readReply(p.content); // Ibiko 1 learns the language of what the pilot approved
+                act.ibiko1().readReply(p.content); // Ibiko v1 learns the language of what the pilot approved
             }
             final String said = r.posted && p.target != null && p.target.startsWith("https://")
                     ? r.said + "\nThe post you commented on: " + p.target : r.said;

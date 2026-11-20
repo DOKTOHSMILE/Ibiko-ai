@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.TimeZone;
 
 /**
- * Runs Ibiko 1's learning sessions ({@link LearningSchedule}) in the pilot's hours (or now): the job scheduler starts it when the hours
+ * Runs Ibiko v1's learning sessions ({@link LearningSchedule}) in the pilot's hours (or now): the job scheduler starts it when the hours
  * opens and the network (Wi-Fi if asked) and charging (if asked) allow; it learns one topic at a time, stops when the
  * hours end or Android asks, writes a report for afterwards, and plans the next session.
  */
@@ -102,7 +102,7 @@ public final class LearningJob extends JobService {
         return d;
     }
 
-    /** A question Ibiko 1 couldn't answer (or got wrong) today: it is learned first tonight. */
+    /** A question Ibiko v1 couldn't answer (or got wrong) today: it is learned first tonight. */
     public static synchronized void remember(Context c, String question) {
         String q = question == null ? "" : question.trim().replace('\n', ' ');
         if (q.length() < 3 || q.length() > 200) {
@@ -147,7 +147,7 @@ public final class LearningJob extends JobService {
     }
 
     /**
-     * Ibiko 1's research for one question: the subject's own encyclopedia summary for "what/who is X", else the web
+     * Ibiko v1's research for one question: the subject's own encyclopedia summary for "what/who is X", else the web
      * search's sentences that answer it. Blocking; off the main thread.
      */
     public static ResearchAnswer research(Context c, String question) {

@@ -109,7 +109,7 @@ public final class UsageActivity extends AppCompatActivity {
         float speed = log.speedToday(now);
         today.addView(row("Average speed", speed <= 0 ? "-" : String.format(Locale.US, "%.1f tokens a second", speed)), Ui.wide(this, 8));
         today.addView(row("Failed replies", String.valueOf(log.failedToday(now))), Ui.wide(this, 8));
-        today.addView(row("Ibiko 1 answers", String.valueOf(log.ownToday(now))), Ui.wide(this, 8));
+        today.addView(row("Ibiko v1 answers", String.valueOf(log.ownToday(now))), Ui.wide(this, 8));
         today.addView(row("  from its memory", String.valueOf(log.ownMemoryToday(now))), Ui.wide(this, 6));
         today.addView(row("  researched", String.valueOf(log.ownResearchToday(now))), Ui.wide(this, 6));
         today.addView(Ui.text(this, "Resets at midnight. API spending and limits are on your provider's own dashboard.", 13, Ui.SUB, false),
@@ -119,11 +119,11 @@ public final class UsageActivity extends AppCompatActivity {
         // ---- model
         section("Model");
         LinearLayout brain = card();
-        // the brain the pilot picked in the model menu: Ibiko 1, the offline model, or the API models
+        // the brain the pilot picked in the model menu: Ibiko v1, the offline model, or the API models
         String pick = getSharedPreferences("ibiko", MODE_PRIVATE).getString("brain_pick", "api");
         java.util.List<Providers> apis = store.usable();
         boolean api = "api".equals(pick) && !apis.isEmpty();
-        String answers = "ibiko".equals(pick) ? "Ibiko 1 \u00B7 0.1 (Ibiko's own)"
+        String answers = "ibiko".equals(pick) ? "Ibiko v1 \u00B7 0.0.1 (Ibiko's own)"
                 : api ? apis.get(0).title + ": " + store.model(apis.get(0)) + (store.connected(apis.get(0)) ? "" : " (not tested yet)")
                         + (apis.size() > 1 ? " +" + (apis.size() - 1) + " backup" : "")
                 : "On this device: " + hub.model.spec.weights;

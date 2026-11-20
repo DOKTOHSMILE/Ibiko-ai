@@ -7,7 +7,7 @@ a few dozen MB) trained off the device and laid over the frozen weights when the
 
 The loop:
 
-1. **Ibiko learns as it runs.** Ibiko 1 answers from its own memory (IBK); what it doesn't hold, it asks the device's
+1. **Ibiko learns as it runs.** Ibiko v1 answers from its own memory (IBK); what it doesn't hold, it asks the device's
    model with what it already knows passed in. Every answer you check is kept, every one you cancel is marked false.
 2. **Export.** Settings › Usage › Export saves `Downloads/Ibiko/ibiko-training-<date>.jsonl`: your confirmed answers
    first, then the model answers Ibiko kept. One `{"messages": [...]}` a line, the chat format training tools read.

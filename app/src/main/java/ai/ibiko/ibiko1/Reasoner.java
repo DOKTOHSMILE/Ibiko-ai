@@ -10,7 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Ibiko 1's reasoning over what it knows: a question that one fact can't answer is broken into steps, each step run on
+ * Ibiko v1's reasoning over what it knows: a question that one fact can't answer is broken into steps, each step run on
  * its built-in facts, and the steps put together. The steps are the operators of compositional question answering
  * (as in KQA Pro's KoPL): find the things named, filter a set by a property, relate (neighbours, the country of a
  * capital), read a property, compare, rank (most, least), count, list and compute (how many times, the difference,

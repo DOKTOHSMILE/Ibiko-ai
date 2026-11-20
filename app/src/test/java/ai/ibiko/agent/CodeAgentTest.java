@@ -662,7 +662,7 @@ public class CodeAgentTest {
     public void notesAddedUnderAQuickTaskDontStartABlueprint() throws Exception {
         StringBuilder notes = new StringBuilder("make a hello script\n\n");
         for (int i = 0; i < 12; i++) {
-            notes.append("A note Ibiko 1 adds about what it already knows of this request. ");
+            notes.append("A note Ibiko v1 adds about what it already knows of this request. ");
         }
         File ws = Files.createTempDirectory("ibiko").toFile();
         Script brain = new Script("<tool name=\"write_file\" path=\"hello.py\">print(\"hi\")\n</tool>", "Done: wrote hello.py.");

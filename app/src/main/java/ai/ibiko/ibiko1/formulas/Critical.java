@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * Critical reasoning: deep thinking that questions before it answers. Every request is read for what kind of question
- * it is and what it takes for granted; every answer says how sure it is and what would change it. Ibiko 1 runs it on
+ * it is and what it takes for granted; every answer says how sure it is and what would change it. Ibiko v1 runs it on
  * its own answers, and its instructions for this request go to every other brain with the request.
  *
  * <pre>
@@ -261,7 +261,7 @@ public final class Critical {
     }
 
     /**
-     * K7 and K10, for Ibiko 1 itself when no fact answers a judgement: the way to decide, laid out from the question's
+     * K7 and K10, for Ibiko v1 itself when no fact answers a judgement: the way to decide, laid out from the question's
      * own options, instead of an invented verdict.
      */
     public static String deliberate(String request) {

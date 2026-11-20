@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * One copy of each of Ibiko 1's memory files for the whole app. The chat, the learning session (a job in the same
+ * One copy of each of Ibiko v1's memory files for the whole app. The chat, the learning session (a job in the same
  * process) and the Memory screen all read and write through these, so one never saves an old copy over what another
  * just learned. {@code dir} is the app's {@code brain} folder.
  */

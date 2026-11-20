@@ -273,7 +273,7 @@ public final class SocialWeb {
      * Looks something up on one network (or each signed-in one, when {@code only} is null) with the user's accounts:
      * the posts as labelled text for the model, and what couldn't be read, and why.
      */
-    /** Told each page read (set by the app): Ibiko 1 learns language from it. */
+    /** Told each page read (set by the app): Ibiko v1 learns language from it. */
     public static volatile java.util.function.Consumer<String> onRead;
 
     public static String search(Context c, Platform only, String query, int most) {
@@ -494,7 +494,7 @@ public final class SocialWeb {
         }
         java.util.function.Consumer<String> learn = onRead;
         if (learn != null && text != null) {
-            learn.accept(text); // people's words: Ibiko 1 reads them for language only, never as facts
+            learn.accept(text); // people's words: Ibiko v1 reads them for language only, never as facts
         }
         String lead = wasPaused ? p.shown + ": the pause is off, the page loaded.\n" : "";
         return lead + SocialPage.forModel(p, what, text);

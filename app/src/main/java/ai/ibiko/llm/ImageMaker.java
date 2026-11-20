@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Ibiko's image tool: any brain (an API model, the device's model, Ibiko 1) asks for a picture with §IM and a
+ * Ibiko's image tool: any brain (an API model, the device's model, Ibiko v1) asks for a picture with §IM and a
  * description, and it is made by an image model on one of the pilot's own API providers (the first in their order
  * that offers one): OpenAI (gpt-image-1), Google Gemini (Imagen), or a custom gateway or Ibiko server that has the
  * OpenAI images endpoint. The picture is saved on the device and shown in the chat. Anthropic, DeepSeek and

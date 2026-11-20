@@ -14,7 +14,7 @@ import org.junit.Test;
 
 
 
-/** Ibiko 1's language formulas: reading intent and parts, reading facts from text, and saying answers as sentences. */
+/** Ibiko v1's language formulas: reading intent and parts, reading facts from text, and saying answers as sentences. */
 public class GrammarTest {
     @Test
     public void intentAndWhatAQuestionWants() {

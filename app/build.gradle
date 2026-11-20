@@ -69,6 +69,17 @@ android {
         }
     }
 
+    // the app files the first start used to download (the human voice and the common-sense table) are fetched once by
+    // the build (fetchAppFiles, below), checked and packed into the APK, so the app needs no download after install
+    sourceSets {
+        main {
+            assets.srcDirs += ["$buildDir/generated/appfiles"]
+        }
+    }
+    androidResources {
+        noCompress += ["bz2", "gz"] // already compressed: stored as they are, so they are read straight out of the APK
+    }
+
     // the brain's engine is also kept ready-built in src/main/jniLibs, so a build without the C++ toolchain
     // (CodeAssist on the phone) still ships it; a full build makes the same library from src/main/cpp and keeps one.
     // Linux is started by libproot.so. It has to be unpacked onto disk or the phone will not run it.
@@ -97,3 +108,72 @@ configurations.configureEach {
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
 }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The app files, built in. Each is downloaded once (kept in ~/.gradle/ibiko-appfiles between builds), checked against
+// its SHA-256 and copied to build/generated/appfiles/appfiles/, which the APK carries as assets/appfiles/. The app then
+// unpacks them on its first start from the APK (AppFiles.bundled) instead of the internet. A build that can't reach
+// them (offline) still succeeds: the app falls back to downloading them as before.
+def appFiles = [
+    ["kokoro-int8-en-v0_19.tar.bz2", "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-en-v0_19.tar.bz2",
+     "c9f0dd393615805b0bab050c340834d5e684e732aec91c0e860cd30e982c08bd"],
+    ["concepts-2026-11-11.tsv.gz", "https://raw.githubusercontent.com/DOKTOHSMILE/Dvine-ai-frontend/main/downloads/knowledge/concepts-2026-11-11.tsv.gz",
+     "4e019a34747edd6fa3989f3d570978b2a7c266cfe202b570de5200abd16d9f04"],
+]
+
+def sha256Of = { File f ->
+    def md = java.security.MessageDigest.getInstance("SHA-256")
+    f.withInputStream { ins ->
+        byte[] buf = new byte[1 << 16]
+        int n
+        while ((n = ins.read(buf)) > 0) {
+            md.update(buf, 0, n)
+        }
+    }
+    md.digest().collect { String.format("%02x", it) }.join("")
+}
+
+tasks.register("fetchAppFiles") {
+    description = "Downloads the voice and the common-sense table once and puts them in the APK's assets"
+    def outDir = file("$buildDir/generated/appfiles/appfiles")
+    outputs.dir(outDir)
+    doLast {
+        if (System.getenv("IBIKO_NO_APPFILES")) {
+            logger.lifecycle("IBIKO_NO_APPFILES is set: the app files are left out (the app downloads them on first start)")
+            return
+        }
+        def cache = new File(System.getProperty("user.home"), ".gradle/ibiko-appfiles")
+        cache.mkdirs()
+        outDir.mkdirs()
+        appFiles.each { entry ->
+            def name = entry[0], url = entry[1], sha = entry[2]
+            def kept = new File(cache, name)
+            def out = new File(outDir, name)
+            if (out.isFile() && out.length() == kept.length() && kept.isFile()) {
+                return
+            }
+            try {
+                if (!kept.isFile() || sha256Of(kept) != sha) {
+                    logger.lifecycle("Downloading ${name} into the build (once)")
+                    def part = new File(cache, name + ".part")
+                    def c = new URL(url).openConnection()
+                    c.setConnectTimeout(30000)
+                    c.setReadTimeout(120000)
+                    c.instanceFollowRedirects = true
+                    c.inputStream.withStream { ins -> part.withOutputStream { o -> o << ins } }
+                    if (sha256Of(part) != sha) {
+                        part.delete()
+                        throw new GradleException("${name} was not the expected file")
+                    }
+                    kept.delete()
+                    part.renameTo(kept)
+                }
+                java.nio.file.Files.copy(kept.toPath(), out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } catch (Exception e) {
+                logger.warn("Couldn't build in ${name} (${e.message}); the app will download it on its first start instead")
+            }
+        }
+    }
+}
+tasks.named("preBuild").configure { dependsOn("fetchAppFiles") }

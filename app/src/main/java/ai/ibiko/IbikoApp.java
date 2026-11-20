@@ -39,7 +39,7 @@ public final class IbikoApp extends Application {
         }
         plugIbiko1();
         if (!"robolectric".equals(android.os.Build.FINGERPRINT)) {
-            ai.ibiko.main.Warmup.start(this); // gets the chat and Ibiko 1 ready while the splash shows
+            ai.ibiko.main.Warmup.start(this); // gets the chat and Ibiko v1 ready while the splash shows
         }
         // the voice is loaded as Ibiko starts and kept on standby, so the first reply read aloud doesn't wait for it
         if (ai.ibiko.main.AppFiles.ready(getFilesDir()) && !"robolectric".equals(android.os.Build.FINGERPRINT)) {
@@ -59,7 +59,7 @@ public final class IbikoApp extends Application {
     }
 
     /**
-     * Ibiko 1 (the ibiko1 folder) is given what it needs from the app: the web, the workers board, what the pilot is
+     * Ibiko v1 (the ibiko1 folder) is given what it needs from the app: the web, the workers board, what the pilot is
      * into, an icon. This and the screen's {@code main/Ibiko1Screen} are the only places it is plugged in.
      */
     private void plugIbiko1() {

@@ -14,8 +14,8 @@ import java.security.MessageDigest;
 import java.util.zip.GZIPInputStream;
 
 /**
- * The files Ibiko needs before it opens that are not inside the app: downloaded once, on the first start, and checked
- * against their checksum. The pilot only sees "Downloading app files"; until they are in place the app does not open
+ * The files Ibiko needs before it opens: carried inside the app (the build puts them in its assets) and unpacked on the
+ * first start, or, from a build that couldn't carry them, downloaded once; either way checked against their checksum. The pilot only sees "Downloading app files"; until they are in place the app does not open
  * (AppFilesActivity). They are the common-sense table (brain/knowledge/concepts.tsv) the comprehension layer reads
  * and the human voice (Kokoro: a man's and a woman's voices, {@link ai.ibiko.voice.VoicePacks}). Models (llama and
  * the others) are not among them: they are chosen and downloaded in Settings. Pure Java: the network is behind
@@ -32,6 +32,8 @@ public final class AppFiles {
             + CONCEPTS_VERSION + ".tsv.gz";
     /** What the pilot is shown, the same for every file. */
     public static final String TITLE = "Downloading app files";
+    /** What the pilot is shown when the files are inside the app: they are only unpacked. */
+    public static final String SETTING_UP = "Setting up Ibiko";
 
     /** Where a download comes from; it can start part-way, so a broken download carries on (resume). */
     public interface Source extends ai.ibiko.net.Resume.Source {
@@ -48,6 +50,42 @@ public final class AppFiles {
     static final long CONCEPTS_BYTES = 2_622_379L;
 
     public static final Source WEB = ai.ibiko.net.Resume.WEB::open;
+
+    /**
+     * The files carried inside the app ({@code assets/appfiles/<name>}, put there by the build), read from the APK
+     * with no internet; a file the build couldn't carry comes from {@code fallback} (the web).
+     */
+    public static Source bundled(java.util.function.Function<String, InputStream> assets, Source fallback) {
+        return (url, from, info) -> {
+            String name = url.substring(url.lastIndexOf('/') + 1);
+            InputStream in = assets.apply("appfiles/" + name);
+            if (in == null) {
+                return fallback.open(url, from, info);
+            }
+            long skipped = 0;
+            while (skipped < from) {
+                long s = in.skip(from - skipped);
+                if (s <= 0) {
+                    break;
+                }
+                skipped += s;
+            }
+            if (info != null && info.length >= 2) {
+                info[0] = -1; // the length is checked by its checksum once read
+                info[1] = skipped == from ? 1 : 0;
+            }
+            return in;
+        };
+    }
+
+    /** Whether the app carries its files inside (then the first start needs no internet). */
+    public static boolean carried(java.util.function.Function<String, InputStream> assets) {
+        try (InputStream in = assets.apply("appfiles/" + VOICE.url.substring(VOICE.url.lastIndexOf('/') + 1))) {
+            return in != null;
+        } catch (IOException e) {
+            return false;
+        }
+    }
 
     /** How long a broken download waits before it carries on (tests don't wait). */
     static ai.ibiko.net.Resume.Pause pause = ai.ibiko.net.Resume.WAIT;

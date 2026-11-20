@@ -39,7 +39,7 @@ public class BuildFilesTest {
         }
     }
 
-    /** CodeAssist builds one module: Ibiko 1 is in it (its own folder in the app's sources), its job in the manifest. */
+    /** CodeAssist builds one module: Ibiko v1 is in it (its own folder in the app's sources), its job in the manifest. */
     @org.junit.Test
     public void codeAssistBuildsIbiko1InTheApp() throws Exception {
         org.junit.Assert.assertTrue(new File(new File("src/main/java/ai/ibiko/ibiko1").isDirectory() ? "src/main/java/ai/ibiko/ibiko1"

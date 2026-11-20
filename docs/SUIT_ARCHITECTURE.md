@@ -62,14 +62,14 @@ in the pilot's hands.
 | `Cortex` | gives the brain the reading; with no brain answers sums, greetings, thanks and what it learned | makes anything up |
 | `DeepThink` | makes any brain think in passes: plan, draft, critique, revise | runs unless the chat asked for it (each pass is a call) |
 
-## Ibiko 1 · 0.1 in the brain picker
+## Ibiko v1 · 0.1 in the brain picker
 
-The model picker (tap the model under the title) lists **Ibiko 1 · 0.1** first: Ibiko's own intelligence, the Cortex and
+The model picker (tap the model under the title) lists **Ibiko v1 · 0.1** first: Ibiko's own intelligence, the Cortex and
 the brain box with no model loaded. It answers sums exactly, greetings and thanks, and what it learned from earlier
 brains; it is not a language model and says so when it doesn't know. Picking it asks no API and frees the offline
 model's memory. The pick is kept as `brain_pick` (`ibiko`, `api`, `device`).
 
-### How Ibiko 1 learns
+### How Ibiko v1 learns
 
 1. Exact sums, greetings and thanks: the Cortex.
 2. Confirmed answers (`learn/Knowledge`): found by intent (what kind of answer, the meaning words with synonyms, endings

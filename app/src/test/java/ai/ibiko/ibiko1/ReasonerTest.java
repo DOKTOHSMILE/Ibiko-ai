@@ -9,7 +9,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
- * Ibiko 1 reasons: facts are put together step by step (compare, rank, count, list, chain, add up), every answer says the
+ * Ibiko v1 reasons: facts are put together step by step (compare, rank, count, list, chain, add up), every answer says the
  * values it rests on, a false premise is corrected, and what one fact answers is left to the plain lookup.
  */
 public class ReasonerTest {

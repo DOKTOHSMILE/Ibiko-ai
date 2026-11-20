@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * What Ibiko 1 has read, kept as facts (subject, relation, object) by the {@link Grammar} formulas, and answered from
+ * What Ibiko v1 has read, kept as facts (subject, relation, object) by the {@link Grammar} formulas, and answered from
  * by the same formulas: a question is parsed into what it wants and what it is about, matched to a fact, and the
  * answer is formulated as a sentence of its own (the sentence formula below). Kept in a file on the device.
  *

@@ -1853,7 +1853,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         return pilotProfile;
     }
 
-    /** After a learning session: what Ibiko 1 learned, said once in the chat. */
+    /** After a learning session: what Ibiko v1 learned, said once in the chat. */
     void morningReport() {
         String said = stage == null ? null : ibiko1().report();
         if (said != null) {
@@ -1872,7 +1872,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         return section.group != null ? "group:" + section.group : "chat:" + section.id;
     }
 
-    /** Ibiko 1 · 0.1, Ibiko's own model (its whole code is in the ibiko1 folder), plugged into this screen. */
+    /** Ibiko v1 · 0.0.1, Ibiko's own model (its whole code is in the ibiko1 folder), plugged into this screen. */
     synchronized ai.ibiko.ibiko1.Ibiko1 ibiko1() {
         if (ibiko1 == null) {
             ibiko1 = new ai.ibiko.ibiko1.Ibiko1(new ai.ibiko.main.Ibiko1Screen(this, ibikoScreen),
@@ -1881,7 +1881,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         return ibiko1;
     }
 
-    /** What Ibiko 1 is given of this screen (see main/Ibiko1Screen). */
+    /** What Ibiko v1 is given of this screen (see main/Ibiko1Screen). */
     final ai.ibiko.main.Ibiko1Screen.Parts ibikoScreen = new ai.ibiko.main.Ibiko1Screen.Parts() {
         @Override
         public String pilotName() {
@@ -1906,7 +1906,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
         @Override
         public boolean online() {
-            // Settings › Web and services: with web look-ups off, Ibiko 1 answers from what it already knows
+            // Settings › Web and services: with web look-ups off, Ibiko v1 answers from what it already knows
             return (connectivity == null || connectivity.isOnline())
                     && prefs.getBoolean("fresh_facts", true);
         }
@@ -1918,7 +1918,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
         @Override
         public boolean modelReady() {
-            // a model downloaded on the device: Ibiko 1 asks it for what its own memory doesn't hold
+            // a model downloaded on the device: Ibiko v1 asks it for what its own memory doesn't hold
             return model != null && model.installed()
                     && prefs.getBoolean("ibiko1_uses_model", true);
         }
@@ -2754,7 +2754,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         return brains.ibikoOwn();
     }
 
-    static final String IBIKO_OWN = "Ibiko 1 \u00B7 0.1";
+    static final String IBIKO_OWN = "Ibiko v1 \u00B7 0.0.1";
 
     int dp(int v) {
         return Math.round(v * getResources().getDisplayMetrics().density);

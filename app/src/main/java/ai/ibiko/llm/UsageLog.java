@@ -41,13 +41,13 @@ public final class UsageLog {
     private long day = -1;
     private int calls, tokensIn, tokensOut, failed;
     private long millis;
-    /** Ibiko 1's own answers today: all of them, from its memory, from research. */
+    /** Ibiko v1's own answers today: all of them, from its memory, from research. */
     private int own, ownMemory, ownResearch;
 
-    /** How Ibiko 1 answered: from what it knows, or by researching. */
+    /** How Ibiko v1 answered: from what it knows, or by researching. */
     public enum Own { MEMORY, RESEARCH, OTHER }
 
-    /** Ibiko 1 answered (no model call, so no tokens: counted on its own). */
+    /** Ibiko v1 answered (no model call, so no tokens: counted on its own). */
     public synchronized void recordOwn(Own how, long at) {
         roll(at);
         own++;

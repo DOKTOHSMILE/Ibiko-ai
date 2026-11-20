@@ -6,7 +6,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Ibiko 1's learning as a training file: one chat a line (JSONL, the format language-model trainers read), from the
+ * Ibiko v1's learning as a training file: one chat a line (JSONL, the format language-model trainers read), from the
  * answers the pilot confirmed, the facts it read (each asked by the focus formulas and answered by the sentence
  * formula) and its dictionary. A small model trained on it can then run on the device through the app's llama.cpp
  * engine, the fastest way to run a language model on a phone.

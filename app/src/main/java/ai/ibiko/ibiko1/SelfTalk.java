@@ -14,7 +14,7 @@ public final class SelfTalk {
     }
 
     /** Things a body does: Ibiko can't do them, but can help with them. */
-    static final String BODY = "cook|bake|fry|eat|drink|sleep|dream|dance|swim|drive|ride|walk|run|jump|climb|see|hear|smell|"
+    static final String BODY = "cook|bake|fry|eat|drink|sleep|dance|swim|drive|ride|walk|run|jump|climb|see|hear|smell|"
             + "taste|touch|feel pain|hug|kiss|fly|breathe|sweat|cry|laugh|marry|get married|die|wash|clean|sew|knit|paint|"
             + "draw by hand|play football|play soccer|play basketball|play tennis|play the guitar|play the piano|play an instrument|"
             + "go out|travel|visit me|come over|meet me|exercise|work out|garden|farm|fish|shop|go shopping";
@@ -63,22 +63,22 @@ public final class SelfTalk {
         }
         if (q.matches("^(so |and )?(where (are|do) you (from|come from|live|stay|based)|where were you (made|born|built|created)|"
                 + "where is your home|what country are you from)\\b.*")) {
-            return "I'm from the Ibiko app, and I live right here on your phone. My own brain, Ibiko 1, runs on the device"
+            return "I'm from the Ibiko app, and I live right here on your phone. My own brain, Ibiko v1, runs on the device"
                     + " itself, so I'm with you wherever you are, even offline.";
         }
         if (q.matches("^(so )?(who (made|created|built|designed|programmed|trained) you|who is your (creator|maker|developer|owner))\\b.*")) {
-            return "I was built as part of the Ibiko app. My own brain, Ibiko 1, is made to run on your phone and learn from you"
+            return "I was built as part of the Ibiko app. My own brain, Ibiko v1, is made to run on your phone and learn from you"
                     + " as we talk.";
         }
         if (q.matches("^(so )?(how old are you|what is your age|what's your age|when were you (born|made|created))\\b.*")) {
-            return "I'm Ibiko 1, version 0.1, so still young. I learn something new each time you use me.";
+            return "I'm Ibiko v1, version 0.0.1, so still young. I learn something new each time you use me.";
         }
-        if (q.matches("^(so )?(are you (a )?(human|person|real|alive|a robot|a machine|an ai|a bot|a computer|conscious|sentient)|"
+        if (q.matches("^(so )?(are you (a )?(human|person|real|a robot|a machine|an ai|a bot|a computer)|"
                 + "is this a (real )?(person|human|bot))\\b.*")) {
             return "I'm an AI, not a person: Ibiko, an assistant running on your phone. I'm real in the sense that I'm here,"
                     + " working things out with you.";
         }
-        if (q.matches("^(so )?(do you have|have you got) (feelings|emotions|a heart|a body|a family|friends|a name)\\b.*")) {
+        if (q.matches("^(so )?(do you have|have you got) (a heart|a body|a family|friends|a name)\\b.*")) {
             if (q.contains("a name")) {
                 return "Yes, I'm Ibiko.";
             }

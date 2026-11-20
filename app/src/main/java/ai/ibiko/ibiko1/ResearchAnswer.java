@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 
 /**
- * Ibiko 1's answer from research, with no language model: the sentences from the web results that best answer the
+ * Ibiko v1's answer from research, with no language model: the sentences from the web results that best answer the
  * question, scored by how many of its meaning words they carry (synonyms and endings folded, as {@link Knowledge}
  * reads them) and by whether they hold the kind of thing asked for (a year for "when", a number for "how many", a
  * name for "who"), in their own words, with where they came from. Nothing is made up: when no sentence answers,

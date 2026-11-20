@@ -70,7 +70,7 @@ public final class StructuredKnowledgeDatabase extends SQLiteOpenHelper {
         return out;
     }
 
-    /** Removes everything imported (the person's own Ibiko 1 memory is elsewhere and stays). */
+    /** Removes everything imported (the person's own Ibiko v1 memory is elsewhere and stays). */
     public void clearImported() {
         SQLiteDatabase db = getWritableDatabase();
         db.delete("lexeme", null, null);

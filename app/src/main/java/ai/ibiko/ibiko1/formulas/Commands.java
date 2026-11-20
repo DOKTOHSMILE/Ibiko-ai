@@ -5,10 +5,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * How Ibiko 1 operates the app, like any other model: it reads the message and, when it is a clear command, answers
+ * How Ibiko v1 operates the app, like any other model: it reads the message and, when it is a clear command, answers
  * with one of the app's function codes on a line ("§SR weather in Lagos"), which the app then carries out through the
  * same gate every model uses. The codes are the ones documented in docs/APP_FUNCTIONS.md (generated from the app's
- * function table); Ibiko 1 only writes a code the chat's tools allow. Pure Java.
+ * function table); Ibiko v1 only writes a code the chat's tools allow. Pure Java.
  */
 public final class Commands {
     private Commands() {
@@ -76,7 +76,7 @@ public final class Commands {
         if (more != null) {
             return more;
         }
-        // a code task Ibiko 1 can carry out itself: one shell command, approved by the pilot before it runs
+        // a code task Ibiko v1 can carry out itself: one shell command, approved by the pilot before it runs
         String shell = CodeTasks.command(message);
         if (shell != null && (allowed == null || allowed.test("SH"))) {
             return "§SH " + shell;

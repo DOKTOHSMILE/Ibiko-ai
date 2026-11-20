@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * What Ibiko 1 knows for sure: answers the pilot confirmed with a thumbs up. Each is kept by its intent, not its
+ * What Ibiko v1 knows for sure: answers the pilot confirmed with a thumbs up. Each is kept by its intent, not its
  * wording: the question's kind (who, what, when, where, how many, how, why, yes/no) and its meaning words, with
  * synonyms folded together ("who made", "who created", "who founded" are one), word endings removed and small typos
  * forgiven, so the same question asked another way finds the same answer. A thumbs down keeps the answer as wrong
@@ -555,7 +555,7 @@ public final class Knowledge {
             if (file.getParentFile() != null) {
                 file.getParentFile().mkdirs();
             }
-            ai.ibiko.learn.CodeFile.write(file, b.toString()); // beside, synced, then moved: a crash mid-write lost what Ibiko 1 knew
+            ai.ibiko.learn.CodeFile.write(file, b.toString()); // beside, synced, then moved: a crash mid-write lost what Ibiko v1 knew
         } catch (IOException ignored) {
             // kept in memory for this run
         }

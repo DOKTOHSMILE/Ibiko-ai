@@ -9,7 +9,7 @@ import java.util.Set;
 import java.util.TimeZone;
 
 /**
- * Night learning for Ibiko 1: while the pilot sleeps (a window they set, e.g. 23:00 to 06:00), Ibiko goes online and
+ * Night learning for Ibiko v1: while the pilot sleeps (a window they set, e.g. 23:00 to 06:00), Ibiko goes online and
  * learns only from how it was used: first the questions it couldn't answer or got wrong and what the pilot asked
  * about, then what the pilot is into (their profile). Each is read from its encyclopedia summary and kept as learned-but-unchecked, so in
  * the morning it can answer more, and still asks "accurate?" until the pilot confirms. Pure Java: the plan, the

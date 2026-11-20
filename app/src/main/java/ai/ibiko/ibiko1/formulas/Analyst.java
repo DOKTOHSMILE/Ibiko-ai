@@ -8,7 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Data, handled with surgical precision: a tactical procedure for processing and analysing numbers that Ibiko 1 runs
+ * Data, handled with surgical precision: a tactical procedure for processing and analysing numbers that Ibiko v1 runs
  * itself on data in a message (a list of numbers, a table, CSV) and hands to every other brain as its method. Exact
  * arithmetic, every step named, every figure checked a second way, and no conclusion wider than the data.
  *

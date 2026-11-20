@@ -235,7 +235,7 @@
             android:exported="false"
             android:stopWithTask="false"
             android:foregroundServiceType="dataSync" />
-        <!-- Ibiko 1's learning job -->
+        <!-- Ibiko v1's learning job -->
         <service
             android:name="ai.ibiko.ibiko1.LearningJob"
             android:exported="false"

@@ -12,24 +12,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Ibiko 1 · 0.1, Ibiko's own model, in one class the app plugs in like any other model: {@link #answer} takes a
+ * Ibiko v1 · 0.0.1, Ibiko's own model, in one class the app plugs in like any other model: {@link #answer} takes a
  * message and answers through the {@link Host}. Everything it is lives in this folder: its memory of confirmed answers
  * ({@link Knowledge}), the facts it read ({@link Facts}), its dictionary ({@link Lexicon}), its language formulas
  * ({@link Grammar}), its research ({@link ResearchAnswer}) and its learning sessions ({@link LearningJob}). Remove the
  * folder and the few lines that plug it in, and the app runs on its other models.
  *
- * <p>Why Java and not a native engine: Ibiko 1 is rules and lookups that run in microseconds, so it lives in the app's
- * own language with no bridge to cross. A trained network is another matter: {@link Training} writes what Ibiko 1
+ * <p>Why Java and not a native engine: Ibiko v1 is rules and lookups that run in microseconds, so it lives in the app's
+ * own language with no bridge to cross. A trained network is another matter: {@link Training} writes what Ibiko v1
  * learned as a training file, and a model trained from it runs on the device through the app's llama.cpp engine
  * (C++, the fastest way to run a language model on a phone).
  */
 public final class Ibiko1 {
-    public static final String NAME = "Ibiko 1 · 0.1";
+    public static final String NAME = "Ibiko v1 · 0.0.1";
 
     /** How an answer came: from memory, from research, or neither (a greeting, a sum). */
     public enum How { MEMORY, RESEARCH, OTHER }
 
-    /** What Ibiko 1 needs from the screen it answers on. */
+    /** What Ibiko v1 needs from the screen it answers on. */
     public interface Host {
         /** The persona answering ("obi"). */
         String persona();
@@ -91,14 +91,14 @@ public final class Ibiko1 {
             return false;
         }
 
-        /** Whether a model is downloaded on the device that Ibiko 1 can ask for what its own memory doesn't hold. */
+        /** Whether a model is downloaded on the device that Ibiko v1 can ask for what its own memory doesn't hold. */
         default boolean modelReady() {
             return false;
         }
 
         /**
          * Asks the device's model (blocking: called off the main thread). Null when there is none or it failed. Its
-         * answer is shown as unchecked, and the pilot's check or cancel teaches Ibiko 1, as with any model.
+         * answer is shown as unchecked, and the pilot's check or cancel teaches Ibiko v1, as with any model.
          */
         default String askModel(String system, String question) {
             return null;
@@ -111,7 +111,7 @@ public final class Ibiko1 {
 
     private final Endpoint endpoint = new Endpoint(this);
 
-    /** The door the app talks to Ibiko 1 through. */
+    /** The door the app talks to Ibiko v1 through. */
     public Endpoint endpoint() {
         return endpoint;
     }
@@ -173,6 +173,22 @@ public final class Ibiko1 {
     }
 
     private static BuiltIn builtIn;
+    private WordTalk wordTalk;
+
+    /** The words engine (meanings both ways, morphology, grammar), opened on first use; null without the dictionary. */
+    synchronized WordTalk wordTalk() {
+        if (wordTalk == null) {
+            ai.ibiko.ibiko1.words.Meanings m = meanings(new File(dir, "knowledge"));
+            wordTalk = m == null ? null : new WordTalk(m);
+        }
+        return wordTalk;
+    }
+
+    /** The dictionary turned both ways ({@link ai.ibiko.ibiko1.words.MeaningIndex}) from a knowledge folder, or null. */
+    public static ai.ibiko.ibiko1.words.Meanings meanings(File knowledge) {
+        ai.ibiko.ibiko1.words.MeaningIndex index = ai.ibiko.ibiko1.words.MeaningIndex.of(Store.unpacked(knowledge, "lexicon.tsv"));
+        return index == null ? null : new ai.ibiko.ibiko1.words.Meanings(index);
+    }
 
     /**
      * Loads what the first question would otherwise wait for: the built-in facts, and the dictionary and concept tables
@@ -183,6 +199,7 @@ public final class Ibiko1 {
         File lexicon = Store.unpacked(k, "lexicon.tsv");
         Store.unpacked(k, ai.ibiko.learn.WordRank.FILE); // the words by use, read with the dictionary (pack format 2)
         ai.ibiko.learn.WordBook.open(lexicon); // first: every English word its fixed id before anything files words
+        ai.ibiko.ibiko1.words.MeaningIndex.of(lexicon); // the dictionary turned both ways: built once, then loaded
         builtIn();
         Store.unpacked(k, "concepts.tsv");
         // what was kept in older forms is brought to format 2, the same text: each chat's conversation (its script file)
@@ -235,7 +252,7 @@ public final class Ibiko1 {
         return learner;
     }
 
-    /** The learning score line, read from the files (for screens that don't hold Ibiko 1). */
+    /** The learning score line, read from the files (for screens that don't hold Ibiko v1). */
     public static String scoreLine(File filesDir) {
         File d = new File(filesDir, "brain");
         return Store.learner(d).scoreLine();
@@ -426,7 +443,7 @@ public final class Ibiko1 {
     private volatile String lastRequest;
     private volatile boolean replied;
 
-    /** One of the pilot's messages, to any brain: it may judge Ibiko 1's last answer, and it is read for language. */
+    /** One of the pilot's messages, to any brain: it may judge Ibiko v1's last answer, and it is read for language. */
     public void hear(String said) {
         hear(said, "default");
     }
@@ -478,6 +495,10 @@ public final class Ibiko1 {
         final Context.Resolved withContext = pasted != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
         final String t = withContext.text;
+        if (leadIn == null) {
+            previous = current; // a message's own rest (after "I'm a man, …") isn't a new question
+            current = message;
+        }
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
         rolesStep = roleStep(t);
         if (pasted == null) {
@@ -489,7 +510,7 @@ public final class Ibiko1 {
         worker = Plug.workers.start(cap(who) + " · " + NAME, t, NAME);
         how = How.OTHER;
         critical = ai.ibiko.ibiko1.formulas.Critical.read(t); // K1–K8: what it asks and what it takes for granted
-        times = Phrasing.heard(t); // a question asked again is answered as a person would, not word for word
+        times = Phrasing.heard(askedHere, t); // a question asked again (in this chat) is answered as a person would
         kind = Methods.kind(t);
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
@@ -545,6 +566,24 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
             return;
         }
+        // a sentence's structure: its syntax tree, its constituents, why it is ambiguous
+        final String structure = SyntaxTalk.reply(message);
+        if (structure != null) {
+            think(Arrays.asList("Reading the sentence", "Tagging each word's part of speech", "Grouping the words into phrases, bottom up",
+                    "Checking every way the rules allow"), () -> saysPlain(who, structure));
+            return;
+        }
+        // words, meanings and grammar: what a word means (here), the word for a meaning, synonyms, a sentence explained,
+        // whether two say the same, a word's morphemes, whether a sentence is grammatical
+        if (WordTalk.asks(message)) {
+            final WordTalk words = wordTalk();
+            final String said = words == null ? null : words.reply(message);
+            if (said != null) {
+                think(Arrays.asList("Reading your question", "Looking up each word's meanings, both ways",
+                        "Choosing the meaning that fits the words around it", "Putting it into plain words"), () -> saysPlain(who, said));
+                return;
+            }
+        }
         // units, dates and percentages: worked out exactly, on the device
         final String everyday = Everyday.answer(t);
         if (everyday != null) {
@@ -557,7 +596,7 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, hello));
             return;
         }
-        // a clear command: Ibiko 1 operates the app like any model, by writing one of its function codes
+        // a clear command: Ibiko v1 operates the app like any model, by writing one of its function codes
         final String code = Commands.code(t, host::allows);
         if (code != null) {
             think(Arrays.asList("Reading your message", "That's something the app does"), () -> {
@@ -571,15 +610,53 @@ public final class Ibiko1 {
             });
             return;
         }
+        // what the person says about themselves ("I'm a man", "my name is Ada", "I live in Lagos"): understood, kept and
+        // said back; the rest of the message ("…, what are you?") is answered after it
+        if (pasted == null) {
+            List<String> parts = SelfModel.clauses(t);
+            StringBuilder took = new StringBuilder();
+            List<String> rest = new ArrayList<String>();
+            for (String part : parts) {
+                String ack = person().heard(part);
+                if (ack != null) {
+                    took.append(took.length() == 0 ? "" : " ").append(ack);
+                } else {
+                    rest.add(part);
+                }
+            }
+            if (took.length() > 0) {
+                if (rest.isEmpty()) {
+                    final String ack = took.toString();
+                    think(Arrays.asList("Reading what you said", "That's about you: keeping it"), () -> saysPlain(who, ack));
+                    return;
+                }
+                leadIn = took.toString(); // said first, then the answer to the rest
+                answer(String.join(" ", rest));
+                return;
+            }
+        }
+        // a question about the person ("who am I?", "what's my name?", "what do you know about me?")
+        final String aboutYou = person().asked(t, host.aboutPilot());
+        if (aboutYou != null) {
+            think(Arrays.asList("Reading your question", "That's about you", "Recalling what you told me"), () -> saysPlain(who, aboutYou));
+            return;
+        }
+        // a question about Ibiko itself: answered from its picture of itself, never from an article on one of its words
+        final String me = SelfModel.reply(t, selfState(), encyclopedia());
+        if (me != null) {
+            think(Arrays.asList("Reading your question", "That's about me", "Checking what I am and what I can do right now"),
+                    () -> saysPlain(who, me));
+            return;
+        }
         final String self = aboutMe(t);
         if (self != null) {
             think(Arrays.asList("Reading your question", "Looking through my memory"), () -> saysPlain(who, self));
             return;
         }
-        // a question put to Ibiko itself ("where are you from", "can you cook"): answered as itself, not from an article
-        final String asMe = SelfTalk.reply(t);
-        if (asMe != null) {
-            think(Arrays.asList("Reading your question", "That's about me"), () -> saysPlain(who, asMe));
+        // any other question about Ibiko itself ("do you dream?", "what's your purpose?"): honest, as itself
+        if (SelfModel.aboutSelf(t)) {
+            final String honest = SelfModel.fallback(t);
+            think(Arrays.asList("Reading your question", "That's about me"), () -> saysPlain(who, honest));
             return;
         }
         // a letter, note, email or message to write: put together offline, with blanks for what only the writer knows
@@ -590,7 +667,7 @@ public final class Ibiko1 {
             return;
         }
         if (t.trim().matches("(?i)(stop|cancel|halt|wait|pause)( it| that| please)?[.!]*")) {
-            // "Stop" with nothing of Ibiko 1's running: said plainly, not kept as a fact ("Noted.")
+            // "Stop" with nothing of Ibiko v1's running: said plainly, not kept as a fact ("Noted.")
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "Nothing is running right now, so there's nothing to stop."));
             return;
         }
@@ -759,7 +836,7 @@ public final class Ibiko1 {
             return;
         }
         if (!host.online() && host.modelReady()) {
-            // offline, not in memory: the device's model answers, with what Ibiko 1 already knows about it
+            // offline, not in memory: the device's model answers, with what Ibiko v1 already knows about it
             final String subject0 = ResearchAnswer.subject(t);
             think(Arrays.asList("Reading your question", "Checking what I already know", "Not in my memory: asking the device's model"),
                     () -> fromModel(who, t, subject0, false));
@@ -945,7 +1022,7 @@ public final class Ibiko1 {
                         + right + ties));
     }
 
-    /** Ibiko 1 and the device's model as one brain: what Ibiko 1 knows goes in, and the model can run a function. */
+    /** Ibiko v1 and the device's model as one brain: what Ibiko v1 knows goes in, and the model can run a function. */
     static final String MODEL_SYSTEM = "You are Ibiko, answering for Ibiko's own brain. Answer in a few plain sentences."
             + " Use what Ibiko already knows when it is given. If you don't know, say so. "
             + ai.ibiko.suit.FunctionCode.directions()
@@ -1009,7 +1086,7 @@ public final class Ibiko1 {
                 }
                 how = How.OTHER;
                 saysSure(who, shown.trim(), ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED, "Thought through with the device's model");
-                rateable(t, shown.trim()); // the pilot's check keeps it in Ibiko 1's memory (and in the next adapter's training)
+                rateable(t, shown.trim()); // the pilot's check keeps it in Ibiko v1's memory (and in the next adapter's training)
             });
         }, "ibiko1-model").start();
     }
@@ -1181,7 +1258,16 @@ public final class Ibiko1 {
                 + "\n\nIf you tell me which part you need, I'll work from there.";
     }
 
-    private void says(String who, String text) {
+    private void says(String who, String reply) {
+        String lead = leadIn;
+        leadIn = null;
+        String drafted = lead == null ? reply : lead + " " + reply; // "Got it, you're a man. I'm Ibiko, …"
+        // the inner voice: drafted, read back against the grammar rules, redrafted, confirmed, then said
+        ai.ibiko.ibiko1.words.InnerVoice.Said checked = ai.ibiko.ibiko1.words.InnerVoice.confirm(drafted);
+        String text = checked.text;
+        if (checked.step() != null) {
+            host.step(checked.step());
+        }
         String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
         lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all; // what was said lately
         host.stepsDone();
@@ -1250,6 +1336,46 @@ public final class Ibiko1 {
         return list.length() == 0 ? null : "More about " + a.title.replaceFirst("\\s*\\([^()]+\\)$", "") + ":" + list;
     }
 
+    /** What the person said about themselves, said before the answer to the rest of their message. */
+    private volatile String leadIn;
+    /** The person Ibiko talks with, as they described themselves. */
+    private Person person;
+    /** The message before this one, for "what did I just ask?". */
+    private volatile String previous, current;
+
+    synchronized Person person() {
+        if (person == null) {
+            person = new Person(dir);
+        }
+        return person;
+    }
+
+    /** What Ibiko can tell about itself right now, for its picture of itself ({@link SelfModel}). */
+    private SelfModel.State selfState() {
+        final long now = System.currentTimeMillis();
+        return new SelfModel.State() {
+            @Override public boolean online() { return host.online(); }
+            @Override public boolean modelReady() { return host.modelReady(); }
+            @Override public int words() { return lexicon().size(); }
+            @Override public int factsRead() { return facts().size(); }
+            @Override public int confirmed() { return knowledge().confirmed().size(); }
+            @Override public String focus() {
+                Context.Focus f = context.focus(now);
+                return f == null ? null : f.name;
+            }
+            @Override public String pasted() {
+                Passage p = passage;
+                return p != null && p.fresh(now) ? p.about() : null;
+            }
+            @Override public int asked() { return askedHere.size(); }
+            @Override public String lastQuestion() { return previous; }
+            @Override public String personName() { return person().name() != null ? person().name() : host.pilotName(); }
+        };
+    }
+
+    /** The questions asked in this conversation (one brain per chat), for "as I mentioned a moment ago". */
+    private final java.util.Map<String, Integer> askedHere = Phrasing.conversation();
+
     /** What the conversation is about (per brain: one chat). */
     private final Context context = new Context();
     /** The steps that say how the message was read: the context put in, and its roles. */
@@ -1271,7 +1397,7 @@ public final class Ibiko1 {
      * the words that named it, and its kind (he, she, it, they, a place).
      */
     private void noteFocus(String t, long now) {
-        if (t == null || SelfTalk.toMe(t) || !EncyclopediaQA.question(t) && !t.matches("(?i)^(tell me|explain|describe)\\b.*")) {
+        if (t == null || SelfTalk.toMe(t) || t.matches("(?i).*\\b(we|us|our)\\b.*") || !EncyclopediaQA.question(t) && !t.matches("(?i)^(tell me|explain|describe)\\b.*")) {
             return;
         }
         Passage held = passage;
@@ -1325,7 +1451,7 @@ public final class Ibiko1 {
         return b.toString();
     }
 
-    /** Questions about Ibiko 1 itself: what it learned, what it knows, who it is. Null for anything else. */
+    /** Questions about Ibiko v1 itself: what it learned, what it knows, who it is. Null for anything else. */
     public String aboutMe(String t) {
         String q = t.toLowerCase(Locale.US);
         // "what do you know about shoes" is a question about shoes, not about its memory
@@ -1353,11 +1479,6 @@ public final class Ibiko1 {
                         .append(shapes).append(shapes == 1 ? " action shape." : " action shapes.");
             }
             return b.toString();
-        }
-        if (q.matches("(?s)\\s*(who|what) are you\\??\\s*|.*\\bwhat can you do\\b.*")) {
-            return "I'm " + NAME + ", Ibiko's own brain, running on this device with no model loaded. I work out sums exactly,"
-                    + " answer what you've confirmed before however it's asked, research what I don't know and learn from your"
-                    + " check and cancel. For open-ended writing or reasoning, pick an API or offline model: I learn from them too.";
         }
         return null;
     }
@@ -1450,7 +1571,7 @@ public final class Ibiko1 {
         return b.toString();
     }
 
-    /** Something the pilot asked any model about: learned in the next session if Ibiko 1 doesn't know it yet. */
+    /** Something the pilot asked any model about: learned in the next session if Ibiko v1 doesn't know it yet. */
     public void noticeQuestion(String said) {
         if (ResearchAnswer.subject(said) != null && knowledge().recall(said) == null) {
             LearningJob.remember(host.context(), said);

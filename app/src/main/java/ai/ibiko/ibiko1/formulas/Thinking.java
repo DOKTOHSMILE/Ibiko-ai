@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * Learning how the other brains think, not only what they answer. The reasoning they show in the live chat (a Deep
  * Thinking plan and review, the working steps, the reasoning written into a reply: "first…, then…, so…") is read
- * for its moves, in order; the moves are kept per kind of request; and Ibiko 1's own thinking for a request of that
+ * for its moves, in order; the moves are kept per kind of request; and Ibiko v1's own thinking for a request of that
  * kind follows the pattern seen most, so its thought process adapts to what worked instead of being a fixed list.
  *
  * <pre>
@@ -25,7 +25,7 @@ import java.util.Map;
  * T4  follow         a pattern is followed once seen twice; the most seen wins, the newest on a tie
  * T5  fade           each new pattern for a kind multiplies the others' counts by 0.9, so the way of thinking
  *                    follows how the brains think now
- * T6  said           each move is shown as a step in Ibiko 1's own words, ending in its own last steps
+ * T6  said           each move is shown as a step in Ibiko v1's own words, ending in its own last steps
  * </pre>
  *
  * Kept in {@code brain/thinking.tsv}. Pure text; no model.
@@ -149,7 +149,7 @@ public final class Thinking {
         return out;
     }
 
-    /** T6: the steps Ibiko 1 shows for a request of {@code kind}: the learned moves, then its own last steps. */
+    /** T6: the steps Ibiko v1 shows for a request of {@code kind}: the learned moves, then its own last steps. */
     public List<String> steps(String kind, List<String> own) {
         List<Move> p = pattern(kind);
         List<String> out = new ArrayList<String>();

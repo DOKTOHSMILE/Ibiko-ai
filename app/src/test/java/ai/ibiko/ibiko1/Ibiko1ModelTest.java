@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
-/** Ibiko 1 used like any other model, through its entry point: a message in, a reply out, no screen. */
+/** Ibiko v1 used like any other model, through its entry point: a message in, a reply out, no screen. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35)
 public class Ibiko1ModelTest {
@@ -44,7 +44,7 @@ public class Ibiko1ModelTest {
         }
     }
 
-    /** Ibiko 1 and the device's model as one brain: memory first, the model for the rest, what it knew passed in. */
+    /** Ibiko v1 and the device's model as one brain: memory first, the model for the rest, what it knew passed in. */
     @Test
     public void whatItDoesNotKnowItAsksTheDevicesModel() throws Exception {
         File data = Files.createTempDirectory("ibiko1").toFile();

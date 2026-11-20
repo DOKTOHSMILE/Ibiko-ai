@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Auto-correction on the way in: the person's typos are fixed before a brain reads the message ({@link
  * ai.ibiko.learn.TypoFix}), and "no, it's …" after any model's reply is kept as the right answer, so every brain gets
- * it next time (Ibiko 1's memory goes into every model's brief, and its G8 check corrects a reply that contradicts it).
+ * it next time (Ibiko v1's memory goes into every model's brief, and its G8 check corrects a reply that contradicts it).
  */
 public final class AutoCorrect {
     /** Settings › Chat: fix typos in the person's messages. */
@@ -86,7 +86,7 @@ public final class AutoCorrect {
 
     /**
      * "No, it's …" right after a reply from any model: the reply is marked wrong for that question and the person's words
-     * kept as its answer. Ibiko 1 already takes its own corrections ({@link ai.ibiko.ibiko1.Ibiko1}).
+     * kept as its answer. Ibiko v1 already takes its own corrections ({@link ai.ibiko.ibiko1.Ibiko1}).
      */
     void correction(String text) {
         if (text == null || a.ibikoOwn() || !ai.ibiko.ibiko1.Inquiry.corrects(text) || a.chats == null || a.chats.current() == null) {

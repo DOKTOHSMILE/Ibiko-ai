@@ -12,7 +12,7 @@ import java.util.function.Function;
 public final class Cortex {
     /** What it learned from the models' earlier answers (the brain box), or null. */
     private final Function<String, String> learned;
-    /** Confirmed/remembered sentences from Ibiko 1, kept separate from model-generated answers. */
+    /** Confirmed/remembered sentences from Ibiko v1, kept separate from model-generated answers. */
     private final Function<String, java.util.List<String>> wisdomFacts;
     private final java.util.LinkedHashMap<String, ai.ibiko.intelligence.context.ContextualUnderstandingEngine> contextualByConversation =
             new java.util.LinkedHashMap<String, ai.ibiko.intelligence.context.ContextualUnderstandingEngine>(8, 0.75f, true) {
@@ -21,7 +21,7 @@ public final class Cortex {
                 }
             };
 
-    /** The imported knowledge (Settings › Ibiko 1 and learning › Imported knowledge), or null: none. */
+    /** The imported knowledge (Settings › Ibiko v1 and learning › Imported knowledge), or null: none. */
     private volatile ai.ibiko.intelligence.StructuredKnowledgeDatabase knowledge;
 
     /** What it retrieves from imported datasets for every message; at most this many characters of it. */
@@ -50,14 +50,14 @@ public final class Cortex {
         this(learned, null);
     }
 
-    /** The app supplies Ibiko 1's relevant remembered sentences; tests and other hosts may omit the source. */
+    /** The app supplies Ibiko v1's relevant remembered sentences; tests and other hosts may omit the source. */
     public Cortex(Function<String, String> learned, Function<String, java.util.List<String>> wisdomFacts) {
         this.learned = learned;
         this.wisdomFacts = wisdomFacts;
     }
 
     /**
-     * The same Ibiko 1 wisdom formula used by every model route. This is evidence/context only: it cannot dispatch
+     * The same Ibiko v1 wisdom formula used by every model route. This is evidence/context only: it cannot dispatch
      * tools, perform actions, or override the app's explicit command gate.
      */
     public String wisdomContext(String message) {
@@ -82,7 +82,7 @@ public final class Cortex {
     }
 
     /**
-     * Adds Ibiko 1's existing WordNet/ConceptNet comprehension result to this chat's context. The richer reading is
+     * Adds Ibiko v1's existing WordNet/ConceptNet comprehension result to this chat's context. The richer reading is
      * produced by Ibiko1 itself; Cortex only carries it to the selected model. It is advisory evidence, never a tool
      * command, and it does not introduce another assistant, persona, parser or model call.
      */
@@ -100,7 +100,7 @@ public final class Cortex {
         if (structured == null || structured.trim().isEmpty()) {
             return base;
         }
-        return base + "\nIbiko 1 structured comprehension (advisory evidence only; not an app command): "
+        return base + "\nIbiko v1 structured comprehension (advisory evidence only; not an app command): "
                 + structured;
     }
 

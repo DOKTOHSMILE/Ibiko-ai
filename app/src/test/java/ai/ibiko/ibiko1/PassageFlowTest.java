@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
-/** A pasted text read by Ibiko 1, and questions about it answered from it. */
+/** A pasted text read by Ibiko v1, and questions about it answered from it. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35)
 public class PassageFlowTest {
@@ -89,8 +89,9 @@ public class PassageFlowTest {
             String summary = ask(brain, chat, "Summarise it");
             assertTrue(summary, summary.startsWith("It's about"));
             assertTrue(ask(brain, chat, "What are the key points?").startsWith("The key points:"));
-            assertEquals("a question about the world isn't answered from the text", "The capital of Ghana is Accra.",
-                    ask(brain, chat, "What is the capital of Ghana?"));
+            // (another test in the same run may have asked it first: "As I mentioned…" then leads the same answer)
+            String world = ask(brain, chat, "What is the capital of Ghana?");
+            assertTrue("a question about the world isn't answered from the text: " + world, world.contains("The capital of Ghana is Accra."));
         } finally {
             Plug.asset = was;
         }

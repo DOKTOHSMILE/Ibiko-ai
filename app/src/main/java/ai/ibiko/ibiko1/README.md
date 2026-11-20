@@ -1,6 +1,6 @@
-# Ibiko 1
+# Ibiko v1
 
-Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no network and no other model needed. It:
+Ibiko v1 is Ibiko's own language brain. It runs inside any Android app, with no network and no other model needed. It:
 
 - answers from its built-in knowledge: world facts, the elements, local facts, an English dictionary (Open English WordNet),
   and an encyclopedia: the opening of every Simple English Wikipedia article, with other names for each (CC BY-SA 4.0,
@@ -29,6 +29,35 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   sentence of an article with the same action and object, active or passive ("painted in oil by Leonardo da Vinci");
 - works out units, dates and percentages exactly (`Everyday`): "convert 5 km to miles", "how many days until
   Christmas", "what day of the week was 1 October 1960", "15% of 200";
+- knows words and meanings both ways (`words/`, `WordTalk`): the dictionary indexed by the words of its meanings
+  (`MeaningIndex`, 198,273 senses, built once and kept as a binary file), so a meaning finds its word ("someone who flies
+  planes" is a pilot) as fast as a word finds its meaning; a word's sense in a sentence chosen from the words around it
+  ("bank" by a river or with money); a meaning said in a plain, everyday word instead of its definition; synonyms and
+  opposites both ways; a sentence read word by word, its meanings put together and said again in other words; and
+  whether two sentences say the same thing, the opposite, or something else, however they are worded;
+- builds words from morphemes (`words/Morphology`, `words/Morph`): affixes with their selection (un- takes an adjective,
+  -ness makes a noun), so "unhappiness" has one tree and "unlockable" two (two meanings); compounding, conversion,
+  reduplication, blending, clipping, acronyms and back-formation; inflection with its spelling rules and its allomorphs
+  (the plural /s/ /z/ /ɪz/, the past /t/ /d/ /ɪd/);
+- applies grammar rules (`words/GrammarCheck`): grammatical when its words build into a sentence and its parts agree
+  (a or an by sound, a subject and its verb), with descriptive and prescriptive rules kept apart (a double negative or a
+  split infinitive is noted as informal, never called wrong);
+- thinks before it speaks (`words/InnerVoice`): every reply is drafted, read back against the grammar rules, redrafted
+  until it passes and confirmed, in milliseconds, before it is said; quotes, code and names are never touched;
+- reads a sentence as nested constituents (`formulas/Syntax`, `SyntaxTalk`): phrase structure rules (S → NP VP,
+  NP → (Det) (AdjP) N (PP), VP → V (NP) (PP) (AdvP), PP → P NP, AdjP → (Deg) Adj), recursive, parsed bottom up with a
+  chart (CYK) so every reading is found. "Parse: the engineer deployed the node on the server" draws its tree and
+  brackets; "is 'on the server' a constituent in …" runs the substitution, movement and fragment tests; "why is 'I saw
+  the user with the telescope' ambiguous?" shows both trees and where the PP attaches in each;
+- knows itself (`SelfModel`): what it is, what it can do right now (from what is loaded and plugged in), how it works,
+  its state (online, a model on the phone, what this chat is about, what was just asked), and an honest view of its
+  feelings and opinions; any question put to it is answered as itself, never from an article on one of its words;
+- knows the person (`Person`): "I'm a man", "my name is Emeka", "I live in Lagos", "I like football", "I'm tired" are
+  understood, kept and said back; "who am I?" and "what do you know about me?" are answered from them. "I'm a man,
+  what are you?" is both: the person's part is taken in, then the question answered;
+- reads every way a thing is said as one (`Paraphrase`): slang ("wat r u"), contractions, greetings and fillers, its own
+  name, polite wrappers ("can you tell me…") and synonyms ("chat about", "discuss") are brought to one plain form before
+  the rules read it. `ManyWaysTest` says each message over 250,000 ways and checks every one reaches the same answer;
 - answers questions put to itself as itself (`SelfTalk`): "Where are you from?", "Can you cook?", "Are you human?";
 - writes short letters, notes, emails and messages offline (`Letters`), in the tone that suits who they're to, with
   blanks in [brackets] for what only the writer knows;
