@@ -103,6 +103,8 @@ public class ManyWaysTest {
         intents.put(new String[]{"how are you", "how are you doing", "how are you today", "how have you been", "how is it going",
                 "are you okay", "what's up", "how far"}, "I'm running well");
         intents.put(new String[]{"how do you work", "how do you think", "how does your brain work", "how do you understand me"}, "Step by step");
+        intents.put(new String[]{"are you married", "are you even married", "are you single", "are you in a relationship"}, "No, I'm not");
+        intents.put(new String[]{"are you tired", "are you sleepy"}, "I don't get tired");
         intents.put(new String[]{"are you conscious", "are you self-aware", "do you have feelings", "can you feel", "are you alive"}, "Not the way you are");
         int total = 0;
         for (Map.Entry<String[], String> e : intents.entrySet()) {
@@ -139,6 +141,8 @@ public class ManyWaysTest {
                 true, s -> p.asked(s, null), "Emeka");
         total += everyWay(new String[]{"what do you know about me", "what have you learned about me", "do you know me",
                 "do you remember me", "what do you know of me"}, true, s -> p.asked(s, null), "your name is Emeka");
+        total += everyWay(new String[]{"what is my current location", "where am i", "where am i now", "what is my location",
+                "do you know where i am"}, true, s -> p.asked(s, null), "I can't see where you are");
         System.out.println("questions about the person, every way: " + total);
         assertTrue(total > 5_000);
     }

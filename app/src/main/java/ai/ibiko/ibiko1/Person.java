@@ -100,9 +100,19 @@ public final class Person {
             + "(tired|happy|sad|sick|ill|bored|hungry|stressed|fine|good|great|ok|okay|angry|lonely|excited|worried|anxious|sleepy|cold|hot|well|unwell|down|upset)" + END);
     private static final Pattern STUDY = Pattern.compile("(?i)^i\\s+(?:study|am studying|'m studying)\\s+(.{2,50}?)" + END);
 
+    private static final Pattern NICK = Pattern.compile("(?i)^(?:i'm|i am|im|my name is|my name's|it's|this is)\\s+([\\p{L}'-]+(?:\\s+[\\p{L}'-]+)?)"
+            + "[,;.]?\\s+(?:but\\s+|and\\s+|so\\s+)?(?:you\\s+(?:can|may|could)\\s+|just\\s+|please\\s+)?call\\s+me\\s+([\\p{L}'-]+)\\s*[.!]*$");
+
     /** A clause about the person themselves: understood, kept, and said back in a word; null when it isn't one. */
     public synchronized String heard(String clause) {
         String raw = clause == null ? "" : clause.trim().replaceAll("[\u2019`]", "'");
+        Matcher nick = NICK.matcher(raw.replaceFirst("(?i)^(?:hey|hi|hello|so|ok|okay)\\b[\\s,!.]*", ""));
+        if (nick.matches()) {
+            // "I'm Valentine, you can call me Val": the name kept, and the one to use
+            set("name", cap(nick.group(1)));
+            set("nickname", cap(nick.group(2)));
+            return "Nice to meet you, " + cap(nick.group(1)) + ". I'll call you " + cap(nick.group(2)) + ".";
+        }
         String c = Paraphrase.normalize(raw); // "im a man", "I'M A MAN!!", "so... i am a man" read alike
         Matcher m = GENDER.matcher(c);
         if (m.matches()) {
@@ -134,6 +144,11 @@ public final class Person {
         if (m.matches()) {
             set("lives", cap(m.group(1)));
             return "Got it, you live in " + cap(m.group(1)) + ".";
+        }
+        Matcher call = Pattern.compile("(?i)^(?:just |please |you can |you may )?call me\\s+([\\p{L}'-]+)$").matcher(c);
+        if (call.matches()) {
+            set("nickname", cap(call.group(1)));
+            return "Sure, " + cap(call.group(1)) + " it is.";
         }
         m = NAME.matcher(c);
         if (!m.matches()) {
@@ -216,13 +231,25 @@ public final class Person {
     public synchronized String asked(String q, List<String> told) {
         String t = Paraphrase.normalize(q);
         String unknown = "You haven't told me yet. Tell me and I'll remember.";
+        if (t.matches("(where am i|where am i now|what is my (current |present )?location|where is my (current )?location|where am i located|"
+                + "do you know where i am|can you see where i am|where i am)( (now|right now|at the moment))?")) {
+            String l = get("lives");
+            return "I can't see where you are: I don't read your phone's location." + (l == null
+                    ? " If you tell me where you are, I'll keep it in mind." : " You told me you live in " + l + ".");
+        }
+        if (t.matches("(what is|what's) my nickname|what do you call me|what should you call me")) {
+            String n = get("nickname") != null ? get("nickname") : get("name");
+            return n == null ? unknown.replace("yet.", "what to call you yet.") : "I call you " + n + ".";
+        }
         if (t.matches("(what's|what is|do you know|do you remember|tell me) my name|who am i")) {
             String name = get("name");
             if (t.equals("who am i")) {
                 String about = about(told);
                 return about == null ? "I don't know much about you yet. Tell me your name, or anything about yourself, and I'll remember it." : about;
             }
-            return name == null ? unknown.replace("yet.", "your name yet.") : "You're " + name + ".";
+            String nick = get("nickname");
+            return name == null ? unknown.replace("yet.", "your name yet.")
+                    : "You're " + name + (nick != null && !nick.equals(name) ? ", and I call you " + nick : "") + ".";
         }
         if (t.matches("(what|tell me what|how much) do you (know|remember) about me|what have i told you( about me(self)?)?|do you know me|do you remember me")) {
             String about = about(told);
@@ -268,7 +295,8 @@ public final class Person {
     public synchronized String about(List<String> told) {
         List<String> parts = new ArrayList<String>();
         if (get("name") != null) {
-            parts.add("your name is " + get("name"));
+            parts.add("your name is " + get("name") + (get("nickname") != null && !get("nickname").equals(get("name"))
+                    ? " (I call you " + get("nickname") + ")" : ""));
         }
         if (get("gender") != null) {
             parts.add("you're a " + get("gender"));
@@ -312,9 +340,9 @@ public final class Person {
         return "Here's what you've told me: " + joined + ".";
     }
 
-    /** The person's name, when they gave it. */
+    /** What to call the person: the nickname they asked for, else their name; null when neither was given. */
     public synchronized String name() {
-        return get("name");
+        return get("nickname") != null ? get("nickname") : get("name");
     }
 
     /** "a nurse", "an engineer". */

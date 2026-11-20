@@ -835,6 +835,13 @@ public final class Ibiko1 {
                     "Weighing the other side"), () -> saysPlain(who, ai.ibiko.ibiko1.formulas.Critical.deliberate(t)));
             return;
         }
+        // a question about the person ("what's my current location?", "what is my favourite colour?") is never
+        // searched for on the web: only they know it
+        if (aboutThePerson(t)) {
+            final String unknownYou = "I don't know that about you yet. Tell me, and I'll remember it.";
+            think(Arrays.asList("Reading your question", "That's about you: not something to search for"), () -> saysPlain(who, unknownYou));
+            return;
+        }
         if (!host.online() && host.modelReady()) {
             // offline, not in memory: the device's model answers, with what Ibiko v1 already knows about it
             final String subject0 = ResearchAnswer.subject(t);
@@ -1282,6 +1289,14 @@ public final class Ibiko1 {
     /** The text the person pasted last, for questions about it ({@link Passage}). */
     private volatile Passage passage;
 
+    /** A question about the person asking it ("what's my…", "where do I…", "am I…"), not about the world. */
+    static boolean aboutThePerson(String t) {
+        String q = Paraphrase.normalize(t);
+        return EncyclopediaQA.question(q) && (q.matches(".*\\bmy\\b.*") || q.matches("^(where|what|who|when|how|why|which) (am|do|did|was|will|should|can) i\\b.*")
+                || q.matches("^(am|do|did|was|should|can) i\\b.*")) && !q.matches(".*\\b(tell|show|give|teach|help|let) me\\b.*")
+                && !q.matches(".*\\bmy (own )?(code|file|files|phone|app|chat|message|messages|question)\\b.*");
+    }
+
     /** What was said lately (the last few thousand characters), so "tell me more" goes on from it. */
     private volatile String lastSaid;
 
@@ -1484,12 +1499,42 @@ public final class Ibiko1 {
     }
 
     /**
+     * Whether a message, said right after an answer was marked, is the right answer to that question (and so replaces
+     * it): it says so ("no, it's…", "actually…", "the answer is…"), or it is about the same thing (it shares a word with
+     * the question), or it is a short name-like answer to a who/what/where question. A request ("sing for me"), a
+     * question, or something about the person themselves is not an answer, and never replaces one.
+     */
+    static boolean answers(String question, String said) {
+        String s = Paraphrase.normalize(said), q = Paraphrase.normalize(question);
+        if (s.isEmpty() || said.trim().endsWith("?") || EncyclopediaQA.question(s)) {
+            return false;
+        }
+        if (s.matches("^(no|nope|wrong|actually|that's wrong|that is wrong|incorrect|not quite|the answer is|the right answer is|"
+                + "the correct answer is|it should be|it's|it is|they are|she is|he is|the)\\b.*")) {
+            return true;
+        }
+        if (s.matches("^(i|i am|my|me|call me|please|can you|could you|will you|let's|lets)\\b.*")
+                || ai.ibiko.ibiko1.words.Words.STOP.contains(s.split(" ")[0]) && !s.startsWith("the ")) {
+            return false; // about the person, a request, or a remark
+        }
+        java.util.Set<String> qs = new java.util.HashSet<String>(ai.ibiko.ibiko1.words.Words.content(q));
+        for (String w : ai.ibiko.ibiko1.words.Words.content(s)) {
+            if (qs.contains(w)) {
+                return true; // about the same thing
+            }
+        }
+        // "Who wrote Hamlet?" … "Shakespeare": a short answer of names or numbers, not an order ("sing for me")
+        return q.matches("^(who|what|where|when|which|how many|how much)\\b.*") && s.split(" ").length <= 5
+                && !s.matches("^(sing|dance|write|tell|show|give|make|play|draw|read|stop|go|come|help|find|open|send|call|cook)\\b.*");
+    }
+
+    /**
      * A statement: right after an answer it asked about, it is taken as the right answer to that question; "a pig is
      * an animal" on its own is kept as what a pig is. Nothing is searched.
      */
     public String learnStatement(String t) {
         String said = t.trim();
-        if (ratingQuestion != null && host.ratingWaiting()) {
+        if (ratingQuestion != null && host.ratingWaiting() && answers(ratingQuestion, said)) {
             String q = ratingQuestion;
             ratingQuestion = null;
             host.clearRating();
