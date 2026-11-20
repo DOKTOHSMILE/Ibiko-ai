@@ -517,6 +517,18 @@ public final class Ibiko1 {
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
         }
+        // a passage with numbered tasks: every task done, in order, not a summary of the passage
+        final PassageTasks tasks = inquiry == null ? PassageTasks.of(message) : null;
+        if (tasks != null) {
+            passage = pasted;
+            final String done = tasks.reply();
+            how = How.MEMORY;
+            think(Arrays.asList("Reading the passage and the " + tasks.tasks.size() + " tasks",
+                    "Tracking each person's counts and money step by step",
+                    "Answering only from the passage (nothing it doesn't say)", "Checking each answer against the task's rules"),
+                    () -> saysExact(who, done));
+            return;
+        }
         if (pasted != null) {
             passage = pasted;
             final String main = pasted.main();
@@ -1170,6 +1182,20 @@ public final class Ibiko1 {
     }
 
     /** A set reply (a greeting, its memory list, "noted", "I don't know"): no check and cancel, nothing to learn. */
+    /** Said exactly as composed: answers under rules (a letter left out, raw JSON) are not redrafted by the inner voice. */
+    private void saysExact(String who, String text) {
+        host.noRating(text);
+        String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
+        lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all;
+        host.stepsDone();
+        if (worker != null) {
+            Plug.workers.end(worker, true);
+            worker = null;
+        }
+        host.say(who, text);
+        host.answered(how);
+    }
+
     private void saysPlain(String who, String text) {
         host.noRating(text);
         says(who, text);

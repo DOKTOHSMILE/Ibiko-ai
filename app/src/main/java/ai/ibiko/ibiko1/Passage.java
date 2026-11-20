@@ -75,7 +75,7 @@ public final class Passage {
     static List<String> split(String text) {
         List<String> out = new ArrayList<String>();
         for (String para : text.split("\\n\\s*\\n|\\n(?=\\s*[-*\u2022\\d])")) {
-            for (String s : para.replaceAll("\\s+", " ").trim().split("(?<=[.!?])\\s+(?=[A-Z\"\u201c(\\d])")) {
+            for (String s : para.replaceAll("\\s+", " ").trim().split("(?<!\\b(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|Mt|Gen|Col|Capt|Rev|Hon|No|vs|etc|e\\.g|i\\.e)\\.)(?<=[.!?])\\s+(?=[A-Z\"\u201c(\\d])")) {
                 String t = s.trim();
                 if (t.length() > 1) {
                     out.add(t);
