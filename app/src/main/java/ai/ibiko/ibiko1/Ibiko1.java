@@ -196,8 +196,9 @@ public final class Ibiko1 {
     /** What shipped with the app: known from the moment it is installed, with no internet and nothing learned yet. */
     public static synchronized BuiltIn builtIn() {
         if (builtIn == null) {
-            builtIn = new BuiltIn(Plug.asset.apply("knowledge/world_facts.tsv"), Plug.asset.apply("knowledge/country_more.tsv"),
-                    Plug.asset.apply("knowledge/elements_more.tsv"), Plug.asset.apply("knowledge/local_facts.tsv"));
+            builtIn = new BuiltIn(TextCode.open(Plug.asset, "knowledge/world_facts.tsv"),
+                    TextCode.open(Plug.asset, "knowledge/country_more.tsv"), TextCode.open(Plug.asset, "knowledge/elements_more.tsv"),
+                    TextCode.open(Plug.asset, "knowledge/local_facts.tsv"));
         }
         return builtIn;
     }

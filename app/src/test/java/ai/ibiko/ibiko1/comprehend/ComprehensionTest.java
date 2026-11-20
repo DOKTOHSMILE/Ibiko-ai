@@ -14,7 +14,7 @@ public class ComprehensionTest {
     static final File K = new File("src/main/assets/knowledge");
 
     static Dictionary dict() {
-        return new Dictionary(new SortedTable(new File(K, "lexicon.tsv")));
+        return new Dictionary(new SortedTable(ai.ibiko.PlainAsset.of("knowledge/lexicon.tsv")));
     }
 
     /** The common-sense table is downloaded on the first start; here it is unpacked from the same file. */
@@ -57,7 +57,7 @@ public class ComprehensionTest {
     }
 
     private static String firstKey() {
-        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(new File(K, "lexicon.tsv")))) {
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(ai.ibiko.PlainAsset.of("knowledge/lexicon.tsv")))) {
             return r.readLine().split("\t")[0];
         } catch (java.io.IOException e) {
             return "";

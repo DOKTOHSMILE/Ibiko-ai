@@ -39,7 +39,7 @@ Inside Ibiko it lives in the app's own sources (this folder) and its knowledge i
 | Path | What it holds |
 |---|---|
 | `src/main/java/ai/ibiko/ibiko1/` (this folder) | The model: `Ibiko1` (the brain), `Ibiko1Model` (the entry point), `formulas/` (grammar, commands, truth, foresight, …), `comprehend/` (dictionary and concepts), `learner/` |
-| `src/main/assets/knowledge/` | Its built-in knowledge and their licences |
+| `src/main/assets/knowledge/` | Its built-in knowledge and their licences, all in the Ibiko v1 codes: the encyclopedia and its fact tables in IBK1, the tables and packs (`*.tsv.ibk`, `*.json.ibk`) in IBK1T (`TextCode`, made by `tools/encode_text.py`), which decode to the very same bytes |
 | `src/main/AndroidManifest.xml` | Its night-learning job |
 | `build.gradle` | An Android library (minSdk 34, Java 17, no dependencies) |
 
