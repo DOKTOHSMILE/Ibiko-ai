@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Ibiko 1's way of learning what it doesn't know, by asking back:
+ * Ibiko v1's way of learning what it doesn't know, by asking back:
  * <ol>
  * <li>a question it can't answer from memory is researched online;</li>
  * <li>then it asks the person what they mean, in their own words ({@link #askBack});</li>

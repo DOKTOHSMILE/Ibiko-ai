@@ -12,7 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Ibiko 1's formulas for language: how to read any sentence into its parts, and what a question wants. Pure Java,
+ * Ibiko v1's formulas for language: how to read any sentence into its parts, and what a question wants. Pure Java,
  * rules anyone can read, no model.
  *
  * <pre>

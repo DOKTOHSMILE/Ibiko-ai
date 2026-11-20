@@ -207,7 +207,7 @@ final class BrainGate {
                         return false;
                     }
                     if (a.ibikoOwn()) {
-                        a.ibiko1().endpoint().chat(t); // Ibiko 1, through its endpoint: what it knows, or it researches and asks whether it got it right
+                        a.ibiko1().endpoint().chat(t); // Ibiko v1, through its endpoint: what it knows, or it researches and asks whether it got it right
                         return true;
                     }
                     if (a.model != null && !a.model.remoteOn() && a.model.installed() && a.prefs.getBoolean("llm_on", true)) {
@@ -427,7 +427,7 @@ final class BrainGate {
             final String chatContext = a.chatContextKey();
             new Thread(() -> {
                 a.pilotProfile().notice(said); // what the pilot says about themselves
-                // what the pilot asks about, with any model: learned at night if Ibiko 1 doesn't know it yet
+                // what the pilot asks about, with any model: learned at night if Ibiko v1 doesn't know it yet
                 a.ibiko1().noticeQuestion(said);
                 a.ibiko1().hear(said, chatContext); // language learning is shared; reference history is chat-local
             }, "ibiko-profile").start();

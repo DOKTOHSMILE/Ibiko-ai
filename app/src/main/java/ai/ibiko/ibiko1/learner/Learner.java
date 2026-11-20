@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Ibiko 1's independent learner. It learns from everything that passes through the app, and only from that:
+ * Ibiko v1's independent learner. It learns from everything that passes through the app, and only from that:
  *
  * <pre>
  * L1  the pilot's messages      grammar (parts of speech), sentence shapes, and their check or correction of an answer
@@ -65,7 +65,7 @@ public final class Learner {
 
     // ---- L1 / T2: answers and the pilot's word on them ----------------------------------------------------------
 
-    /** Ibiko 1 gave an answer: it waits up to two of the pilot's messages for a check or a correction. */
+    /** Ibiko v1 gave an answer: it waits up to two of the pilot's messages for a check or a correction. */
     public synchronized void answered(String question, String answer, long now) {
         pendingQuestion = question;
         pendingAnswer = answer;
@@ -157,7 +157,7 @@ public final class Learner {
 
     // ---- L5: open questions ----------------------------------------------------------------------------------------
 
-    /** A question Ibiko 1 couldn't answer: kept; the third time with still no fact, it is logged as unknown. */
+    /** A question Ibiko v1 couldn't answer: kept; the third time with still no fact, it is logged as unknown. */
     public synchronized void unanswered(String question, long now) {
         ask(question, now);
         save();

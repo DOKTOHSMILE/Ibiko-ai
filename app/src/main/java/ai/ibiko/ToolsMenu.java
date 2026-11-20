@@ -199,7 +199,7 @@ final class ToolsMenu {
                 int level = tools.think();
                 about.setText(level == 2 ? "Council: every model thinks, the strongest judges"
                         : level == 1 ? "Deep: plan, check and revise first (slower)"
-                        : "Swift. Turn on for Deep. Council is on the Think button. Ibiko 1 applies what is known"
+                        : "Swift. Turn on for Deep. Council is on the Think button. Ibiko v1 applies what is known"
                                 + " and what it implies on every level.");
             }
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();

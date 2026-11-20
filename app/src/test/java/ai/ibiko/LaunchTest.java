@@ -909,7 +909,7 @@ public class LaunchTest {
         c.pause().stop().destroy();
     }
 
-    /** The model picker lists Ibiko 1.0 (Ibiko's own brain); picking it marks it in use and the header says so. */
+    /** The model picker lists Ibiko v1.0 (Ibiko's own brain); picking it marks it in use and the header says so. */
     @Test(timeout = 120000)
     public void ibikosOwnBrainCanBePicked() {
         ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class).create().start().resume();
@@ -952,7 +952,7 @@ public class LaunchTest {
         c.pause().stop().destroy();
     }
 
-    /** Ibiko 1: a statement teaches (it isn't searched), and "what have you learned" is answered from its memory. */
+    /** Ibiko v1: a statement teaches (it isn't searched), and "what have you learned" is answered from its memory. */
     @Test(timeout = 120000)
     public void ibikoLearnsFromStatementsAndSaysWhatItLearned() throws Exception {
         ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class).create().start().resume();
@@ -989,7 +989,7 @@ public class LaunchTest {
         c.pause().stop().destroy();
     }
 
-    /** Obi, Ivie and Ibiko are three named pages of one chat; Ibiko 1 thinks in steps; night learning is set from the picker. */
+    /** Obi, Ivie and Ibiko are three named pages of one chat; Ibiko v1 thinks in steps; night learning is set from the picker. */
     @Test(timeout = 120000)
     public void pagesThinkingAndNightLearning() throws Exception {
         ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class).create().start().resume();
@@ -1036,7 +1036,7 @@ public class LaunchTest {
         c.pause().stop().destroy();
     }
 
-    /** The Workload sheet: the brain answering, Ibiko 1's memory, each worker's details, and today's Ibiko 1 answers. */
+    /** The Workload sheet: the brain answering, Ibiko v1's memory, each worker's details, and today's Ibiko v1 answers. */
     @Test(timeout = 120000)
     public void theWorkloadSheetShowsWorkersInFull() throws Exception {
         ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class).create().start().resume();
@@ -1048,7 +1048,7 @@ public class LaunchTest {
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
         android.view.View sheet = org.robolectric.shadows.ShadowDialog.getLatestDialog().getWindow().getDecorView();
         for (String text : new String[] { MainActivity.IBIKO_OWN, "never fills", w, "Claude Opus 5.5", "Reading en.wikipedia.org",
-                "What is a quasar?", "working", "Ibiko 1 answers" }) {
+                "What is a quasar?", "working", "Ibiko v1 answers" }) {
             java.util.ArrayList<android.view.View> found = new java.util.ArrayList<android.view.View>();
             sheet.findViewsWithText(found, text, android.view.View.FIND_VIEWS_WITH_TEXT);
             org.junit.Assert.assertFalse(text, found.isEmpty());
@@ -1081,7 +1081,7 @@ public class LaunchTest {
         c.pause().stop().destroy();
     }
 
-    /** Ibiko 1 asks whether its answer was right; 👍🏽 saves it to its memory, found again for the same question reworded. */
+    /** Ibiko v1 asks whether its answer was right; 👍🏽 saves it to its memory, found again for the same question reworded. */
     @Test(timeout = 120000)
     public void aThumbsUpTeachesIbiko() throws Exception {
         ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class).create().start().resume();
@@ -1136,7 +1136,7 @@ public class LaunchTest {
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    /** Ibiko 1 as plugged into the screen. */
+    /** Ibiko v1 as plugged into the screen. */
     private static ai.ibiko.ibiko1.Ibiko1 ibiko1(MainActivity a) throws Exception {
         java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("ibiko1");
         m.setAccessible(true);

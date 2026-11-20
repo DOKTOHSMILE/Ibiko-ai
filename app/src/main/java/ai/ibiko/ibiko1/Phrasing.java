@@ -4,7 +4,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * How Ibiko 1 says what it says, so it speaks like a professional and not like a fixed chat bot: a question asked
+ * How Ibiko v1 says what it says, so it speaks like a professional and not like a fixed chat bot: a question asked
  * again is recognised ("as I said a moment ago"); what it doesn't know is said plainly and usefully, naming the
  * subject, what it would take to find out and what the person can do now, in different words each time.
  */

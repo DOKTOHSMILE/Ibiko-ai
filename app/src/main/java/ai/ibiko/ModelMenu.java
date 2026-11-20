@@ -1,7 +1,7 @@
 package ai.ibiko;
 
 /**
- * The model menu under the title: Ibiko 1, the API models and the offline models, the one in use clearly marked; and the learning schedule.
+ * The model menu under the title: Ibiko v1, the API models and the offline models, the one in use clearly marked; and the learning schedule.
  */
 final class ModelMenu {
     private final MainActivity a;
@@ -77,7 +77,7 @@ final class ModelMenu {
 
     /**
      * The model under the title, tapped: every brain to pick from, the one in use clearly marked (a filled radio with a
-     * check, a tinted row, "In use"): Ibiko 1.0 (Ibiko's own), the API models set up, the offline models on the device.
+     * check, a tinted row, "In use"): Ibiko v1.0 (Ibiko's own), the API models set up, the offline models on the device.
      */
     void showModelSwitch() {
         final ai.ibiko.llm.ProviderStore providers = new ai.ibiko.llm.ProviderStore(a);

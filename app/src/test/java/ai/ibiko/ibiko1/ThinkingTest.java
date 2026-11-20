@@ -14,7 +14,7 @@ import java.util.List;
 
 import org.junit.Test;
 
-/** Ibiko 1 learns how the other brains think (the moves of their reasoning), and speaks like a professional. */
+/** Ibiko v1 learns how the other brains think (the moves of their reasoning), and speaks like a professional. */
 public class ThinkingTest {
     static final String PLAN = "The user is asking which country is bigger. First, I recall the areas I know. Then compare"
             + " them side by side. Let me double-check the figures. So the answer is Nigeria.";

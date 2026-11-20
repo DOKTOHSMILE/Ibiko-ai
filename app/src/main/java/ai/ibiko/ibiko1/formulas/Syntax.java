@@ -55,6 +55,16 @@ public final class Syntax {
             this.to = to;
         }
 
+        /** A word (a leaf): its category and the word. For trees made outside the parser (a word's morphemes). */
+        public static Tree leaf(String label, String word) {
+            return new Tree(label, word, new ArrayList<Tree>(), 0, 0);
+        }
+
+        /** A phrase (a node) over its children. */
+        public static Tree node(String label, List<Tree> kids) {
+            return new Tree(label, null, new ArrayList<Tree>(kids), 0, 0);
+        }
+
         /** In brackets, as the Penn Treebank writes it: (S (NP (Det The) (N engineer)) (VP …)). */
         public String bracketed() {
             if (word != null) {
@@ -144,7 +154,7 @@ public final class Syntax {
             {"<Name>", "Name"}, {"<Name>", "Name <Name>"},
             {"VP", "V"}, {"VP", "V NP"}, {"VP", "V NP PP"}, {"VP", "V PP"}, {"VP", "V NP NP"}, {"VP", "V AdjP"},
             {"VP", "Aux VP"}, {"VP", "Aux NP"}, {"VP", "Aux AdjP"}, {"VP", "Aux PP"}, {"VP", "VP AdvP"}, {"VP", "AdvP VP"},
-            {"VP", "VP Conj VP"},
+            {"VP", "VP Conj VP"}, {"VP", "Aux Neg VP"}, {"VP", "Aux Neg NP"}, {"VP", "Aux Neg AdjP"},
             {"PP", "P NP"},
             {"AdjP", "Adj"}, {"AdjP", "Deg Adj"}, {"AdjP", "AdjP Conj AdjP"},
             {"AdvP", "Adv"}, {"AdvP", "Deg Adv"},
@@ -196,6 +206,11 @@ public final class Syntax {
             Set<String> c = new LinkedHashSet<String>();
             if (WH.contains(low)) {
                 c.add("Wh");
+            }
+            if (low.matches("not|n't|never")) {
+                c.add("Neg");
+                out.add(c);
+                continue;
             }
             switch (w.tag) {
                 case NOUN: c.add("N"); break;
@@ -280,7 +295,16 @@ public final class Syntax {
     public static final int LONGEST = 30;
 
     /** Every reading of a sentence the rules allow, the simplest first; empty when none. */
+    /** Contractions written out so their parts are read: "don't" is "do not", "I'm" is "I am". */
+    static String expand(String sentence) {
+        return (sentence == null ? "" : sentence).replaceAll("(?i)\\bcan't\\b", "can not").replaceAll("(?i)\\bwon't\\b", "will not")
+                .replaceAll("(?i)\\b(\\w+)n['\u2019]t\\b", "$1 not").replaceAll("(?i)\\b(I)['\u2019]m\\b", "$1 am")
+                .replaceAll("(?i)\\b(you|we|they)['\u2019]re\\b", "$1 are").replaceAll("(?i)\\b(I|you|we|they)['\u2019]ve\\b", "$1 have")
+                .replaceAll("(?i)\\b(I|you|he|she|we|they)['\u2019]ll\\b", "$1 will");
+    }
+
     public static List<Tree> parse(String sentence) {
+        sentence = expand(sentence);
         List<PartsOfSpeech.Word> tagged = new ArrayList<PartsOfSpeech.Word>();
         for (PartsOfSpeech.Word w : PartsOfSpeech.tag(sentence, null)) {
             if (w.tag != PartsOfSpeech.Tag.PUNCTUATION && w.tag != PartsOfSpeech.Tag.INTERJECTION) {
@@ -449,7 +473,7 @@ public final class Syntax {
     /** The words of a sentence (as the parser counts them). */
     public static List<String> words(String sentence) {
         List<String> out = new ArrayList<String>();
-        for (PartsOfSpeech.Word w : PartsOfSpeech.tag(sentence, null)) {
+        for (PartsOfSpeech.Word w : PartsOfSpeech.tag(expand(sentence), null)) {
             if (w.tag != PartsOfSpeech.Tag.PUNCTUATION && w.tag != PartsOfSpeech.Tag.INTERJECTION) {
                 out.add(w.text);
             }

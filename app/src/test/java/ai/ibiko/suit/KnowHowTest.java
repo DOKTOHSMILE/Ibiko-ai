@@ -10,7 +10,7 @@ import ai.ibiko.ibiko1.formulas.Shapes;
 import ai.ibiko.ibiko1.formulas.TruthLedger;
 import org.junit.Test;
 
-/** The phone's own model is told how to run every function the chat allows, and Ibiko 1's stores are larger. */
+/** The phone's own model is told how to run every function the chat allows, and Ibiko v1's stores are larger. */
 public class KnowHowTest {
     @Test
     public void everyAllowedCodeHasItsHowToAndATurnedOffCodeDoesNot() {

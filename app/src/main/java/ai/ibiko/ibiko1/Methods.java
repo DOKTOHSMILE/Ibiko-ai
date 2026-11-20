@@ -15,7 +15,7 @@ import java.util.Locale;
  * files, ran a command, edited, checked, worked it out). The same way seen again grows stronger; the pilot's check
  * makes it much stronger and a cross weakens it, but nothing waits for a tap: a way is learned the moment it is used.
  *
- * <p>What is learned is used in two places. Ibiko 1 follows the strongest way it knows for that kind of request when
+ * <p>What is learned is used in two places. Ibiko v1 follows the strongest way it knows for that kind of request when
  * it answers by itself, and any brain is handed it as a hint ("for requests like this, what worked before: …"), so the
  * next answer starts from a method instead of from nothing. A way that keeps failing is dropped, so the methods change
  * as the pilot's work changes. Pure Java; kept in {@code brain/methods.tsv} on the device.

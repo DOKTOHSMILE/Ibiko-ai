@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
-/** A pasted text read by Ibiko 1, and questions about it answered from it. */
+/** A pasted text read by Ibiko v1, and questions about it answered from it. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35)
 public class PassageFlowTest {

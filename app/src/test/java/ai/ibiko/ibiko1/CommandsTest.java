@@ -12,7 +12,7 @@ import java.nio.file.Files;
 
 import org.junit.Test;
 
-/** Ibiko 1 operates the app by the same function codes as every model, documented in docs/APP_FUNCTIONS.md. */
+/** Ibiko v1 operates the app by the same function codes as every model, documented in docs/APP_FUNCTIONS.md. */
 public class CommandsTest {
     @Test
     public void clearCommandsBecomeFunctionCodes() {

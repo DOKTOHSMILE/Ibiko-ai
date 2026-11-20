@@ -196,7 +196,7 @@ public final class NeuralVoice {
         }
     };
 
-    /** Sentences' sound kept on the device for a day ({@link SpeechCache}): Listen plays a prepared reply at once. */
+    /** Sentences' sound kept on the device for 30 days ({@link SpeechCache}): Listen plays a prepared reply at once. */
     private volatile SpeechCache said;
 
     private SpeechCache said() {
@@ -524,7 +524,7 @@ public final class NeuralVoice {
             already = kept.get(known); // said live a moment ago: the same sound is filed under its message
         }
         if (already != null && already.length > 0 && kept != null) {
-            kept.put(it.owner, known, already);
+            kept.put(it.owner, known, already, rate);
             return;
         }
         java.util.List<float[]> pieces = it.carried != null ? it.carried : new java.util.ArrayList<float[]>();
@@ -553,7 +553,7 @@ public final class NeuralVoice {
                             System.arraycopy(piece, 0, soFar, p, piece.length);
                             p += piece.length;
                         }
-                        kept.put(it.owner, known + "#part" + it.fromPart, soFar);
+                        kept.put(it.owner, known + "#part" + it.fromPart, soFar, rate);
                     }
                     queue.offer(it); // something to say now comes first; this sentence continues where it stopped
                     return;
@@ -580,7 +580,7 @@ public final class NeuralVoice {
         }
         SpeechCache c = said();
         if (c != null) {
-            c.put(it.owner, key, all);
+            c.put(it.owner, key, all, rate);
         }
     }
 
@@ -643,7 +643,7 @@ public final class NeuralVoice {
                     System.arraycopy(w, 0, all, at, w.length);
                     at += w.length;
                 }
-                said().put(it.owner, key, all);
+                said().put(it.owner, key, all, rate);
             }
             Clip c = new Clip(it, sound, first, last);
             first = false;

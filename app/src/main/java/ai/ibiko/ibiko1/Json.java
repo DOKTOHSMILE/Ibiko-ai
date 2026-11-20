@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Ibiko 1's own small JSON reader (a copy of the app's, so this folder stands alone). Objects become LinkedHashMap,
+ * Ibiko v1's own small JSON reader (a copy of the app's, so this folder stands alone). Objects become LinkedHashMap,
  * numbers Double. Kept local so the brain runs in plain JVM tests.
  */
 public final class Json {

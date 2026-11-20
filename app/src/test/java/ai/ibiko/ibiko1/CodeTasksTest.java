@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import ai.ibiko.ibiko1.formulas.Commands;
 import org.junit.Test;
 
-/** Ibiko 1 runs code tasks itself (as one approved shell command) and works every control of the app. */
+/** Ibiko v1 runs code tasks itself (as one approved shell command) and works every control of the app. */
 public class CodeTasksTest {
     private static String code(String m) {
         return Commands.code(m, c -> true);

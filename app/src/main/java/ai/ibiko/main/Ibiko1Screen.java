@@ -5,11 +5,11 @@ import java.util.List;
 import ai.ibiko.ibiko1.Ibiko1;
 
 /**
- * Plugs Ibiko 1 (the ibiko1 folder) into the chat screen: its steps and answers go to the chat, its check and cancel
+ * Plugs Ibiko v1 (the ibiko1 folder) into the chat screen: its steps and answers go to the chat, its check and cancel
  * to the reply, its sums to the Cortex's exact arithmetic, what it learns from other models to the brain box.
  */
 public final class Ibiko1Screen implements Ibiko1.Host {
-    /** The few parts of the screen Ibiko 1 is given. */
+    /** The few parts of the screen Ibiko v1 is given. */
     public interface Parts {
         String persona();
 
@@ -150,7 +150,7 @@ public final class Ibiko1Screen implements Ibiko1.Host {
 
     @Override
     public void learnTalk(String question, String answer) {
-        // Settings › Data and privacy: with learning off, Ibiko 1 answers but keeps nothing new
+        // Settings › Data and privacy: with learning off, Ibiko v1 answers but keeps nothing new
         if (ai.ibiko.chat.ui.UsageActivity.learningOn(activity.getSharedPreferences("ibiko", android.content.Context.MODE_PRIVATE))) {
             parts.brainBox().learnTalk(question, answer);
         }

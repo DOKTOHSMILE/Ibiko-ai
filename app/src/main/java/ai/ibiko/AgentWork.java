@@ -127,7 +127,7 @@ final class AgentWork {
         if (a.model == null) {
             return;
         }
-        // Ibiko 1 has no context window to fill; the models' is the last call's
+        // Ibiko v1 has no context window to fill; the models' is the last call's
         final float load = a.ibikoOwn() ? 0f : a.model.workload();
         if (g != null) {
             g.set(load);

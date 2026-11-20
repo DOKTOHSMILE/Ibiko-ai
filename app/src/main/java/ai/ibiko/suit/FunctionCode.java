@@ -57,7 +57,7 @@ public enum FunctionCode {
     public static String document() {
         StringBuilder b = new StringBuilder("# Ibiko app functions\n\n"
                 + "Generated from `suit/FunctionCode.java` (`FunctionCode.document()`); a test keeps this file in step. Do not edit by hand.\n\n"
-                + "Every model that drives Ibiko (an API model, the offline model, Ibiko 1) controls the app the same way: it"
+                + "Every model that drives Ibiko (an API model, the offline model, Ibiko v1) controls the app the same way: it"
                 + " writes one function code alone on the first line of its reply, then a short sentence for the user. Ibiko"
                 + " carries the function out and shows the result. The user's own words never run a function; a chat's tools"
                 + " (the tools button) decide which codes that chat may use.\n\n"

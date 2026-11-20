@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-/** Ibiko 1 greets like a person: the time of day, the name it knows, and not the same words every time. */
+/** Ibiko v1 greets like a person: the time of day, the name it knows, and not the same words every time. */
 public class GreetingTest {
     @Test
     public void warmByNameAndTimeOfDay() {

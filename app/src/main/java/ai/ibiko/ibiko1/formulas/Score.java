@@ -3,7 +3,7 @@ package ai.ibiko.ibiko1.formulas;
 import java.util.Locale;
 
 /**
- * Ibiko 1's learning score, 0 to 100, from four things it can count:
+ * Ibiko v1's learning score, 0 to 100, from four things it can count:
  *
  * <pre>
  * A  accuracy        (correct + 1) / (answered + 2)                    Laplace-smoothed: 50% before any answer

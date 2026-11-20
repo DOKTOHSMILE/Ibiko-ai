@@ -1,7 +1,7 @@
 package ai.ibiko.ibiko1;
 
 /**
- * Ibiko 1's endpoint: the one door the app talks to the model through, as it does with an API model or the offline
+ * Ibiko v1's endpoint: the one door the app talks to the model through, as it does with an API model or the offline
  * engine. It runs inside the app (no network port is opened), at {@link #ADDRESS}; a message goes in with
  * {@link #chat}, and the answer comes back through the {@link Ibiko1.Host} the app plugged in: steps while it
  * thinks, then text, or a function code for the app to carry out.

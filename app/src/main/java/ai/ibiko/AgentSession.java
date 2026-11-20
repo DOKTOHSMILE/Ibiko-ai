@@ -231,7 +231,7 @@ final class AgentSession {
                 final String wisdom = a.cortex().wisdomContext(task);
                 result = agent.run(asked + "\n\n" + ahead
                         + (comprehension.isEmpty() ? "" : "\n\n" + comprehension)
-                        + (wisdom.isEmpty() ? "" : "\n\n" + wisdom), earlier); // shared Ibiko 1 evidence accompanies the work
+                        + (wisdom.isEmpty() ? "" : "\n\n" + wisdom), earlier); // shared Ibiko v1 evidence accompanies the work
                 long began = System.currentTimeMillis();
                 int round = 1;
                 int spun = 0;

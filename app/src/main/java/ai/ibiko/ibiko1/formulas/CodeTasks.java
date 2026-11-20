@@ -10,7 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Code tasks Ibiko 1 carries out itself, with no model: the request becomes one shell command for the built-in Linux
+ * Code tasks Ibiko v1 carries out itself, with no model: the request becomes one shell command for the built-in Linux
  * ("§SH ls -la /workspace"), which the pilot approves before it runs, as for every brain. A command typed as it is,
  * code pasted with "run this", files and folders, cloning, installing, versions. One line, because a function code is
  * one line: pasted code is written to /work with printf and then run. Pure Java.

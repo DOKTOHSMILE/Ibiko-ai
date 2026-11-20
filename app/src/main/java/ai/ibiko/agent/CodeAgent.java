@@ -627,7 +627,7 @@ public final class CodeAgent {
     }
 
     /**
-     * The person's own message, when the task handed to {@link #run} carries more (Ibiko 1's notes, where the work
+     * The person's own message, when the task handed to {@link #run} carries more (Ibiko v1's notes, where the work
      * stood). Whether the work gets a blueprint is judged on these words alone: the notes made a one-line "clone the
      * repo" look like a long job, and it was planned, checked and argued over for minutes.
      */

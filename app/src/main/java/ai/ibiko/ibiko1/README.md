@@ -1,6 +1,6 @@
-# Ibiko 1
+# Ibiko v1
 
-Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no network and no other model needed. It:
+Ibiko v1 is Ibiko's own language brain. It runs inside any Android app, with no network and no other model needed. It:
 
 - answers from its built-in knowledge: world facts, the elements, local facts, an English dictionary (Open English WordNet),
   and an encyclopedia: the opening of every Simple English Wikipedia article, with other names for each (CC BY-SA 4.0,
@@ -29,6 +29,21 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   sentence of an article with the same action and object, active or passive ("painted in oil by Leonardo da Vinci");
 - works out units, dates and percentages exactly (`Everyday`): "convert 5 km to miles", "how many days until
   Christmas", "what day of the week was 1 October 1960", "15% of 200";
+- knows words and meanings both ways (`words/`, `WordTalk`): the dictionary indexed by the words of its meanings
+  (`MeaningIndex`, 198,273 senses, built once and kept as a binary file), so a meaning finds its word ("someone who flies
+  planes" is a pilot) as fast as a word finds its meaning; a word's sense in a sentence chosen from the words around it
+  ("bank" by a river or with money); a meaning said in a plain, everyday word instead of its definition; synonyms and
+  opposites both ways; a sentence read word by word, its meanings put together and said again in other words; and
+  whether two sentences say the same thing, the opposite, or something else, however they are worded;
+- builds words from morphemes (`words/Morphology`, `words/Morph`): affixes with their selection (un- takes an adjective,
+  -ness makes a noun), so "unhappiness" has one tree and "unlockable" two (two meanings); compounding, conversion,
+  reduplication, blending, clipping, acronyms and back-formation; inflection with its spelling rules and its allomorphs
+  (the plural /s/ /z/ /ɪz/, the past /t/ /d/ /ɪd/);
+- applies grammar rules (`words/GrammarCheck`): grammatical when its words build into a sentence and its parts agree
+  (a or an by sound, a subject and its verb), with descriptive and prescriptive rules kept apart (a double negative or a
+  split infinitive is noted as informal, never called wrong);
+- thinks before it speaks (`words/InnerVoice`): every reply is drafted, read back against the grammar rules, redrafted
+  until it passes and confirmed, in milliseconds, before it is said; quotes, code and names are never touched;
 - reads a sentence as nested constituents (`formulas/Syntax`, `SyntaxTalk`): phrase structure rules (S → NP VP,
   NP → (Det) (AdjP) N (PP), VP → V (NP) (PP) (AdvP), PP → P NP, AdjP → (Deg) Adj), recursive, parsed bottom up with a
   chart (CYK) so every reading is found. "Parse: the engineer deployed the node on the server" draws its tree and

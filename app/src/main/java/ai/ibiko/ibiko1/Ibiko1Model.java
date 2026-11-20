@@ -10,7 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Ibiko 1's entry point, the same shape as any other model: give it a message, get its reply. It needs no network
+ * Ibiko v1's entry point, the same shape as any other model: give it a message, get its reply. It needs no network
  * and no other model; it answers from its built-in knowledge and what it has learned, researches through
  * {@link Plug#web} when one is plugged in, and learns from feedback. Its code is this folder and its knowledge the
  * app's {@code assets/knowledge}; {@code tools/export_ibiko1.sh} puts both into a standalone library folder, which another
@@ -76,7 +76,7 @@ public final class Ibiko1Model {
         model = new Ibiko1(host, dataDir);
     }
 
-    /** True while no app has told Ibiko 1 where its files are. */
+    /** True while no app has told Ibiko v1 where its files are. */
     private static boolean isDefault() {
         try (java.io.InputStream in = TextCode.open(Plug.asset, "knowledge/world_facts.tsv")) {
             return in == null;
@@ -107,12 +107,12 @@ public final class Ibiko1Model {
         thread.execute(() -> model.endpoint().feedback(question, answer, right));
     }
 
-    /** The device's model Ibiko 1 may ask (system, question → answer, or null), or none. */
+    /** The device's model Ibiko v1 may ask (system, question → answer, or null), or none. */
     private volatile java.util.function.BiFunction<String, String, String> deviceModel;
 
     /**
-     * Gives Ibiko 1 a language model to ask for what its own memory doesn't hold (blocking; called off the caller's
-     * thread). Its answers come back unchecked; feedback on them is what Ibiko 1 keeps. Null takes it away.
+     * Gives Ibiko v1 a language model to ask for what its own memory doesn't hold (blocking; called off the caller's
+     * thread). Its answers come back unchecked; feedback on them is what Ibiko v1 keeps. Null takes it away.
      */
     public Ibiko1Model withModel(java.util.function.BiFunction<String, String, String> ask) {
         deviceModel = ask;

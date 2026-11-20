@@ -57,7 +57,7 @@ public final class ChatTools {
     private final Set<Tool> on = EnumSet.noneOf(Tool.class);
     private final Set<String> repos = new LinkedHashSet<String>();
     /** 0 ordinary, 1 Think 1 (plan, check, revise), 2 Think 2 (several models, one answer). Wisdom is not a level:*/
-    /** Ibiko 1 applies knowledge in every level through {@link ai.ibiko.ibiko1.formulas.Wisdom}. */
+    /** Ibiko v1 applies knowledge in every level through {@link ai.ibiko.ibiko1.formulas.Wisdom}. */
     private int think;
 
     private ChatTools(String persona) {
@@ -131,12 +131,12 @@ public final class ChatTools {
         return think == 2;
     }
 
-    /** Ibiko 1 applies what is known and what it implies on every level; it is no longer a separate Think level. */
+    /** Ibiko v1 applies what is known and what it implies on every level; it is no longer a separate Think level. */
     public boolean wisdom() {
         return true;
     }
 
-    /** 0 ordinary, 1 Think 1, 2 Think 2. Wisdom runs inside Ibiko 1, not as a fourth choice. */
+    /** 0 ordinary, 1 Think 1, 2 Think 2. Wisdom runs inside Ibiko v1, not as a fourth choice. */
     public int think() {
         return think;
     }

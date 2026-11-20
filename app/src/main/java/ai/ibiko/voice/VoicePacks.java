@@ -232,7 +232,7 @@ public final class VoicePacks {
         }
         File into = new File(root, p.key + ".unpacking");
         deleteAll(into);
-        try (InputStream in = new Bzip2InputStream(new FileInputStream(archive))) {
+        try (InputStream in = new Bzip2InputStream(new java.io.BufferedInputStream(new FileInputStream(archive), 1 << 16))) {
             final long expect = Math.max(1, unpackedSize(p));
             final int[] shown = {-2};
             TarUnpack.unpack(in, into, done -> {

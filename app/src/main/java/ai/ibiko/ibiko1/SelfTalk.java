@@ -63,15 +63,15 @@ public final class SelfTalk {
         }
         if (q.matches("^(so |and )?(where (are|do) you (from|come from|live|stay|based)|where were you (made|born|built|created)|"
                 + "where is your home|what country are you from)\\b.*")) {
-            return "I'm from the Ibiko app, and I live right here on your phone. My own brain, Ibiko 1, runs on the device"
+            return "I'm from the Ibiko app, and I live right here on your phone. My own brain, Ibiko v1, runs on the device"
                     + " itself, so I'm with you wherever you are, even offline.";
         }
         if (q.matches("^(so )?(who (made|created|built|designed|programmed|trained) you|who is your (creator|maker|developer|owner))\\b.*")) {
-            return "I was built as part of the Ibiko app. My own brain, Ibiko 1, is made to run on your phone and learn from you"
+            return "I was built as part of the Ibiko app. My own brain, Ibiko v1, is made to run on your phone and learn from you"
                     + " as we talk.";
         }
         if (q.matches("^(so )?(how old are you|what is your age|what's your age|when were you (born|made|created))\\b.*")) {
-            return "I'm Ibiko 1, version 0.1, so still young. I learn something new each time you use me.";
+            return "I'm Ibiko v1, version 0.0.1, so still young. I learn something new each time you use me.";
         }
         if (q.matches("^(so )?(are you (a )?(human|person|real|a robot|a machine|an ai|a bot|a computer)|"
                 + "is this a (real )?(person|human|bot))\\b.*")) {

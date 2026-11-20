@@ -113,11 +113,11 @@ public final class MemoryActivity extends AppCompatActivity {
                     () -> known.forget(f.question)));
         }
 
-        // ---- what Ibiko 1 learned on its own: facts with their strength, reading rules, words, its journal
+        // ---- what Ibiko v1 learned on its own: facts with their strength, reading rules, words, its journal
         final File brain = new File(getFilesDir(), "brain");
         final ai.ibiko.ibiko1.Facts selfRead = ai.ibiko.ibiko1.Store.facts(brain);
         final ai.ibiko.ibiko1.learner.Learner learner = ai.ibiko.ibiko1.Store.learner(brain);
-        LinearLayout dl = section("What Ibiko 1 learned by itself", selfRead.size(), "Forget every fact, reading rule and word Ibiko 1 learned?",
+        LinearLayout dl = section("What Ibiko v1 learned by itself", selfRead.size(), "Forget every fact, reading rule and word Ibiko v1 learned?",
                 () -> {
                     selfRead.clear();
                     learner.clear();

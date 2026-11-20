@@ -12,7 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Ibiko 1's encyclopedia, inside the app: the opening of every article of Simple English Wikipedia (CC BY-SA 4.0, see
+ * Ibiko v1's encyclopedia, inside the app: the opening of every article of Simple English Wikipedia (CC BY-SA 4.0, see
  * {@code assets/knowledge/encyclopedia/LICENSE.txt}), in plain words, with the redirects as other names ("USA" for
  * "United States"). It answers "what is a volcano", "who was Nelson Mandela", "tell me about Lagos" offline, saying
  * where it read it. Kept in the Ibiko v1 coded form (IBK1, {@code tools/encode_encyclopedia.py}): every word a number

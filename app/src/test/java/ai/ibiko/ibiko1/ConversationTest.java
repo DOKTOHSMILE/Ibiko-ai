@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
-/** A conversation through Ibiko 1: each question leans on the one before, and how it was read is in the steps. */
+/** A conversation through Ibiko v1: each question leans on the one before, and how it was read is in the steps. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35)
 public class ConversationTest {

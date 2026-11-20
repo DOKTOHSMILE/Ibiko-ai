@@ -9,7 +9,7 @@ import java.util.Set;
 
 /**
  * Grammar, the parts of speech: which word in a sentence is a noun, a pronoun, a verb, an adjective, an adverb, a
- * preposition, a conjunction, a determiner, an interjection or a number. Ibiko 1 reads every sentence with this formula
+ * preposition, a conjunction, a determiner, an interjection or a number. Ibiko v1 reads every sentence with this formula
  * and learns from it (what a word was each time it was sure), so it tags new words better the more it reads. Pure
  * Java.
  *

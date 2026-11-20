@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * What Ibiko 1 knows the moment it is installed, before it has learned or looked up anything: facts that ship inside
+ * What Ibiko v1 knows the moment it is installed, before it has learned or looked up anything: facts that ship inside
  * the app ({@code assets/knowledge/world_facts.tsv}: the countries from mledoze/countries, ODbL, see
  * {@code assets/knowledge/WORLD_FACTS_LICENSE.txt}, and the 118 elements; {@code tools/build_world_facts.py} can
  * rebuild it from Wikidata). One line a fact: the thing, what about it, the value. A question is answered

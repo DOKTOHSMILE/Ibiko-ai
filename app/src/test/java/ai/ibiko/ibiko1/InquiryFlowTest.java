@@ -19,7 +19,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 /**
- * The whole way through Ibiko 1: a question it doesn't know is looked up, it asks what the person means, that is looked
+ * The whole way through Ibiko v1: a question it doesn't know is looked up, it asks what the person means, that is looked
  * up too, the closer answer comes with "I may be wrong", and "no, it's …" replaces it in memory.
  */
 @RunWith(RobolectricTestRunner.class)

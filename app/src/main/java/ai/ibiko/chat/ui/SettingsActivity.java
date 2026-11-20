@@ -122,7 +122,7 @@ public class SettingsActivity extends AppCompatActivity {
     static final String[][] SECTIONS = {
             {"Profile", "Your name and who starts the chat"},
             {"Chat", "Enter to send, thinking together, fact-checks, working steps"},
-            {"Ibiko 1 and learning", "The brain in use, the learning schedule, training file"},
+            {"Ibiko v1 and learning", "The brain in use, the learning schedule, training file"},
             {"Work and actions", "What long work says in the chat; sharing and posting"},
             {"Models", "AI providers and the model on this device"},
             {"Web and services", "Web look-ups and connectors"},
@@ -138,7 +138,7 @@ public class SettingsActivity extends AppCompatActivity {
         switch (title) {
             case "Profile": return ai.ibiko.R.drawable.ic_set_profile;
             case "Chat": return ai.ibiko.R.drawable.ic_set_chat;
-            case "Ibiko 1 and learning": return ai.ibiko.R.drawable.ic_set_brain;
+            case "Ibiko v1 and learning": return ai.ibiko.R.drawable.ic_set_brain;
             case "Work and actions": return ai.ibiko.R.drawable.ic_set_work;
             case "Models": return ai.ibiko.R.drawable.ic_set_models;
             case "Web and services": return ai.ibiko.R.drawable.ic_set_web;
@@ -234,7 +234,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     /** Keeps a number, brought into its range (the field shows what was kept). */
     /** A switch row kept in the preferences; {@code changed} also runs when it flips. */
-    /** Ibiko 1's learning as a training file in Downloads/Ibiko. */
+    /** Ibiko v1's learning as a training file in Downloads/Ibiko. */
     protected void exportTraining() {
         java.io.File dir = new java.io.File(getFilesDir(), "brain");
         String name = "ibiko1-training-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(new java.util.Date()) + ".jsonl";

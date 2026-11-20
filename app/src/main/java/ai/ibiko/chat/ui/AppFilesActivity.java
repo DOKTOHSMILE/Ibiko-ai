@@ -177,7 +177,14 @@ public final class AppFilesActivity extends Activity {
     }
 
     private void start() {
-        title.setText(AppFiles.TITLE);
+        boolean inside = AppFiles.carried(name -> {
+            try {
+                return getAssets().open(name, android.content.res.AssetManager.ACCESS_STREAMING);
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        });
+        title.setText(inside ? AppFiles.SETTING_UP : AppFiles.TITLE); // carried in the app: unpacked, not downloaded
         line.setText("Ibiko opens once they are in place.");
         bar.setIndeterminate(true);
         retry.setVisibility(android.view.View.GONE);
@@ -189,7 +196,15 @@ public final class AppFilesActivity extends Activity {
         Thread t = new Thread(() -> {
             final int[] shown = {-2};
             try {
-                AppFiles.fetch(files, AppFiles.WEB, (pct, line) -> {
+                // the voice and the table come out of the app itself when the build carried them: no download
+                final android.content.res.AssetManager assets = getAssets();
+                AppFiles.fetch(files, AppFiles.bundled(name -> {
+                    try {
+                        return assets.open(name, android.content.res.AssetManager.ACCESS_STREAMING);
+                    } catch (java.io.IOException e) {
+                        return null;
+                    }
+                }, AppFiles.WEB), (pct, line) -> {
                     if (pct == shown[0]) {
                         return;
                     }

@@ -1,4 +1,4 @@
-Ibiko 1's built-in encyclopedia (the *.ibk files in this folder, and the fact tables in facts/)
+Ibiko v1's built-in encyclopedia (the *.ibk files in this folder, and the fact tables in facts/)
 
 Source: Simple English Wikipedia (https://simple.wikipedia.org), the dump of 1 November 2026
 (simplewiki-20261101-pages-articles.xml.bz2, https://dumps.wikimedia.org/simplewiki/).

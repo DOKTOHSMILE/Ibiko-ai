@@ -17,7 +17,7 @@ public final class ConversationContext {
     private ConversationContext() { }
 
     /**
-     * Restore this chat's bounded Cortex state, read the original user wording through Ibiko 1's existing UCL,
+     * Restore this chat's bounded Cortex state, read the original user wording through Ibiko v1's existing UCL,
      * produce the shared context and atomically save the updated snapshot. The interpreted text may differ from the
      * original wording; only the original wording advances UCL conversation history.
      */

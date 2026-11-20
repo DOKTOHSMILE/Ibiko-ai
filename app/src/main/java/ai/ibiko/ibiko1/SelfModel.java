@@ -98,7 +98,7 @@ public final class SelfModel {
         String q = Paraphrase.normalize(message); // every way of saying it, written one way
         if (q.matches("(so |and |then )?(what are you|what exactly are you|who are you|what is ibiko|who is ibiko|what kind of (ai|thing|program) are you|tell me about yourself|introduce yourself|describe yourself)")) {
             String name = s.personName();
-            return "I'm Ibiko, an AI that lives on your phone" + (name == null ? "" : ", " + name) + ". My own brain, Ibiko 1, runs right here on"
+            return "I'm Ibiko, an AI that lives on your phone" + (name == null ? "" : ", " + name) + ". My own brain, Ibiko v1, runs right here on"
                     + " the device: it reads what you say (who did what, and what “he” or “it” means), finds what it knows,"
                     + " works things out, and remembers what you tell me. I'm not a person and I have no body, but I can think things"
                     + " through with you." + (s.online() ? " When I'm online I can also look things up." : "");

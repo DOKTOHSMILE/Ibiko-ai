@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import ai.ibiko.ibiko1.ResearchAnswer;
 
-/** Ibiko 1's memory: answers confirmed with a thumbs up, found again however the question is asked. */
+/** Ibiko v1's memory: answers confirmed with a thumbs up, found again however the question is asked. */
 public class KnowledgeTest {
     @Test
     public void aConfirmedAnswerIsFoundForTheSameIntentAskedAnotherWay() throws Exception {
@@ -134,7 +134,7 @@ public class KnowledgeTest {
         Knowledge k = new Knowledge(null);
         k.confirm("What is a shoe?", "A shoe is an item of footwear.");
         assertEquals("A shoe is an item of footwear.", k.recall("What do you know about a shoe?").answer);
-        k.confirm("Hello", "Hello, I'm Ibiko 1 \u00B7 0.1. Ask me anything.");
+        k.confirm("Hello", "Hello, I'm Ibiko v1 \u00B7 0.0.1. Ask me anything.");
         k.confirm("What have you learned so far?", "Records was in Europe.");
         assertEquals("only the real answer is kept", 1, k.confirmed().size());
         assertTrue(Knowledge.notKnowledge("Good afternoon", "Hi"));

@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Everything Ibiko 1 needs from the app it runs in, in one place: the web, the workers board, what the pilot is into,
- * and an icon for its notifications. The app fills these in at start ({@code IbikoApp}); without them Ibiko 1 still
+ * Everything Ibiko v1 needs from the app it runs in, in one place: the web, the workers board, what the pilot is into,
+ * and an icon for its notifications. The app fills these in at start ({@code IbikoApp}); without them Ibiko v1 still
  * runs, offline and quietly. This is what makes the folder detachable: nothing else in it reaches outside.
  */
 public final class Plug {
@@ -31,7 +31,7 @@ public final class Plug {
     /** A file that ships inside the app (its assets), by path; null when the app gave none. */
     public static volatile java.util.function.Function<String, java.io.InputStream> asset = path -> null;
 
-    /** No web: Ibiko 1 answers from what it knows. */
+    /** No web: Ibiko v1 answers from what it knows. */
     public static final Web NONE = new Web() {
         @Override
         public String get(String url) {
@@ -64,6 +64,6 @@ public final class Plug {
     /** What the pilot has said they're into (their work, project, likes), for the learning sessions. */
     public static volatile java.util.function.Supplier<List<String>> interests = ArrayList::new;
 
-    /** The small icon for Ibiko 1's notifications. */
+    /** The small icon for Ibiko v1's notifications. */
     public static volatile int icon = android.R.drawable.stat_notify_sync;
 }

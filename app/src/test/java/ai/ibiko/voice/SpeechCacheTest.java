@@ -12,10 +12,10 @@ import java.util.List;
 
 import org.junit.Test;
 
-/** A reply's voice is kept under its message's id for a week, in the order it is said, and goes with its chat. */
+/** A reply's voice is kept, as WAV files, under its message's id for 30 days, in the order it is said, and goes with its chat. */
 public class SpeechCacheTest {
     @Test
-    public void keptForAWeekThenCleared() throws Exception {
+    public void keptFor30DaysThenCleared() throws Exception {
         File files = Files.createTempDirectory("files").toFile();
         SpeechCache c = new SpeechCache(files);
         String key = NeuralVoice.madeKey("Hello there.", 4, 1f);
@@ -23,13 +23,13 @@ public class SpeechCacheTest {
         assertNull(c.get(key));
         c.put(key, sound);
         assertTrue(c.has(key));
-        assertArrayEquals(sound, c.get(key), 0f);
+        assertArrayEquals("16-bit audio: within a step", sound, c.get(key), 1e-4f);
         File f = new File(files, "voices/said/" + SpeechCache.name(key));
         assertTrue(f.setLastModified(System.currentTimeMillis() - SpeechCache.KEEP_MS - 1000));
-        assertFalse("older than a week: made again when wanted", c.has(key));
+        assertFalse("older than 30 days: made again when wanted", c.has(key));
         assertNull(c.get(key));
         assertFalse(f.exists());
-        assertEquals(7L * 24 * 60 * 60 * 1000, SpeechCache.KEEP_MS);
+        assertEquals(30L * 24 * 60 * 60 * 1000, SpeechCache.KEEP_MS);
     }
 
     @Test
@@ -45,7 +45,7 @@ public class SpeechCacheTest {
         List<File> order = c.ordered("g7/mA");
         assertEquals(2, order.size());
         assertTrue(order.get(0).getName().startsWith("000-") && order.get(1).getName().startsWith("001-"));
-        assertArrayEquals(new float[]{0.2f}, c.get("g7/mA", two), 0f);
+        assertArrayEquals(new float[]{0.2f}, c.get("g7/mA", two), 1e-4f);
         SpeechCache.forgetChat(files, "g7");
         assertFalse(c.has("g7/mA", one));
         assertFalse(new File(files, "voices/said/g7").exists());
@@ -56,5 +56,39 @@ public class SpeechCacheTest {
     public void theChildsVoiceIsALightVoicePlayedHigher() {
         assertTrue(TalkBridge.CHILD_PITCH > 1.2f && TalkBridge.CHILD_PITCH < 1.5f);
         assertTrue("Sky is in the pack", VoicePacks.byKey("kokoro").byName(TalkBridge.CHILD_SPEAKER) != null);
+    }
+
+    @Test
+    public void keptAsAudioFilesAndJoinedIntoOne() throws Exception {
+        File files = Files.createTempDirectory("files").toFile();
+        SpeechCache c = new SpeechCache(files);
+        c.put("g1/m1", "one", new float[]{0.5f, -0.5f}, 24000);
+        c.put("g1/m1", "two", new float[]{0.25f}, 24000);
+        File first = c.ordered("g1/m1").get(0);
+        byte[] w = Files.readAllBytes(first.toPath());
+        assertEquals("RIFF", new String(w, 0, 4, "US-ASCII"));
+        assertEquals("WAVE", new String(w, 8, 4, "US-ASCII"));
+        assertEquals(44, SpeechCache.wavData(w));
+        File whole = c.wholeMessage("g1/m1", 24000);
+        assertTrue(whole.getName().equals("message.wav") && whole.length() > 44);
+        float[] all = SpeechCache.read(whole);
+        assertEquals("both sentences and a quarter-second pause after each", 2 + 1 + 2 * 6000, all.length);
+        assertEquals(0.5f, all[0], 1e-4f);
+        assertEquals("the whole file isn't one of the sentences", 2, c.ordered("g1/m1").size());
+    }
+
+    @Test
+    public void anOlderVersionsRawFloatsAreStillRead() throws Exception {
+        File files = Files.createTempDirectory("files").toFile();
+        File said = new File(files, "voices/said");
+        said.mkdirs();
+        String key = NeuralVoice.madeKey("Old.", 4, 1f);
+        File f = new File(said, SpeechCache.sha(key) + ".f32");
+        try (java.io.DataOutputStream out = new java.io.DataOutputStream(new java.io.FileOutputStream(f))) {
+            out.writeInt(2);
+            out.writeFloat(0.25f);
+            out.writeFloat(-0.75f);
+        }
+        assertArrayEquals(new float[]{0.25f, -0.75f}, new SpeechCache(files).get(key), 0f);
     }
 }

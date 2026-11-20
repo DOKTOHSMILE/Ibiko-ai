@@ -129,7 +129,7 @@ final class StagedActions {
                 ai.ibiko.social.SocialPoster.Result r = ai.ibiko.social.SocialPoster.post(a, net, p.content, p.tags, null);
                 String checked = null;
                 if (r.posted) {
-                    a.ibiko1().readReply(p.content); // Ibiko 1 learns the language of what the pilot approved
+                    a.ibiko1().readReply(p.content); // Ibiko v1 learns the language of what the pilot approved
                     a.handler.post(() -> a.note("Checking that it's on your " + net.shown + " profile\u2026"));
                     ai.ibiko.social.campaign.PostCheck.Seen seen = ai.ibiko.social.campaign.PostCheck.verify(a, net, p.content);
                     checked = seen.yes() ? "Posted on " + net.shown + " and checked: it's on your profile."

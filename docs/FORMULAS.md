@@ -1,7 +1,7 @@
-# Ibiko 1 formulas
+# Ibiko v1 formulas
 
-Every rule Ibiko 1 uses to read, answer and learn lives in one folder:
-`app/src/main/java/ai/ibiko/ibiko1/formulas/` (Ibiko 1's folder; `tools/export_ibiko1.sh` makes it a standalone library). Each file opens with its rules, numbered, so a behaviour can be traced
+Every rule Ibiko v1 uses to read, answer and learn lives in one folder:
+`app/src/main/java/ai/ibiko/ibiko1/formulas/` (Ibiko v1's folder; `tools/export_ibiko1.sh` makes it a standalone library). Each file opens with its rules, numbered, so a behaviour can be traced
 to one line. Tests: `app/src/test/java/ai/ibiko/ibiko1/` and `app/src/test/java/ai/ibiko/learn/IndependentLearnerTest.java`.
 
 | File | What it decides | Rules |
@@ -16,9 +16,9 @@ to one line. Tests: `app/src/test/java/ai/ibiko/ibiko1/` and `app/src/test/java/
 | `Truth.java` | The foundation every answer stands on: all that is known about a request, from every store, settled by how trustworthy each source is, with how sure it is | G1 ranks (you told me › you confirmed › built-in › read today › learned, not checked › a model's memory) · G2 two different sources agreeing make it firm · G3 the higher rank stands; equal ranks that differ are said to differ · G4 the newer dated source wins at equal rank · G5 say how sure, never invent a fact or a source, posts are opinions · G6 a claim against a firm one is held back · G7 every answer built on this, in order, before any reasoning · G8 question everything: each sentence going in (research, what it learns, what the pilot teaches) and coming out (every reply from any brain) is asked "true or false?" against the most trusted source that knows; FALSE is not learned and is corrected after the reply with its source; UNKNOWN is never stated as certain; denials, hedges, questions and the past are not judged · G9 the truth ledger (`TruthLedger.java`): every TRUE and FALSE judgment is kept, both sides, with its source, correction, where (read, reply, the pilot), when and how often; a sentence judged before is judged the same again; the known mistakes and checked truths about a request go to every brain, mistakes first; at most 12,000, the least recently seen forgotten first |
 | `Reflection.java` | Learning from its own replies: how each went, judged by the pilot's next message, and the lessons handed to the next reply of the same kind | R1 outcome (corrected −2, retried −1, restyled, accepted +1) · R2 record (score and the last 3 lessons) · R3 style (shorter/longer, list/prose, simpler) · R4 trust (score ≤ −2: slow down and check) · R5 tick +2 / cross −3 · R6 forgetting (×0.9) · R7 apply to every brain |
 | `Reasoner.java` (in `ibiko1/`) | Reasoning: a question one fact can't answer is broken into steps (the operators of compositional question answering, as in KQA Pro's KoPL) and run on the built-in facts | O1 find the things named (whole words, longest first) · O2 filter a set (continent, region, currency, language, border, coast; a country is a UN member) · O3 relate (neighbours; the country of a capital, currency or code) · O4 read a property · O5 compare (more or less, how many times, the difference) · O6 rank (most, least; ties said; the next two given) · O7 count and list · O8 compute (people per square kilometre, a sum "combined", a continent's total) · R1 every answer says the values it rests on · R2 a yes-or-no or "why" claim is checked and a false premise corrected ("It isn't.") · R3 a step that can't run says what is missing; nothing is invented · R4 a question one fact answers is left to the lookup |
-| `Critical.java` | Critical reasoning, deep thinking that questions before it answers: Ibiko 1 runs it on its own answers, and its checks for each request go to every other brain | K1 kind (fact, cause, comparison, judgement, prediction, definition, how-to: each needs its own proof) · K2 premise checked before it is explained · K3 absolutes (one exception disproves) · K4 not only two options · K5 cause is not correlation (mechanism, order in time, other causes) · K6 who says is not evidence · K7 a judgement names its criteria · K8 a forecast is not a fact · K9 how sure matches how it was reached (certain, sure, very likely, likely, not checked) · K10 the other side's best case · K11 a second route; disagreement lowers certainty · K12 what would change the answer |
-| `Thinking.java` | Learning how the other brains think from the live chat (Deep Thinking's plan and review, the working steps, the reasoning written into replies), so Ibiko 1's own thinking follows it | T1 moves (understand, recall, plan, look up, compare, consider, compute, check, conclude) · T2 pattern in order, at most 6 · T3 kept per kind of request, at most 8 · T4 followed once seen twice · T5 fade 0.9 · T6 shown as Ibiko 1's steps, its own last steps kept |
-| `Analyst.java` | Data handled with surgical precision, run by Ibiko 1 on data in a message and given to every brain as its method | A1 objective · A2 inventory · A3 clean, said, nothing dropped silently · A4 exact count, sum, mean, median, min, max, range, sample SD · A5 outliers by Tukey's fences, flagged not deleted · A6 change first to last and the least-squares direction (a trend from 4 values) · A7 every total checked a second way · A8 limits said · A9 figures, meaning, what would sharpen it · A10 units kept |
+| `Critical.java` | Critical reasoning, deep thinking that questions before it answers: Ibiko v1 runs it on its own answers, and its checks for each request go to every other brain | K1 kind (fact, cause, comparison, judgement, prediction, definition, how-to: each needs its own proof) · K2 premise checked before it is explained · K3 absolutes (one exception disproves) · K4 not only two options · K5 cause is not correlation (mechanism, order in time, other causes) · K6 who says is not evidence · K7 a judgement names its criteria · K8 a forecast is not a fact · K9 how sure matches how it was reached (certain, sure, very likely, likely, not checked) · K10 the other side's best case · K11 a second route; disagreement lowers certainty · K12 what would change the answer |
+| `Thinking.java` | Learning how the other brains think from the live chat (Deep Thinking's plan and review, the working steps, the reasoning written into replies), so Ibiko v1's own thinking follows it | T1 moves (understand, recall, plan, look up, compare, consider, compute, check, conclude) · T2 pattern in order, at most 6 · T3 kept per kind of request, at most 8 · T4 followed once seen twice · T5 fade 0.9 · T6 shown as Ibiko v1's steps, its own last steps kept |
+| `Analyst.java` | Data handled with surgical precision, run by Ibiko v1 on data in a message and given to every brain as its method | A1 objective · A2 inventory · A3 clean, said, nothing dropped silently · A4 exact count, sum, mean, median, min, max, range, sample SD · A5 outliers by Tukey's fences, flagged not deleted · A6 change first to last and the least-squares direction (a trend from 4 values) · A7 every total checked a second way · A8 limits said · A9 figures, meaning, what would sharpen it · A10 units kept |
 | `Foresight.java` | Premeditation: what the pilot is likely to need next after a request like this one, and the check run before answering or acting | P1 transition · P2 forgetting (0.95) · P3 likelihood (Laplace) · P4 offered at mass ≥ 2.5 and P ≥ 0.40 · P5 look before (what is asked, what for, what could go wrong, what comes next) · P6 offer, never act unasked · P7 a 6-hour gap is a new session |
 
 The sentence formula (how an answer is said: "Bell invented the telephone.") is in `ibiko1/Facts.java`, next to the
@@ -30,9 +30,9 @@ facts it reads.
 
 | Source | What it teaches |
 |---|---|
-| The pilot's messages, to any brain | grammar, sentence shapes, the pilot's check or correction of Ibiko 1's last answer |
+| The pilot's messages, to any brain | grammar, sentence shapes, the pilot's check or correction of Ibiko v1's last answer |
 | Every model's answer | grammar and sentence shapes only (a model's claim is not a fact) |
-| Research Ibiko 1 reads | facts at strength 2, grammar, sentence shapes |
+| Research Ibiko v1 reads | facts at strength 2, grammar, sentence shapes |
 | Social posts and pages | grammar only (people's words, never facts) |
 | Questions it couldn't answer | kept until a strong fact answers them; after 3 asks, logged as unknown |
 
@@ -42,7 +42,7 @@ the request, and the likely next step when the habit is sure enough; the brain m
 
 The foundation (`Truth.java`) is put together for every request, before Foresight and Reflection: what the pilot said
 about themselves, what they confirmed, the built-in reference, what was read, what was learned and not checked, each
-marked with its source and how sure it is, and the rules for when they disagree. Ibiko 1's own answers follow the same
+marked with its source and how sure it is, and the rules for when they disagree. Ibiko v1's own answers follow the same
 ranks: a built-in fact outranks a lesson that was never confirmed.
 
 Question everything (G8): `BuiltIn.check` and `Facts.check` judge one sentence each (true, false or unknown), the built-in
@@ -61,7 +61,7 @@ confirmed, what was found false is a known mistake. Memory → "Checked true or 
 where each came from, and forgets one or all.
 
 Files, all in the app's `brain/` folder: `truth.tsv`, `reflection.tsv`, `foresight.tsv`, `facts.tsv`, `learner-answers.jsonl`, `learner-open.json`,
-`learner-rules.json`, `learner-words.tsv`, `learner-state.json`, `learner-journal.txt`. Memory → "What Ibiko 1 learned
+`learner-rules.json`, `learner-words.tsv`, `learner-state.json`, `learner-journal.txt`. Memory → "What Ibiko v1 learned
 by itself" shows them and forgets them.
 
 

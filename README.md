@@ -15,7 +15,7 @@ Android 14 or newer, 64-bit ARM. Package `ai.ibiko`.
 - **Any brain.**
   - An API model: any OpenAI-compatible provider or Anthropic, with backups tried in order.
   - A model on the phone (GGUF files such as Qwen3, Llama, Gemma, Phi), running offline through llama.cpp.
-  - Ibiko 1, the app's own brain: built-in facts, exact arithmetic, a dictionary and common-sense links, and what it
+  - Ibiko v1, the app's own brain: built-in facts, exact arithmetic, a dictionary and common-sense links, and what it
     has learned from you. No model needed.
 - **A coding agent.** It reads, writes and searches files, runs commands in a real Linux (Alpine, inside the app; no
   Termux), and clones, commits, pushes and opens pull requests on GitHub. It plans first, checks each step and keeps a
@@ -59,14 +59,14 @@ A release build is signed only when `IBIKO_KEYSTORE`, `IBIKO_KEYSTORE_PASSWORD`,
 |---|---|
 | `agent/` | The coding agent: tools, approvals, plans, workers |
 | `llm/` | API providers, the on-device model, key storage |
-| `ibiko1/`, `learn/`, `suit/` | Ibiko 1: reasoning, comprehension, learning |
+| `ibiko1/`, `learn/`, `suit/` | Ibiko v1: reasoning, comprehension, learning |
 | `connect/`, `net/` | Connectors, GitHub, web fetching and search |
 | `linux/` | The built-in Alpine Linux and terminal |
 | `chat/`, `stage/` | The chat, its storage and screens |
 | `social/`, `voice/`, `design/` | Social accounts, speech, the design board |
 
 More detail: [`docs/APP_FUNCTIONS.md`](docs/APP_FUNCTIONS.md) (the functions a brain can use, generated from the
-code), [`docs/SUIT_ARCHITECTURE.md`](docs/SUIT_ARCHITECTURE.md), [`docs/FORMULAS.md`](docs/FORMULAS.md) (Ibiko 1's
+code), [`docs/SUIT_ARCHITECTURE.md`](docs/SUIT_ARCHITECTURE.md), [`docs/FORMULAS.md`](docs/FORMULAS.md) (Ibiko v1's
 rules), [`docs/SOCIAL_INTELLIGENCE.md`](docs/SOCIAL_INTELLIGENCE.md), [`docs/TRAINING.md`](docs/TRAINING.md) and
 [`PLAN.md`](PLAN.md).
 

@@ -1,7 +1,7 @@
 package ai.ibiko.ibiko1.formulas;
 
 /**
- * How sure Ibiko 1 is of a fact: its strength {@code n} (0 to 5) and when it was last confirmed. Pure arithmetic, so
+ * How sure Ibiko v1 is of a fact: its strength {@code n} (0 to 5) and when it was last confirmed. Pure arithmetic, so
  * every change to a fact's strength is traceable to one rule here.
  *
  * <pre>

@@ -129,7 +129,7 @@ final class LocalAsk {
         // as a topic of its own ("Start is a money") and gave that to the model as Ibiko's view
         final ai.ibiko.learn.Mind.Thought thought = act.brainBox().mind().think(
                 question != null && question.trim().split("\\s+").length >= 3 ? question : "");
-        // its steps are Ibiko 1's own reasoning: shown when Ibiko 1 or the device's model answers, not under an API
+        // its steps are Ibiko v1's own reasoning: shown when Ibiko v1 or the device's model answers, not under an API
         // reply, where they were noise in the steps ("Reader", "Memory", "Weigher", "Critic", "Speaker")
         if (thought.steps.size() >= 3 && !act.model.remoteOn()) {
             for (ai.ibiko.learn.Mind.Step st : thought.steps) {
@@ -234,7 +234,7 @@ final class LocalAsk {
                         act.DEVICE_CONTEXT_CHARS);
             }
             // Keep the wisdom evidence after context compression so quick/device prompts cannot trim it away.
-            // It is always part of Ibiko 1's reasoning, not a selectable Think level or an executable tool.
+            // It is always part of Ibiko v1's reasoning, not a selectable Think level or an executable tool.
             String wisdom = act.cortex().wisdomContext(english);
             String adaptiveEvidence = act.brain.adaptiveLearningContext(english, 6);
             if (!wisdom.isEmpty()) {
@@ -315,7 +315,7 @@ final class LocalAsk {
                 }
                 return act.alive(id);
             };
-            // Ibiko 1's reasoning module applies what is known and what it implies inside every think level.
+            // Ibiko v1's reasoning module applies what is known and what it implies inside every think level.
             // No fourth level, no extra model rounds: one direct answer, with one working brief.
             String raw = null;
             // Think 2 is chosen on the button: several API models, then one answer. A greeting stays one call.
@@ -372,7 +372,7 @@ final class LocalAsk {
                             if (result != null && !result.isEmpty()
                                     && (pass.startsWith("Understood")
                                             || pass.startsWith("Reviewed"))) {
-                                act.ibiko1().learnThinking(english, result); // Ibiko 1 learns how the brain thought it through
+                                act.ibiko1().learnThinking(english, result); // Ibiko v1 learns how the brain thought it through
                             }
                             act.handler.post(() -> {
                                 if (act.alive(id)) {
@@ -525,7 +525,7 @@ final class LocalAsk {
                         said = "The connection dropped while I was answering. I'll finish this the moment you're back online.";
                     }
                     if (said == null && act.unreachable(why) && !act.aboutPhoneFiles(question)) {
-                        // the API's address can't be reached (a gateway down, a DNS failure): Ibiko 1, on this device,
+                        // the API's address can't be reached (a gateway down, a DNS failure): Ibiko v1, on this device,
                         // answers instead of leaving only an error; Retry still asks the API again
                         said = "My connection is down for a moment, so I'm answering from this device. Tap Retry for the"
                                 + " full answer once it's back.";
@@ -557,7 +557,7 @@ final class LocalAsk {
                         if (ai.ibiko.chat.ui.UsageActivity.learningOn(act.prefs)) { // Settings › Data and privacy › learning
                             act.brainBox().learnTalk(learnQ, learnA);
                         } // Ibiko grows with every answer
-                        act.ibiko1().readReply(learnA); // and Ibiko 1 learns the language of it
+                        act.ibiko1().readReply(learnA); // and Ibiko v1 learns the language of it
                     });
                 }
                 if (switchTo != null && !switchTo.equals(agent)) {
