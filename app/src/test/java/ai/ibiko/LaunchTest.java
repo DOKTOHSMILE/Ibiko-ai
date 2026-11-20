@@ -283,7 +283,8 @@ public class LaunchTest {
         cf.setAccessible(true);
         ai.ibiko.chat.ChatBook chats = (ai.ibiko.chat.ChatBook) cf.get(c.get());
         boolean told = false;
-        for (int i = 0; i < 40 && !told; i++) {
+        // a real shell process: up to 15 s on a busy CI machine (the loop ends as soon as the output is in)
+        for (int i = 0; i < 150 && !told; i++) {
             Thread.sleep(100);
             ShadowLooper.idleMainLooper();
             for (ai.ibiko.chat.ChatBook.Message m : chats.current().messages) {
