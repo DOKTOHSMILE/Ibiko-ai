@@ -159,6 +159,14 @@ public final class SelfModel {
             return "Yes. In this chat I keep track of what we're talking about, and I keep what you tell me about yourself and the"
                     + " answers you confirm, even after the chat ends. You can ask me “what do you know about me?” any time.";
         }
+        String state = state(q, s);
+        if (state != null) {
+            return state;
+        }
+        String request = request(q);
+        if (request != null) {
+            return request;
+        }
         if (q.matches("(what('s| is) your (favou?rite|best) [a-z ]+|do you have a favou?rite [a-z ]+)")) {
             return "I don't have favourites the way people do: I don't taste, watch or listen. But I like finding things out with you."
                     + " What's yours? I'll remember it.";
@@ -179,6 +187,74 @@ public final class SelfModel {
                     + (a == null ? " I don't know much about " + thing + " yet: tell me about it, or ask me something specific." : "");
         }
         return null;
+    }
+
+    /** "Are you married?", "are you tired?", "are you busy?": Ibiko's own state, said straight. */
+    static String state(String q, State s) {
+        java.util.regex.Matcher m = Pattern.compile("^(?:are|r) you (?:even |really |actually )?(?:a |an )?([a-z ]+?)(?: now| right now| today| yet)?$").matcher(q);
+        if (!m.matches()) {
+            if (q.matches("(do you have|have you got) (a )?(wife|husband|girlfriend|boyfriend|partner|spouse|crush|family|kids|children|parents|siblings)")) {
+                return "No, I don't: I'm an AI, so no family or partner. But I'm glad to be here talking with you.";
+            }
+            if (q.matches("(how old are you|when is your birthday|when were you born)")) {
+                return null; // SelfTalk has it
+            }
+            return null;
+        }
+        String what = m.group(1).trim();
+        switch (what) {
+            case "married": case "single": case "in a relationship": case "dating": case "engaged": case "taken": case "divorced":
+                return "No, I'm not " + (what.equals("single") ? "anything like married or single" : what) + ": I'm an AI, so relationships"
+                        + " aren't part of my life. I'm all yours for questions, though.";
+            case "tired": case "sleepy": case "exhausted":
+                return "No, I don't get tired: I'm an AI, so I'm as ready now as when we started.";
+            case "hungry": case "thirsty":
+                return "No, I don't eat or drink: I'm an AI. If you're hungry, though, I can suggest something to cook.";
+            case "busy":
+                return "Not too busy for you: I can answer one thing at a time, and right now that's you.";
+            case "bored":
+                return "Never with you. What shall we talk about?";
+            case "sad": case "angry": case "upset": case "lonely": case "scared": case "afraid": case "happy": case "excited":
+                return "I don't feel " + what + " the way people do: I'm an AI. But I'm here and glad to help. How are you feeling?";
+            case "online": case "connected":
+                return s != null && s.online() ? "Yes, I'm online right now." : "No, I'm offline right now, which is fine: I work without the internet.";
+            case "offline":
+                return s != null && s.online() ? "No, I'm online right now." : "Yes, I'm offline right now, which is fine: I work without the internet.";
+            case "there": case "listening": case "awake": case "here": case "ready": case "with me":
+                return "Yes, I'm here. Go ahead.";
+            case "sure": case "certain": case "right": case "correct":
+                return "I tell you how sure I am in the steps above each answer. If something looks wrong, tap ✕ and tell me what's right: I'll remember.";
+            case "free":
+                return "Yes, I'm free whenever you need me.";
+            case "rich": case "poor":
+                return "Neither: I'm an AI, so money isn't something I have.";
+            case "male": case "female": case "boy": case "girl": case "man": case "woman":
+                return null; // SelfTalk has it
+            default:
+                return null;
+        }
+    }
+
+    /** "Sing for me", "dance", "cook me something": what a body does, asked of Ibiko. */
+    static String request(String q) {
+        java.util.regex.Matcher m = Pattern.compile("^(?:can you |will you |please |could you )?(sing|dance|cook|draw by hand|smile|laugh|cry|"
+                + "jump|run|walk|hug me|kiss me|call me)(?: for me| me| something| a song| a little| now| please)*$").matcher(q);
+        if (!m.matches()) {
+            return null;
+        }
+        switch (m.group(1)) {
+            case "sing":
+                return "I can't sing, but I can read words aloud: tap the speaker under any reply. Or tell me a song's name and I'll tell"
+                        + " you about it.";
+            case "dance":
+                return "No moves here, I'm afraid: I'm an AI on your phone. I can tell you about dances, though.";
+            case "cook":
+                return "I can't cook, but I can walk you through a recipe step by step. What would you like to make?";
+            case "call me":
+                return "I can't make phone calls myself, but tell me who you'd like to call and the app can help.";
+            default:
+                return "I can't " + m.group(1) + ": I'm an AI with no body. But I'm happy to help another way.";
+        }
     }
 
     /**
