@@ -681,7 +681,8 @@ public final class LocalModel {
 
     private synchronized String replyNow(String system, String question, String context, int maxTokens, NativeLlm.Sink sink) {
         // orders hidden inside pasted material are fenced off as text, so the model never follows them
-        String guarded = ai.ibiko.ibiko1.PromptReader.guard(question);
+        // and its maths worked out exactly first, so the model reasons over correct numbers
+        String guarded = ai.ibiko.ibiko1.formulas.Maths.forModel(ai.ibiko.ibiko1.PromptReader.guard(question));
         String asked = context == null ? guarded : context + "\n\nThe user says: " + guarded;
         boolean judgement = ai.ibiko.suit.Comprehension.of(question).judgement;
         String across = quick(question, maxTokens) && !judgement || lessonRoot == null ? ""

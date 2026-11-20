@@ -606,6 +606,13 @@ public final class Ibiko1 {
                     "Checking the answer"), () -> saysExact(who, solved));
             return;
         }
+        // a real-world problem (money, interest, loans, break-even, travel, percentages) turned into its formula
+        final String real = ai.ibiko.ibiko1.formulas.WordProblems.reply(message);
+        if (real != null) {
+            think(Arrays.asList("Reading the problem", "Picking out what's known and what's asked", "Choosing the formula that joins them",
+                    "Putting the numbers in"), () -> saysExact(who, real));
+            return;
+        }
         final String sum = host.sum(t);
         if (sum != null) {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));

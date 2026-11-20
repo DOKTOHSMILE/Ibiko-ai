@@ -12,7 +12,7 @@ public enum FunctionCode {
     SR("SEARCH", "look something up on the web", "<words>"),
     SH("SHELL", "run one shell command on this device (the pilot approves it first)", "<command>"),
     TL("TOOL", "use a connector tool", "<tool> <argument>"),
-    CA("CALC", "work out arithmetic exactly", "<expression>"),
+    CA("CALC", "work out maths exactly: arithmetic, equations, calculus, money and rate problems", "<maths or problem>"),
     PH("PHOTO", "show a real photograph", "<subject>"),
     IM("IMAGE", "make a picture: an icon, a logo, an illustration, artwork or a picture of anything (not a real"
             + " photograph of something that exists: \u00A7PH finds those)", "<what it shows: subject, style, colours, layout>"),
@@ -110,7 +110,10 @@ public enum FunctionCode {
                 return "a connector tool that is on for this chat. Write \u00A7TL github.repos or \u00A7TL github.issues owner/name"
                         + " or \u00A7TL github.file owner/name/path. Skip a tool that was not listed.";
             case CA:
-                return "exact arithmetic. Write \u00A7CA (12+7)*3. Do not work the sum out yourself.";
+                return "exact maths, worked with steps: arithmetic, equations, inequalities, systems, calculus, interest, loans,"
+                        + " break-even, speed and distance, percentages. Write \u00A7CA (12+7)*3, \u00A7CA solve 2x^2-5x-3=0,"
+                        + " \u00A7CA integrate x^2 from 0 to 3, or \u00A7CA buy at 8000, sell at 9500, rent 45000: break even."
+                        + " Do not work it out yourself.";
             case PH:
                 return "a real photograph of something that exists. Write \u00A7PH a red panda. A picture to invent is \u00A7IM.";
             case IM:
