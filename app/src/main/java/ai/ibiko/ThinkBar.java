@@ -164,17 +164,7 @@ final class ThinkBar {
             a.chatPane.activityEnd();
         }
         a.handler.post(a::checkWorkload); // after the reply: the gauge, and a clear-out when it is nearly full
-        final String slow = a.model == null ? null : a.model.slowAdvice(ai.ibiko.chat.Tuning.SLOW_SPEED.get(a.prefs));
-        if (slow != null && a.chatPane != null) {
-            // the phone's own model has been slow for three replies: say once what would make it faster (posted on the
-            // chat itself: the activity's handler is cleared when the reply starts playing)
-            final ai.ibiko.stage.ChatPane pane = a.chatPane;
-            pane.postDelayed(() -> {
-                if (a.stage != null) {
-                    pane.assistant(a.stage.agent(), slow);
-                }
-            }, 2500);
-        }
+        // a slow phone model is not told in the chat: a reply is just the reply
         a.thinkPace = null;
         if (a.chatPane != null && a.streamOpen == false) {
             a.chatPane.stepEnded(); // a report being written when the work ended is kept, not wiped

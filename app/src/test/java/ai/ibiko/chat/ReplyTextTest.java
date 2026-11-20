@@ -32,4 +32,11 @@ public class ReplyTextTest {
         org.junit.Assert.assertEquals("", ReplyText.prepare("<severity>0</severity>").trim());
         org.junit.Assert.assertEquals("Good morning.", ReplyText.prepare("<severity>0</severity>\nGood morning.").trim());
     }
+
+    @org.junit.Test
+    public void aSmallModelsStageMarksAreNotTheReply() {
+        org.junit.Assert.assertEquals("A letter to my mum.", ReplyText.prepare("A letter to my mum. [Continue]").trim());
+        org.junit.Assert.assertEquals("Hi.\nBye.", ReplyText.prepare("Hi. (continued)\nBye. [End]").trim());
+        org.junit.Assert.assertEquals("Dear Mum,\n[Your name]", ReplyText.prepare("Dear Mum,\n[Your name]").trim());
+    }
 }

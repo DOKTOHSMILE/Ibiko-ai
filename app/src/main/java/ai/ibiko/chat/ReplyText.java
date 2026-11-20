@@ -34,6 +34,15 @@ public final class ReplyText {
         return at;
     }
 
+    /**
+     * A small model's stage marks are not the reply: "[Continue]", "[End]", "(continued)", "[Your name]" left alone
+     * on a line's end is kept (a letter's blank to fill), but a bracketed stage word is taken out.
+     */
+    static String stageMarks(String s) {
+        return s.replaceAll("(?i)[ \\t]*[\\[(](continue|continued|to be continued|end|end of (letter|message|reply|response)|"
+                + "stop|done|eos|eot|end of text|response|assistant|output)[\\])][ \\t]*(?=\\n|$)", "");
+    }
+
     public static String prepare(String raw) {
         if (raw == null) {
             return "";
@@ -51,6 +60,7 @@ public final class ReplyText {
         // a gateway's own moderation or scoring tags are not the reply ("<severity>0</severity>")
         s = s.replaceAll("(?is)<(severity|score|moderation|safety|category|flag(?:ged)?|risk|confidence)>[^<]{0,80}</\\1>", "");
         s = ai.ibiko.suit.FunctionCode.hidden(s); // the brain's command codes are for Ibiko, never for the conversation
+        s = stageMarks(s);
         s = MessageParts.normalizeFences(s);
         String[] lines = s.split("\n", -1);
         StringBuilder out = new StringBuilder();
