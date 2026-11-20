@@ -39,16 +39,24 @@ public final class Store {
                 return out;
             }
             java.io.InputStream in = Plug.asset.apply("knowledge/" + name);
-            if (in == null) {
+            // the app ships its knowledge in the Ibiko v1 text code (TextCode): decoded here, once, to the plain file
+            java.io.InputStream coded = in != null ? null : Plug.asset.apply(TextCode.coded("knowledge/" + name));
+            if (in == null && coded == null) {
                 return out.isFile() ? out : null;
             }
             dir.mkdirs();
             File tmp = new File(dir, name + ".part");
-            try (java.io.InputStream src = in; java.io.OutputStream dst = new java.io.FileOutputStream(tmp)) {
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = src.read(buf)) > 0) {
-                    dst.write(buf, 0, n);
+            if (coded != null) {
+                try (java.io.InputStream src = coded; java.io.OutputStream dst = new java.io.FileOutputStream(tmp)) {
+                    TextCode.decode(src, dst);
+                }
+            } else {
+                try (java.io.InputStream src = in; java.io.OutputStream dst = new java.io.FileOutputStream(tmp)) {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = src.read(buf)) > 0) {
+                        dst.write(buf, 0, n);
+                    }
                 }
             }
             if (!tmp.renameTo(out)) {

@@ -10,7 +10,7 @@ public final class TestPack {
     }
 
     static KnowledgePack load() throws Exception {
-        File f = new File("src/main/assets/knowledge/base_knowledge.json");
+        File f = ai.ibiko.PlainAsset.of("knowledge/base_knowledge.json");
         return KnowledgePack.parse(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8));
     }
 

@@ -11,7 +11,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/src/main/java/ai/ibiko" "$OUT/src/main/assets/knowledge"
 cp -R app/src/main/java/ai/ibiko/ibiko1 "$OUT/src/main/java/ai/ibiko/ibiko1"
 mv "$OUT/src/main/java/ai/ibiko/ibiko1/README.md" "$OUT/README.md"
-for f in world_facts.tsv country_more.tsv elements_more.tsv local_facts.tsv lexicon.tsv \
+for f in world_facts.tsv.ibk country_more.tsv.ibk elements_more.tsv.ibk local_facts.tsv.ibk lexicon.tsv.ibk \
          WORLD_FACTS_LICENSE.txt MORE_FACTS_LICENSE.txt COMPREHENSION_LICENSE.txt; do
   cp "app/src/main/assets/knowledge/$f" "$OUT/src/main/assets/knowledge/$f"
 done

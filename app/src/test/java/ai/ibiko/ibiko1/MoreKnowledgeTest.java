@@ -10,8 +10,8 @@ import org.junit.Test;
 public class MoreKnowledgeTest {
     private static BuiltIn all() throws Exception {
         String k = "src/main/assets/knowledge/";
-        return new BuiltIn(new FileInputStream(k + "world_facts.tsv"), new FileInputStream(k + "country_more.tsv"),
-                new FileInputStream(k + "elements_more.tsv"), new FileInputStream(k + "local_facts.tsv"));
+        return new BuiltIn(new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/world_facts.tsv")), new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/country_more.tsv")),
+                new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/elements_more.tsv")), new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/local_facts.tsv")));
     }
 
     @Test

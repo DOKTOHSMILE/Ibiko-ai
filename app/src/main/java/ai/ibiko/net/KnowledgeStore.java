@@ -32,6 +32,17 @@ public final class KnowledgeStore {
         current = new File(dir, "base_knowledge.json");
     }
 
+    /** A bundled file's plain bytes: shipped in the Ibiko v1 text code (ai.ibiko.ibiko1.TextCode) and decoded here. */
+    private java.io.InputStream asset(String path) {
+        return ai.ibiko.ibiko1.TextCode.open(p -> {
+            try {
+                return context.getAssets().open(p);
+            } catch (IOException e) {
+                return null;
+            }
+        }, path);
+    }
+
     /** The core pack alone: small and fast, safe to load on the main thread. */
     public KnowledgePack loadCore() {
         return loadCoreFile();
@@ -49,9 +60,14 @@ public final class KnowledgeStore {
             if (bundled != null) {
                 java.util.Arrays.sort(bundled);
                 for (String name : bundled) {
-                    if (name.endsWith(".json")) {
+                    if (name.endsWith(".json") || name.endsWith(".json.ibk")) {
                         try {
-                            core = core.merge(KnowledgePack.parse(read(context.getAssets().open("knowledge/shards/" + name))));
+                            String plain = "knowledge/shards/" + name.replaceFirst("\\.ibk$", "");
+                            java.io.InputStream in = asset(plain);
+                            if (in == null) {
+                                continue;
+                            }
+                            core = core.merge(KnowledgePack.parse(read(in)));
                         } catch (IOException | IllegalArgumentException broken) {
                             // skip a damaged shard
                         }
@@ -87,7 +103,11 @@ public final class KnowledgeStore {
             }
         }
         try {
-            return KnowledgePack.parse(read(context.getAssets().open(ASSET)));
+            java.io.InputStream in = asset(ASSET);
+            if (in == null) {
+                throw new IOException("no bundled knowledge pack");
+            }
+            return KnowledgePack.parse(read(in));
         } catch (IOException e) {
             throw new IllegalStateException("bundled knowledge pack missing", e);
         }

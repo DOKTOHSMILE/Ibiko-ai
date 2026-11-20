@@ -46,9 +46,10 @@ public class LookupTest {
         java.util.concurrent.atomic.AtomicInteger opened = new java.util.concurrent.atomic.AtomicInteger();
         java.util.function.Function<String, java.io.InputStream> was = ai.ibiko.ibiko1.Plug.asset;
         ai.ibiko.ibiko1.Plug.asset = p -> {
-            opened.incrementAndGet();
             try {
-                return new FileInputStream(new File("src/main/assets", p));
+                java.io.InputStream in = new FileInputStream(new File("src/main/assets", p));
+                opened.incrementAndGet(); // a file that is there (the plain name isn't shipped: its .ibk is)
+                return in;
             } catch (java.io.IOException e) {
                 return null;
             }
@@ -57,7 +58,7 @@ public class LookupTest {
             File a = ai.ibiko.ibiko1.Store.unpacked(dir, "local_facts.tsv");
             File b = ai.ibiko.ibiko1.Store.unpacked(dir, "local_facts.tsv");
             assertEquals(a, b);
-            assertEquals(new File("src/main/assets/knowledge/local_facts.tsv").length(), a.length());
+            assertEquals(ai.ibiko.PlainAsset.of("knowledge/local_facts.tsv").length(), a.length());
             assertEquals("read from the app only the first time", 1, opened.get());
             assertNull(ai.ibiko.ibiko1.Store.unpacked(dir, "nothing.tsv"));
         } finally {

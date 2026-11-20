@@ -196,8 +196,9 @@ public final class Ibiko1 {
     /** What shipped with the app: known from the moment it is installed, with no internet and nothing learned yet. */
     public static synchronized BuiltIn builtIn() {
         if (builtIn == null) {
-            builtIn = new BuiltIn(Plug.asset.apply("knowledge/world_facts.tsv"), Plug.asset.apply("knowledge/country_more.tsv"),
-                    Plug.asset.apply("knowledge/elements_more.tsv"), Plug.asset.apply("knowledge/local_facts.tsv"));
+            builtIn = new BuiltIn(TextCode.open(Plug.asset, "knowledge/world_facts.tsv"),
+                    TextCode.open(Plug.asset, "knowledge/country_more.tsv"), TextCode.open(Plug.asset, "knowledge/elements_more.tsv"),
+                    TextCode.open(Plug.asset, "knowledge/local_facts.tsv"));
         }
         return builtIn;
     }
@@ -484,6 +485,12 @@ public final class Ibiko1 {
         final String sum = host.sum(t);
         if (sum != null) {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
+            return;
+        }
+        // units, dates and percentages: worked out exactly, on the device
+        final String everyday = Everyday.answer(t);
+        if (everyday != null) {
+            think(Arrays.asList("Reading your question", "Working it out exactly"), () -> saysPlain(who, everyday));
             return;
         }
         if (parse.intent == Grammar.Intent.GREETING) {

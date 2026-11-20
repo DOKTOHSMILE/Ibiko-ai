@@ -78,7 +78,7 @@ public final class Ibiko1Model {
 
     /** True while no app has told Ibiko 1 where its files are. */
     private static boolean isDefault() {
-        try (java.io.InputStream in = Plug.asset.apply("knowledge/world_facts.tsv")) {
+        try (java.io.InputStream in = TextCode.open(Plug.asset, "knowledge/world_facts.tsv")) {
             return in == null;
         } catch (java.io.IOException e) {
             return true;
@@ -258,7 +258,9 @@ public final class Ibiko1Model {
 
         @Override
         public void later(Runnable r, long ms) {
-            thread.schedule(r, Math.min(ms, 5), TimeUnit.MILLISECONDS); // no screen to pace the steps for
+            // no screen to pace the steps for: a step's short pause is cut, but a real wait (the device model's time
+            // limit, tens of seconds) is kept, or the fallback would always beat the model's answer
+            thread.schedule(r, ms >= 10_000 ? ms : Math.min(ms, 5), TimeUnit.MILLISECONDS);
         }
 
         @Override

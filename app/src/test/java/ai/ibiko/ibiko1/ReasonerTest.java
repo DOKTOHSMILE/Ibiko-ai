@@ -18,8 +18,8 @@ public class ReasonerTest {
     @BeforeClass
     public static void load() throws Exception {
         String d = "src/main/assets/knowledge/";
-        r = new Reasoner(new BuiltIn(new FileInputStream(d + "world_facts.tsv"), new FileInputStream(d + "country_more.tsv"),
-                new FileInputStream(d + "elements_more.tsv"), new FileInputStream(d + "local_facts.tsv")));
+        r = new Reasoner(new BuiltIn(new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/world_facts.tsv")), new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/country_more.tsv")),
+                new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/elements_more.tsv")), new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/local_facts.tsv"))));
     }
 
     private static String a(String q) {

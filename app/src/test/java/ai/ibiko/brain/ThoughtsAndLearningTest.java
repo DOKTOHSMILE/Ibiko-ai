@@ -19,7 +19,7 @@ public class ThoughtsAndLearningTest {
     private OfflineBrain brain;
 
     private static KnowledgePack withDictionary() throws Exception {
-        String dict = new String(Files.readAllBytes(new File("src/main/assets/knowledge/shards/dictionary_en.json").toPath()),
+        String dict = new String(Files.readAllBytes(ai.ibiko.PlainAsset.of("knowledge/shards/dictionary_en.json").toPath()),
                 StandardCharsets.UTF_8);
         return TestPack.load().merge(KnowledgePack.parse(dict));
     }
