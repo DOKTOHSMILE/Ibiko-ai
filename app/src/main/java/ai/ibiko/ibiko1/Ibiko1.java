@@ -592,6 +592,13 @@ public final class Ibiko1 {
             }
         }
         Grammar.Parse parse = Grammar.parse(t);
+        // calculus on polynomials, exact and offline: derivatives, integrals, areas, stationary points, tangents
+        final String calculus = ai.ibiko.ibiko1.formulas.Calculus.reply(message);
+        if (calculus != null) {
+            think(Arrays.asList("Reading the maths", "Applying the power rule term by term", "Working it out exactly"),
+                    () -> saysExact(who, calculus));
+            return;
+        }
         // algebra, exact and offline: equations, inequalities, systems, a quadratic with a parameter, with the working
         final String solved = ai.ibiko.ibiko1.formulas.Algebra.reply(message);
         if (solved != null) {
