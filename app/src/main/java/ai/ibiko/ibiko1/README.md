@@ -17,6 +17,12 @@ Ibiko 1 is Ibiko's own language brain. It runs inside any Android app, with no n
   "Who founded Microsoft?" and "What is the population of Lagos?" get one exact sentence;
   A name that means several things ("Titanic") also tries the articles titled after it ("Titanic (1997 movie)"),
   linked by `tools/facts_variants.py`;
+- follows the conversation (`Context`): "Who was Nelson Mandela?" then "When was he born?" (he = Nelson Mandela),
+  "What is the capital of Nigeria?" then "What about Ghana?", "When was the company founded?", "and his wife?", "tell
+  me more" (what wasn't said yet, then the article's facts). What it put in is said in its steps;
+- reads who does what to whom (`Roles`): a question's subject, action and object, and which one it asks for ("Who
+  painted the Mona Lisa?" asks the subject of "paint"; "What did Thomas Edison invent?" the object), answered from the
+  sentence of an article with the same action and object, active or passive ("painted in oil by Leonardo da Vinci");
 - works out units, dates and percentages exactly (`Everyday`): "convert 5 km to miles", "how many days until
   Christmas", "what day of the week was 1 October 1960", "15% of 200";
 - answers questions put to itself as itself (`SelfTalk`): "Where are you from?", "Can you cook?", "Are you human?";

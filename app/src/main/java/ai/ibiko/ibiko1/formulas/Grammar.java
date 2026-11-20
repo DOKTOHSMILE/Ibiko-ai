@@ -107,6 +107,36 @@ public final class Grammar {
             "acquire", "buy", "sell", "rule", "govern", "play", "sing", "star", "coach", "manage", "make", "draw", "record", "release",
             "conquer", "defeat", "kill", "assassinate", "succeed", "replace", "name", "design", "patent", "introduce", "propose"));
 
+    /**
+     * Every form a verb is written in, from its base: "invent" → invent, invents, invented, inventing; "write" → write,
+     * writes, wrote, written, writing; "found" → found, founds, founded, founding. Lower case.
+     */
+    public static Set<String> forms(String base) {
+        String b = base == null ? "" : base.toLowerCase(Locale.US).trim();
+        Set<String> out = new HashSet<String>();
+        if (b.isEmpty()) {
+            return out;
+        }
+        out.add(b);
+        for (Map.Entry<String, String> e : IRREGULAR.entrySet()) {
+            if (e.getValue().equals(b) && !(b.equals("find") && e.getKey().equals("found"))) {
+                out.add(e.getKey());
+            }
+        }
+        boolean e = b.endsWith("e");
+        boolean y = b.matches(".*[^aeiou]y$");
+        String stem = e ? b.substring(0, b.length() - 1) : y ? b.substring(0, b.length() - 1) + "i" : b;
+        out.add(y ? stem + "es" : b.matches(".*(s|sh|ch|x|z)$") ? b + "es" : b + "s");
+        out.add(stem + (e ? "ed" : "ed"));
+        out.add((e ? stem : b) + "ing");
+        if (b.matches(".*[^aeiou][aeiou][bdgmnprt]$") && b.length() <= 4) {
+            String d = b + b.charAt(b.length() - 1);
+            out.add(d + "ed"); // "plan" → "planned"
+            out.add(d + "ing");
+        }
+        return out;
+    }
+
     /** A verb's base form: "founded" → "found", "invented" → "invent", "wrote" → "write", "studies" → "study". */
     public static String base(String verb) {
         String v = verb == null ? "" : verb.toLowerCase(Locale.US).trim();

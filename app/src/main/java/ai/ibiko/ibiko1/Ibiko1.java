@@ -468,8 +468,17 @@ public final class Ibiko1 {
      * answered; otherwise it researches, answers in the sources' words and asks whether that was right. Nothing is made
      * up.
      */
-    public void answer(final String t) {
+    public void answer(final String message) {
         final String who = host.persona();
+        long heardAt = System.currentTimeMillis();
+        // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
+        // (not in the turn after it asked back, which is an explanation or a correction, read as said)
+        final Context.Resolved withContext = inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
+                ? Context.unchanged(message) : context.resolve(message, heardAt);
+        final String t = withContext.text;
+        contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
+        rolesStep = roleStep(t);
+        noteFocus(t, heardAt);
         if (worker != null) {
             Plug.workers.end(worker, false); // a newer message took over
         }
@@ -480,6 +489,18 @@ public final class Ibiko1 {
         kind = Methods.kind(t);
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
+        }
+        // "tell me more", after something was said about a subject: what hasn't been said yet
+        if (withContext.changed() && t.startsWith("Tell me more about ")) {
+            final String subject = t.substring("Tell me more about ".length());
+            final String more = more(subject, lastSaid);
+            final String all = more != null ? more : encyclopedia().find(subject) == null ? null
+                    : "That's everything I have on " + subject + " for now. Ask me about any part of it, or about something it mentions.";
+            if (all != null) {
+                think(Arrays.asList("Reading your message", "Reading on in my encyclopedia's article on " + subject),
+                        () -> saysPlain(who, all));
+                return;
+            }
         }
         Grammar.Parse parse = Grammar.parse(t);
         final String sum = host.sum(t);
@@ -600,6 +621,19 @@ public final class Ibiko1 {
                 saysSure(who, fact.text, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
                         "Source: Simple English Wikipedia, \u201c" + fact.title + "\u201d (its information box)");
                 rateable(t, fact.text);
+            });
+            return;
+        }
+        // who did what to whom ("who invented the telephone", "what did Thomas Edison invent"): read from the articles'
+        // sentences by their roles, active or passive
+        final Roles.Found role = new Roles(encyclopedia()).answer(t);
+        if (role != null && !knowledge().rejected(t, role.text)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question", "Reading my encyclopedia's article on " + role.title,
+                    "Finding the sentence with the same action"), () -> {
+                saysSure(who, role.text, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                        "Source: Simple English Wikipedia, \u201c" + role.title + "\u201d");
+                rateable(t, role.text);
             });
             return;
         }
@@ -957,6 +991,16 @@ public final class Ibiko1 {
     private void think(List<String> given, final Runnable then, boolean fresh) {
         final List<String> steps = new ArrayList<String>(fresh && kind != null && !given.isEmpty()
                 && given.get(0).startsWith("Reading") ? thinking().steps(kind, given) : given);
+        if (fresh && !steps.isEmpty() && steps.get(0).startsWith("Reading")) {
+            // how the message was read: what "he" and "it" are, and who does what to whom
+            int at = 1;
+            if (rolesStep != null) {
+                steps.add(at, rolesStep);
+            }
+            if (contextStep != null) {
+                steps.add(at, contextStep);
+            }
+        }
         if (fresh && critical != null && !critical.findings.isEmpty() && !steps.isEmpty() && steps.get(0).startsWith("Reading")) {
             steps.add(1, "Questioning what it takes for granted"); // critical reasoning, before any answer
         }
@@ -1101,6 +1145,8 @@ public final class Ibiko1 {
     }
 
     private void says(String who, String text) {
+        String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
+        lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all; // what was said lately
         host.stepsDone();
         if (worker != null) {
             Plug.workers.end(worker, true);
@@ -1108,6 +1154,121 @@ public final class Ibiko1 {
         }
         host.say(who, text);
         host.answered(how);
+    }
+
+    /** What was said lately (the last few thousand characters), so "tell me more" goes on from it. */
+    private volatile String lastSaid;
+
+    /** Labels for an article's facts, in the order "tell me more" says them. */
+    private static final String[][] FACT_LABELS = {{"born", "Born"}, {"birth_place", "Born in"}, {"died", "Died"},
+            {"death_place", "Died in"}, {"occupation", "Work"}, {"known_for", "Known for"}, {"office", "Office"}, {"party", "Party"},
+            {"spouse", "Married to"}, {"children", "Children"}, {"education", "Studied at"}, {"genre", "Genre"},
+            {"capital", "Capital"}, {"largest_city", "Largest city"}, {"population", "Population"}, {"area", "Area"},
+            {"language", "Language"}, {"currency", "Currency"}, {"government", "Government"}, {"leader", "Leader"},
+            {"founded", "Founded"}, {"founder", "Founded by"}, {"headquarters", "Headquarters"}, {"key_people", "Key people"},
+            {"industry", "Industry"}, {"products", "Products"}, {"employees", "Employees"}, {"author", "Author"},
+            {"writer", "Writer"}, {"director", "Director"}, {"starring", "Starring"}, {"released", "Released"},
+            {"developer", "Developer"}, {"publisher", "Publisher"}, {"location", "Location"}, {"elevation", "Height"},
+            {"length_km", "Length"}, {"country", "Country"}};
+
+    /**
+     * More about a subject than was just said: the article's sentences not said yet (a few), or when it was all said,
+     * the article's facts as a short list. Null when there is nothing more.
+     */
+    String more(String subject, String said) {
+        Encyclopedia.Article a = encyclopedia().find(subject);
+        if (a == null) {
+            return null;
+        }
+        String already = said == null ? "" : said;
+        StringBuilder b = new StringBuilder();
+        int n = 0;
+        for (String sentence : a.text.split("(?<=[.!?])\\s+(?=[A-Z\"\u201c(])")) {
+            if (!already.contains(sentence.trim()) && n < 3) {
+                b.append(b.length() == 0 ? "" : " ").append(sentence.trim());
+                n++;
+            }
+        }
+        if (b.length() > 0) {
+            return b.toString();
+        }
+        java.util.Map<String, String> facts = encyclopedia().facts(a.title);
+        StringBuilder list = new StringBuilder();
+        for (String[] l : FACT_LABELS) {
+            String v = facts.get(l[0]);
+            if (v == null || v.isEmpty() || already.contains(v)) {
+                continue;
+            }
+            if (l[0].equals("population") && facts.containsKey("population_year")) {
+                v += " (" + facts.get("population_year") + ")";
+            }
+            if (l[0].equals("leader") && facts.containsKey("leader_title")) {
+                v += " (" + facts.get("leader_title") + ")";
+            }
+            list.append("\n\u2022 ").append(l[1]).append(": ").append(v);
+        }
+        return list.length() == 0 ? null : "More about " + a.title.replaceFirst("\\s*\\([^()]+\\)$", "") + ":" + list;
+    }
+
+    /** What the conversation is about (per brain: one chat). */
+    private final Context context = new Context();
+    /** The steps that say how the message was read: the context put in, and its roles. */
+    private volatile String contextStep, rolesStep;
+
+    /** The conversation's context, for a host that starts a new chat ({@link Context#clear}). */
+    public Context context() {
+        return context;
+    }
+
+    /** "Reading who does what: subject ? · action “invent” · object “the telephone”", for a who-did-what question. */
+    private static String roleStep(String t) {
+        Roles.Reading r = Roles.question(t);
+        return r == null ? null : "Reading who does what: " + r.said();
+    }
+
+    /**
+     * Remembers what a question is about, for the next one: the article its words name (a name before a common word),
+     * the words that named it, and its kind (he, she, it, they, a place).
+     */
+    private void noteFocus(String t, long now) {
+        if (t == null || SelfTalk.toMe(t) || !EncyclopediaQA.question(t) && !t.matches("(?i)^(tell me|explain|describe)\\b.*")) {
+            return;
+        }
+        try {
+            java.util.List<Object[]> subs = new EncyclopediaQA(encyclopedia()).subjects(t, 1);
+            if (subs.isEmpty()) {
+                return;
+            }
+            Encyclopedia.Article a = (Encyclopedia.Article) subs.get(0)[0];
+            @SuppressWarnings("unchecked")
+            java.util.Set<String> words = (java.util.Set<String>) subs.get(0)[1];
+            context.about(t, a.title, run(t, words), Context.kindOf(a, encyclopedia().facts(a.title)), now);
+        } catch (RuntimeException e) {
+            // a question it can't place leaves the context as it was
+        }
+    }
+
+    /** The words of {@code t} that make up {@code words}, as written ("Nigeria" in "the capital of Nigeria?"). */
+    static String run(String t, java.util.Set<String> words) {
+        String[] raw = t.replaceAll("[?!.,;:\"\u201c\u201d]", " ").trim().split("\\s+");
+        int first = -1, last = -1;
+        for (int i = 0; i < raw.length; i++) {
+            String w = raw[i].replaceAll("'s$|\u2019s$", "").toLowerCase(Locale.ROOT);
+            if (words.contains(w)) {
+                if (first < 0) {
+                    first = i;
+                }
+                last = i;
+            }
+        }
+        if (first < 0) {
+            return null;
+        }
+        StringBuilder b = new StringBuilder();
+        for (int i = first; i <= last; i++) {
+            b.append(b.length() == 0 ? "" : " ").append(raw[i].replaceAll("'s$|\u2019s$", ""));
+        }
+        return b.toString();
     }
 
     /** Questions about Ibiko 1 itself: what it learned, what it knows, who it is. Null for anything else. */
