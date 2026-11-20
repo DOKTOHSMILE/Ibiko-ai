@@ -90,6 +90,28 @@ public class ScreenshotFlowTest {
     }
 
     @Test
+    public void whatWeAreTalkingAboutPicksTheMeaning() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            ask(brain, chat, "My Linux server won't let me install the app");
+            String root = ask(brain, chat, "What is root?");
+            assertTrue(root, root.startsWith("In computing, “root” means the administrator account"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
+
+    @Test
     public void aGapItAskedBackAboutIsFilledWithAProperSentence() throws Exception {
         Store.reset();
         Chat chat = new Chat();

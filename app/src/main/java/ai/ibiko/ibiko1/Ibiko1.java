@@ -130,6 +130,9 @@ public final class Ibiko1 {
     private String ratingQuestion;
     /** A question waiting for the person's own explanation ({@link Inquiry}), or null. */
     private volatile Inquiry.Pending inquiry;
+    /** What the conversation is about ("computing", "botany"), from the words said lately; null when it isn't clear. */
+    private volatile String topic;
+    private volatile long topicAt;
     /** A question it couldn't answer and asked the person back about: their reply is formed before it is kept. */
     private volatile Curiosity.Gap gap;
     /** The last answer worked out by asking back, open to "no, it's …" for {@link Inquiry#WAIT_MS}. */
@@ -181,7 +184,8 @@ public final class Ibiko1 {
     synchronized WordTalk wordTalk() {
         if (wordTalk == null) {
             ai.ibiko.ibiko1.words.Meanings m = meanings(new File(dir, "knowledge"));
-            wordTalk = m == null ? null : new WordTalk(m);
+            wordTalk = m == null ? null : new WordTalk(m, new ai.ibiko.ibiko1.words.SenseTags(m,
+                    TextCode.open(Plug.asset, "knowledge/senses_extra.tsv")));
         }
         return wordTalk;
     }
@@ -520,6 +524,14 @@ public final class Ibiko1 {
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
         }
+        // what we're talking about: "what is root?" after talk of Linux servers means the administrator account
+        String talkAbout = ai.ibiko.ibiko1.words.SenseTags.subject(t);
+        if (talkAbout != null) {
+            topic = talkAbout;
+            topicAt = heardAt;
+        } else if (heardAt - topicAt > 30 * 60 * 1000L) {
+            topic = null;
+        }
         if (inquiry == null && curiousTurn(who, message.trim())) {
             return; // the answer to what it asked back about, formed into a sentence before it is kept
         }
@@ -633,8 +645,24 @@ public final class Ibiko1 {
         }
         // words, meanings and grammar: what a word means (here), the word for a meaning, synonyms, a sentence explained,
         // whether two say the same, a word's morphemes, whether a sentence is grammatical
+        // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
+        final WordTalk byTopic = topic == null && !t.matches("(?is).*\\b(in|for)\\s+\\p{L}+\\s*[?.!]*$") ? null : wordTalk();
+        if (byTopic != null) {
+            byTopic.topic(topic);
+            final String inSubject = byTopic.inSubject(t);
+            if (inSubject != null) {
+                final String subj = topic;
+                think(Arrays.asList("Reading your question", "That word means different things in different subjects",
+                        subj == null ? "The question says which subject" : "We're talking about " + subj + ": taking that meaning"),
+                        () -> saysPlain(who, inSubject));
+                return;
+            }
+        }
         if (WordTalk.asks(message)) {
             final WordTalk words = wordTalk();
+            if (words != null) {
+                words.topic(topic);
+            }
             final String said = words == null ? null : words.reply(message);
             if (said != null) {
                 think(Arrays.asList("Reading your question", "Looking up each word's meanings, both ways",
