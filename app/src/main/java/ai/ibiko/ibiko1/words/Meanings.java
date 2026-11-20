@@ -371,8 +371,34 @@ public final class Meanings {
             all.add(new Found(head, pos == null ? "" : pos, null, s));
         }
         all.sort((a, b) -> Double.compare(b.score, a.score));
+        ai.ibiko.ibiko1.neural.Neural neural = ai.ibiko.ibiko1.neural.Neural.get();
+        int pool = Math.min(all.size(), most * 24);
+        if (neural != null && !all.isEmpty()) {
+            // the words whose use sits nearest the description's meaning join the candidates (docs/IBIKO_NEURAL.md)
+            float[] v = neural.attention.encode(description);
+            Set<String> have = new HashSet<String>();
+            for (int i = 0; i < pool; i++) {
+                have.add(all.get(i).word);
+            }
+            List<Found> more = new ArrayList<Found>();
+            Set<String> said = new HashSet<String>();
+            for (String t : Words.tokens(low)) {
+                said.add(Words.key(t));
+            }
+            if (v != null) {
+                for (String w : neural.embeddings.nearest(v, 30, null)) {
+                    // not a word of the description itself, in any form ("poems" doesn't answer "writes poems")
+                    if (!have.contains(w) && !index.senses(w).isEmpty() && !Words.STOP.contains(w) && !said.contains(Words.key(w))) {
+                        more.add(new Found(w, pos == null ? "" : pos, null, all.get(Math.min(pool - 1, most * 2)).score));
+                    }
+                }
+            }
+            all = new ArrayList<Found>(all.subList(0, pool));
+            all.addAll(more);
+            pool = all.size();
+        }
         List<Found> ranked = new ArrayList<Found>();
-        for (int i = 0; i < Math.min(all.size(), most * 24); i++) {
+        for (int i = 0; i < pool; i++) {
             Found f = all.get(i);
             MeaningIndex.Sense best = bestSenseFor(f.word, asked, pos);
             double s = f.score;
@@ -385,6 +411,12 @@ public final class Meanings {
                 }
             }
             s *= 1 + 0.06 * Math.log(1 + index.frequency(f.word)); // the everyday word, when two fit as well
+            if (neural != null) {
+                // the word vectors: how well the description lines up with the word as it is used, and with what the
+                // dictionary says the word means (docs/IBIKO_NEURAL.md)
+                double a = best == null ? 0 : neural.attention.match(description, best.definition);
+                s *= Math.pow(Math.max(0.05, a), 2) * 4;
+            }
             ranked.add(new Found(f.word, best == null ? f.pos : best.pos, best == null ? null : best.definition, s));
         }
         ranked.sort((a, b) -> Double.compare(b.score, a.score));
@@ -666,13 +698,33 @@ public final class Meanings {
                 continue;
             }
             List<String> opp = opposites(w);
+            boolean opposed = false;
             for (String o : wb) {
                 for (String x : opp) {
                     if (Words.key(x).equals(Words.key(o))) {
-                        opposite = true;
+                        opposite = opposed = true;
                         tmp.opposed.add(w + " ↔ " + o);
                         usedB.add(o);
                     }
+                }
+            }
+            // no link in the dictionary and not opposites: the word vectors say whether they are used alike
+            // ("vehicle" and "car", "freezing" and "cold")
+            ai.ibiko.ibiko1.neural.Neural n = opposed ? null : ai.ibiko.ibiko1.neural.Neural.get();
+            if (n != null) {
+                String best = null;
+                double top = CLOSE;
+                for (String o : wb) {
+                    double sim = n.embeddings.similarity(w, o);
+                    if (sim >= top && !opposites(o).contains(w)) {
+                        top = sim;
+                        best = o;
+                    }
+                }
+                if (best != null) {
+                    hitA++;
+                    usedB.add(best);
+                    tmp.matched.add(w + " ~ " + best);
                 }
             }
         }
@@ -683,6 +735,9 @@ public final class Meanings {
         c.opposed.addAll(tmp.opposed);
         return c;
     }
+
+    /** How close two words' vectors must be to count as the same idea when the dictionary doesn't link them. */
+    static final double CLOSE = 0.62;
 
     /** A sentence's meaningful words, as written, each once. */
     static List<String> meaningful(String s) {

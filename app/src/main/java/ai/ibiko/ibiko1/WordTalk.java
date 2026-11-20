@@ -61,6 +61,15 @@ public final class WordTalk {
             + "check (?:the )?grammar(?: of| in)?|correct (?:this|the grammar of|the grammar in)?(?: sentence)?|is it grammatical|grammar check)\\s*[:\\-]?\\s*" + S + END
             + "|^is\\s+" + S + "\\s+(?:grammatical|correct english|good english|grammatically correct)" + END);
 
+    // the neural layer (docs/IBIKO_NEURAL.md): meaning as geometry
+    private static final Pattern SIMILAR = Pattern.compile("(?is)^(?:how (?:similar|alike|close|related) (?:are|is)|how much alike are|"
+            + "(?:what(?:'s| is) the )?similarity (?:of|between))\\s+" + S + "\\s+(?:and|to|with)\\s+" + S + END);
+    private static final Pattern CLOSE = Pattern.compile("(?is)^(?:(?:give me |list |show me |what are )?(?:some )?(?:words|terms) "
+            + "(?:close to|related to|similar to|near|associated with|that go with)|what words go with|what goes with|"
+            + "what(?:'s| is) (?:close|related) to)\\s+" + W + END);
+    private static final Pattern ODD = Pattern.compile("(?is)^(?:(?:which|what)(?:'s| is)? (?:the )?odd one out|odd one out|"
+            + "which (?:one|word) does(?:n't| not) belong|which (?:one|word) is different)\\s*(?:in|of|among|from)?\\s*[:\\-]?\\s*(.+?)" + END);
+
     private static String first(Matcher m) {
         for (int g = 1; g <= m.groupCount(); g++) {
             if (m.group(g) != null) {
@@ -86,7 +95,7 @@ public final class WordTalk {
             return false;
         }
         String m = message.trim();
-        for (Pattern p : new Pattern[]{IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH}) {
+        for (Pattern p : new Pattern[]{IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
             if (p.matcher(m).matches()) {
                 return true;
             }
@@ -124,6 +133,16 @@ public final class WordTalk {
         if ((x = SAME.matcher(m)).matches()) {
             List<String> two = all(x);
             return two.size() < 2 ? null : compare(two.get(0), two.get(1));
+        }
+        if ((x = SIMILAR.matcher(m)).matches()) {
+            List<String> two = all(x);
+            return two.size() < 2 ? null : similar(two.get(0), two.get(1));
+        }
+        if ((x = CLOSE.matcher(m)).matches()) {
+            return close(first(x));
+        }
+        if ((x = ODD.matcher(m)).matches()) {
+            return odd(first(x));
         }
         if ((x = OTHER_WORDS.matcher(m)).matches()) {
             Meanings.Reading r = meanings.read(first(x));
@@ -211,6 +230,86 @@ public final class WordTalk {
             default:
                 return "No, they say different things.";
         }
+    }
+
+    // ------------------------------------------------------------------ the neural layer
+
+    /** How alike two words, or two sentences, are in meaning: the cosine of their vectors, said in words. */
+    String similar(String a, String b) {
+        ai.ibiko.ibiko1.neural.Neural n = ai.ibiko.ibiko1.neural.Neural.get();
+        if (n == null) {
+            return compare(a, b);
+        }
+        boolean words = !a.trim().contains(" ") && !b.trim().contains(" ");
+        String x = a.trim().toLowerCase(Locale.ROOT), y = b.trim().toLowerCase(Locale.ROOT);
+        double s = words ? n.embeddings.similarity(x, y) : n.similarity(a, b);
+        int pct = (int) Math.round(Math.max(0, s) * 100);
+        String how = s >= 0.75 ? "very close in meaning" : s >= 0.55 ? "closely related" : s >= 0.35 ? "somewhat related"
+                : s >= 0.2 ? "only loosely related" : "not really related";
+        StringBuilder out = new StringBuilder("“" + a.trim() + "” and “" + b.trim() + "” are " + how + " (" + pct + "% alike).");
+        if (words) {
+            List<String> opp = meanings.opposites(x);
+            if (opp.contains(y)) {
+                out.append(" They're opposites, though: words used in the same places, saying opposite things.");
+            } else {
+                List<String> na = n.near(x, 5);
+                if (!na.isEmpty()) {
+                    out.append("\nClose to “").append(x).append("”: ").append(String.join(", ", na)).append('.');
+                }
+            }
+        }
+        return out.toString();
+    }
+
+    /** The words that sit closest to a word: those used in the same places in what Ibiko has read. */
+    String close(String word) {
+        ai.ibiko.ibiko1.neural.Neural n = ai.ibiko.ibiko1.neural.Neural.get();
+        if (n == null) {
+            return null;
+        }
+        String w = word.toLowerCase(Locale.ROOT);
+        List<String> near = n.near(w, 10);
+        if (near.isEmpty()) {
+            return null;
+        }
+        return "Words close to “" + w + "”" + (n.embeddings.knows(w) ? "" : " (I built its meaning from its parts)")
+                + ": " + String.join(", ", near) + ".";
+    }
+
+    /** The odd one out of a list of words: the one farthest from the others' centre. */
+    String odd(String list) {
+        ai.ibiko.ibiko1.neural.Neural n = ai.ibiko.ibiko1.neural.Neural.get();
+        if (n == null) {
+            return null;
+        }
+        List<String> ws = new ArrayList<String>();
+        for (String p : list.split("\\s*(?:,|;|/|\\bor\\b|\\band\\b)\\s*|\\s+")) {
+            String w = p.trim().toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}'-]", "");
+            if (!w.isEmpty() && !ws.contains(w)) {
+                ws.add(w);
+            }
+        }
+        if (ws.size() < 3) {
+            return "Give me at least three words, and I'll tell you which one doesn't belong.";
+        }
+        String odd = null;
+        double worst = 2;
+        for (String w : ws) {
+            double sum = 0;
+            for (String o : ws) {
+                if (!o.equals(w)) {
+                    sum += n.embeddings.similarity(w, o);
+                }
+            }
+            double mean = sum / (ws.size() - 1);
+            if (mean < worst) {
+                worst = mean;
+                odd = w;
+            }
+        }
+        List<String> rest = new ArrayList<String>(ws);
+        rest.remove(odd);
+        return "The odd one out is “" + odd + "”: " + String.join(", ", rest) + " go together, and “" + odd + "” is used in other places.";
     }
 
     private String explain(String sentence) {

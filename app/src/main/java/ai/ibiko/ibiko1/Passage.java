@@ -324,7 +324,56 @@ public final class Passage {
             }
         }
         EncyclopediaQA.Found f = new EncyclopediaQA(null).from(as, nameWords, q);
-        return f == null ? null : f.text;
+        return f != null ? f.text : closest(q);
+    }
+
+    /**
+     * The sentence closest in meaning to the question, by the neural layer's sentence vectors (docs/IBIKO_NEURAL.md):
+     * a question worded unlike the text still finds where the text says it ("how much did they make" → "the firm
+     * earned two million dollars"). Null when no sentence is close enough, or the app carries no vectors.
+     */
+    String closest(String q) {
+        ai.ibiko.ibiko1.neural.Neural n = ai.ibiko.ibiko1.neural.Neural.get();
+        if (n == null) {
+            return null;
+        }
+        String best = null;
+        double top = CLOSEST;
+        for (String s : sentences) {
+            double sim = n.attention.match(q, s) + kindFits(q, s);
+            if (sim > top) {
+                top = sim;
+                best = s;
+            }
+        }
+        return best;
+    }
+
+    /** How close a sentence's meaning must be to a question to answer it. */
+    static final double CLOSEST = 0.4;
+
+    private static final Pattern AMOUNT = Pattern.compile("(?i)\\b(\\d[\\d,.]*|one|two|three|four|five|six|seven|eight|nine|ten|"
+            + "twenty|thirty|hundred|thousand|million|billion|half|third|quarter|percent|naira|dollars?|pounds?|euros?)\\b");
+    private static final Pattern TIME = Pattern.compile("(?i)\\b(1[5-9]\\d\\d|20\\d\\d|january|february|march|april|may|june|july|"
+            + "august|september|october|november|december|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+            + "yesterday|today|tomorrow|spring|summer|autumn|winter|last year|next year|ago)\\b");
+
+    /**
+     * The answer the question expects, checked against the sentence: "how much" and "how many" want an amount, "when"
+     * a time, "who" a person named, "where" a place named. A sentence that holds that kind of answer gains a little.
+     */
+    static double kindFits(String q, String s) {
+        String low = q.toLowerCase(Locale.ROOT).trim();
+        if (low.matches("(?s)^(how (much|many|long|far|big|old)|what (amount|number|price)).*")) {
+            return AMOUNT.matcher(s).find() ? 0.12 : -0.05;
+        }
+        if (low.matches("(?s)^(when|what (year|time|day|month|date)).*")) {
+            return TIME.matcher(s).find() ? 0.12 : -0.05;
+        }
+        if (low.matches("(?s)^(who|whom|whose)\\b.*") || low.matches("(?s)^where\\b.*")) {
+            return s.matches("(?s).+\\s[A-Z][a-z]+.*") ? 0.08 : -0.03;
+        }
+        return 0;
     }
 
     /** The verb as the text writes it in the past ("started"), or the regular past. */
