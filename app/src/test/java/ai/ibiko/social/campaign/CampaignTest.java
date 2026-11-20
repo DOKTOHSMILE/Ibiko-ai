@@ -179,4 +179,71 @@ public class CampaignTest {
             assertTrue(it.imageHtml.contains("model design"));
         }
     }
+
+    /** A bigger plan: 3 days, 6 posts a day on each of the two accounts (36 posts, four batches). */
+    private static CampaignPlanner.Brain big() {
+        CampaignPlanner.Brain small = fake();
+        return (system, prompt, tokens) -> {
+            if (prompt.contains("Plan its strategy as JSON")) {
+                StringBuilder slots = new StringBuilder();
+                for (int day = 1; day <= 3; day++) {
+                    for (int k = 0; k < 6; k++) {
+                        for (String acc : new String[] {"fb1", "x1"}) {
+                            slots.append(slots.length() == 0 ? "" : ",").append("{\"day\":").append(day).append(",\"time\":\"")
+                                    .append(String.format("%02d:%02d", 8 + k * 2, acc.equals("fb1") ? 0 : 30))
+                                    .append("\",\"account\":\"").append(acc).append("\",\"theme\":\"Behind the oven\",\"angle\":\"Post ")
+                                    .append(day).append(k).append(acc).append("\"}");
+                        }
+                    }
+                }
+                return "{\"name\":\"Cakes\",\"themes\":[\"Behind the oven\"],\"searches\":[],\"slots\":[" + slots + "]}";
+            }
+            return small.ask(system, prompt, tokens);
+        };
+    }
+
+    /** Posts reach the studio batch by batch, to read while the rest are written, not all at the end. */
+    @Test
+    public void postsArriveAsTheyAreWritten() {
+        Campaign c = brief();
+        c.days = 3;
+        c.perDay = 6;
+        final List<Integer> seen = new java.util.ArrayList<Integer>();
+        CampaignPlanner.Progress p = new CampaignPlanner.Progress() {
+            @Override
+            public void at(String what) {
+            }
+
+            @Override
+            public void ready(Campaign plan, int ready, int total) {
+                seen.add(ready);
+                assertEquals(36, total);
+                assertEquals(ready, plan.items.size());
+            }
+        };
+        assertNull(CampaignPlanner.build(c, SEATS, big(), p, null, TimeZone.getTimeZone("Africa/Lagos"), 1));
+        assertEquals(36, c.items.size());
+        assertTrue(seen.toString(), seen.size() >= 4 && seen.get(0) < 36 && seen.get(seen.size() - 1) == 36);
+    }
+
+    /** Stopping keeps the posts already written: they are never thrown away. */
+    @Test
+    public void stoppingKeepsWhatIsWritten() {
+        Campaign c = brief();
+        c.days = 3;
+        c.perDay = 6;
+        final boolean[] stop = {false};
+        CampaignPlanner.Progress p = new CampaignPlanner.Progress() {
+            @Override
+            public void at(String what) {
+            }
+
+            @Override
+            public void ready(Campaign plan, int ready, int total) {
+                stop[0] = true; // stopped as soon as the first posts are in
+            }
+        };
+        assertEquals("Stopped.", CampaignPlanner.build(c, SEATS, big(), p, () -> stop[0], TimeZone.getTimeZone("Africa/Lagos"), 1));
+        assertTrue(c.items.size() + " kept", c.items.size() >= 10 && c.items.size() < 36);
+    }
 }

@@ -79,6 +79,12 @@ public final class CampaignReview {
                 android.widget.Toast.makeText(a, "There are no posts left in this plan.", android.widget.Toast.LENGTH_SHORT).show();
                 return;
             }
+            if (ai.ibiko.social.campaign.CampaignDraft.planning(c.id) != null) {
+                // the rest are still being written: these can be read and edited now, approved once all are in
+                android.widget.Toast.makeText(a, "Still writing the rest of the posts. Read and edit these now; approve when"
+                        + " planning is done.", android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
             begin(a, c, sheet[0], done);
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);

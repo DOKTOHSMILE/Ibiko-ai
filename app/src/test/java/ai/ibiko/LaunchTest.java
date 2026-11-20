@@ -944,9 +944,10 @@ public class LaunchTest {
         book.add("user", "text", "What is the capital of Kenya?", "obi");
         pane.assistant("obi", "The capital of Kenya is Nairobi.");
         android.view.View root = c.get().getWindow().getDecorView();
-        assertNotNull(described(root, "Wrong"));
-        described(root, "Correct").performClick();
-        org.junit.Assert.assertNull("marked once", described(root, "Correct"));
+        assertNotNull(described(root, "Bad response")); // the footer's thumbs, in one quiet colour
+        described(root, "Good response").performClick();
+        org.junit.Assert.assertNull("marked once", described(root, "Good response"));
+        assertNotNull("the thumb stays, lit", described(root, "Rated good (tap to undo)"));
         ai.ibiko.ibiko1.Knowledge k = new ai.ibiko.ibiko1.Knowledge(new java.io.File(c.get().getFilesDir(), "brain/knowledge.tsv"));
         org.junit.Assert.assertEquals("The capital of Kenya is Nairobi.", k.recall("Kenya's capital city?").answer);
         c.pause().stop().destroy();
@@ -1093,9 +1094,9 @@ public class LaunchTest {
         pane.assistant("obi", "Here's what I found: " + answer + "\n\nIs this accurate?");
         pane.askRating("Who founded Microsoft?", answer);
         android.view.View root = c.get().getWindow().getDecorView();
-        assertNotNull(described(root, "Wrong"));
-        described(root, "Correct").performClick();
-        org.junit.Assert.assertNull("the buttons go once it is rated", described(root, "Correct"));
+        assertNotNull(described(root, "Bad response"));
+        described(root, "Good response").performClick();
+        org.junit.Assert.assertNull("rated once", described(root, "Good response"));
         org.junit.Assert.assertFalse(pane.ratingWaiting());
         ai.ibiko.ibiko1.Knowledge k = new ai.ibiko.ibiko1.Knowledge(new java.io.File(c.get().getFilesDir(), "brain/knowledge.tsv"));
         assertNotNull(k.recall("who created microsoft"));
