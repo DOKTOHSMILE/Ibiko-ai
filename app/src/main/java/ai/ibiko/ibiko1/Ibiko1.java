@@ -517,6 +517,13 @@ public final class Ibiko1 {
         if (inquiryTurn(who, t)) {
             return; // the explanation it asked for, or a correction of what it worked out
         }
+        // a maths problem in lettered parts about one equation: each part worked out, or said plainly that it can't be yet
+        final String partsDone = inquiry == null ? ai.ibiko.ibiko1.formulas.Algebra.parts(message) : null;
+        if (partsDone != null) {
+            think(Arrays.asList("Reading the problem and its parts", "Working out the discriminant as a polynomial",
+                    "Solving each part exactly"), () -> saysExact(who, partsDone));
+            return;
+        }
         // a passage with numbered tasks: every task done, in order, not a summary of the passage
         final PassageTasks tasks = inquiry == null ? PassageTasks.of(message) : null;
         if (tasks != null) {
@@ -585,6 +592,13 @@ public final class Ibiko1 {
             }
         }
         Grammar.Parse parse = Grammar.parse(t);
+        // algebra, exact and offline: equations, inequalities, systems, a quadratic with a parameter, with the working
+        final String solved = ai.ibiko.ibiko1.formulas.Algebra.reply(message);
+        if (solved != null) {
+            think(Arrays.asList("Reading the maths", "Putting everything on one side", "Working it out exactly, step by step",
+                    "Checking the answer"), () -> saysExact(who, solved));
+            return;
+        }
         final String sum = host.sum(t);
         if (sum != null) {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
