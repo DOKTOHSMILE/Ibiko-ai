@@ -160,7 +160,45 @@ public final class TalkBridge extends UtteranceProgressListener {
         return preparing;
     }
 
+    /** How long the voice may go without making or playing anything, while something waits to be heard. */
+    static final long STALL_MS = 25000;
+
+    /**
+     * The ring may never turn for ever: while something waits to be heard, the voice must keep getting something done
+     * (a piece made, a piece played). A voice that is loading or busy making is waited for; one that has done nothing
+     * for {@link #STALL_MS} is stopped, the reading ends, and the screen is told so Listen can be tapped again.
+     */
+    private final Runnable stallCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (!preparing || sounding) {
+                return;
+            }
+            long quiet = System.currentTimeMillis() - (neural == null ? 0 : neural.lastProgress());
+            if (neural != null && (neural.loading() || quiet < STALL_MS)) {
+                main.postDelayed(this, 5000);
+                return;
+            }
+            stop();
+            Runnable s = stalled;
+            if (s != null) {
+                s.run();
+            }
+        }
+    };
+
+    /** Told (on the main thread) when the voice was given up on: nothing came out. */
+    private volatile Runnable stalled;
+
+    public void setStalledListener(Runnable r) {
+        stalled = r;
+    }
+
     private void preparing(final boolean now) {
+        main.removeCallbacks(stallCheck);
+        if (now) {
+            main.postDelayed(stallCheck, STALL_MS);
+        }
         if (preparing == now) {
             return;
         }

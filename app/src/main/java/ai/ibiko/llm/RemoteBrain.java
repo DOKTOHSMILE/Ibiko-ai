@@ -822,6 +822,9 @@ public final class RemoteBrain {
      * read]".
      */
     Map<String, Object> content(String role, String text) {
+        if ("user".equals(role)) {
+            text = ai.ibiko.ibiko1.PromptReader.guard(text); // orders hidden inside pasted material fenced off as text
+        }
         java.util.List<String> images = new ArrayList<String>(ai.ibiko.chat.Attachments.images(text));
         java.util.List<ai.ibiko.chat.Attachments.Doc> docs = ai.ibiko.chat.Attachments.files(text);
         if ((images.isEmpty() && docs.isEmpty()) || !"user".equals(role)) {

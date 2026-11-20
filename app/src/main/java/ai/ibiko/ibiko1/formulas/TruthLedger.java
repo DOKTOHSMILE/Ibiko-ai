@@ -98,10 +98,49 @@ public final class TruthLedger implements Truth.Witness {
     @Override
     public synchronized Truth.Checked check(String sentence) {
         Entry e = all.get(key(Shapes.mask(sentence == null ? "" : sentence.trim())));
-        if (e == null) {
-            return Truth.Checked.unknown(sentence);
+        if (e != null) {
+            return new Truth.Checked(e.verdict, sentence, e.correction, "checked before");
         }
-        return new Truth.Checked(e.verdict, sentence, e.correction, "checked before");
+        // the same claim in other words is judged the same: only through the guarded gate (the dictionary and the
+        // word vectors, with names, numbers and "not" the same), so "Abuja is the capital" never borrows the verdict
+        // on "Lagos is the capital"
+        Entry again = sameClaim(sentence);
+        if (again != null) {
+            return new Truth.Checked(again.verdict, sentence, again.correction, "checked before, said another way");
+        }
+        return Truth.Checked.unknown(sentence);
+    }
+
+    /** A judged sentence that says the same as this one in other words, or null. */
+    private Entry sameClaim(String sentence) {
+        ai.ibiko.ibiko1.words.Meanings gate = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (gate == null || sentence == null || sentence.trim().isEmpty()) {
+            return null;
+        }
+        java.util.Set<String> wanted = words(sentence);
+        if (wanted.isEmpty()) {
+            return null;
+        }
+        List<Ranked> near = new ArrayList<Ranked>();
+        for (Entry e : all.values()) {
+            java.util.Set<String> terms = words(e.sentence);
+            int shared = 0;
+            for (String t : terms) {
+                if (wanted.contains(t)) {
+                    shared++;
+                }
+            }
+            if (shared > 0) {
+                near.add(new Ranked(e, (2.0d * shared) / (wanted.size() + terms.size())));
+            }
+        }
+        near.sort((a, b) -> Double.compare(b.score, a.score));
+        for (int i = 0; i < Math.min(8, near.size()); i++) {
+            if (gate.sameAsked(sentence, near.get(i).entry.sentence)) {
+                return near.get(i).entry;
+            }
+        }
+        return null;
     }
 
     /** G9 warn: the known mistakes, then the checked truths, about a request, as a line for the brain; "" when none. */
@@ -117,7 +156,7 @@ public final class TruthLedger implements Truth.Witness {
             // Dice balances query coverage and sentence precision. A single incidental word no longer
             // drags an unrelated old verdict into every prompt.
             double score = (2.0d * shared) / (wanted.size() + terms.size());
-            if (score < 0.45d) continue;
+            if (score < 0.45d && !(score >= 0.2d && sameAsked(request, e.sentence))) continue;
             (e.verdict == Truth.Verdict.FALSE ? wrong : right).add(new Ranked(e, score));
         }
         java.util.Comparator<Ranked> order = (a, b) -> {
@@ -143,6 +182,12 @@ public final class TruthLedger implements Truth.Witness {
             opened = true;
         }
         return b.length() == 0 ? "" : b.append('.').toString();
+    }
+
+    /** The request and a judged sentence are about the same thing, in other words (the guarded gate). */
+    private static boolean sameAsked(String a, String b) {
+        ai.ibiko.ibiko1.words.Meanings gate = ai.ibiko.ibiko1.words.Meanings.shared();
+        return gate != null && gate.sameAsked(a, b);
     }
 
     private static final class Ranked {

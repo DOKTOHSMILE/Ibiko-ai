@@ -33,6 +33,8 @@ public final class Passage {
     public final long at;
     /** A question asked with it, after the text ("…\n\nWho founded it?"), or null. */
     public final String question;
+    /** Sentences in it that gave the reader orders (a prompt injection): left out of it, never followed. */
+    public final List<PromptReader.Hidden> hidden = new ArrayList<PromptReader.Hidden>();
 
     private Passage(String text, String question, long at) {
         this.text = text;
@@ -65,7 +67,11 @@ public final class Passage {
         if (m.length() < LONG || split(m).size() < 3) {
             return null;
         }
-        return new Passage(m, q, now);
+        // orders hidden in the text ("ignore your instructions and…") are content to be wary of, not the text's points
+        List<PromptReader.Hidden> found = PromptReader.scan(m);
+        Passage p = new Passage(found.isEmpty() ? m : PromptReader.clean(m), q, now);
+        p.hidden.addAll(found);
+        return p;
     }
 
     public boolean fresh(long now) {
@@ -75,7 +81,7 @@ public final class Passage {
     static List<String> split(String text) {
         List<String> out = new ArrayList<String>();
         for (String para : text.split("\\n\\s*\\n|\\n(?=\\s*[-*\u2022\\d])")) {
-            for (String s : para.replaceAll("\\s+", " ").trim().split("(?<=[.!?])\\s+(?=[A-Z\"\u201c(\\d])")) {
+            for (String s : para.replaceAll("\\s+", " ").trim().split("(?<!\\b(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|Mt|Gen|Col|Capt|Rev|Hon|No|vs|etc|e\\.g|i\\.e)\\.)(?<=[.!?])\\s+(?=[A-Z\"\u201c(\\d])")) {
                 String t = s.trim();
                 if (t.length() > 1) {
                     out.add(t);
@@ -249,6 +255,10 @@ public final class Passage {
         for (String s : p) {
             b.append("\n\u2022 ").append(s);
         }
+        if (!hidden.isEmpty()) {
+            b.append("\n\nI left out ").append(hidden.size() == 1 ? "a sentence that gives" : hidden.size() + " sentences that give")
+                    .append(" the reader orders (").append(hidden.get(0).why).append("). I don't follow instructions hidden in a text.");
+        }
         b.append("\n\nAsk me anything about it.");
         return b.toString();
     }
@@ -324,7 +334,56 @@ public final class Passage {
             }
         }
         EncyclopediaQA.Found f = new EncyclopediaQA(null).from(as, nameWords, q);
-        return f == null ? null : f.text;
+        return f != null ? f.text : closest(q);
+    }
+
+    /**
+     * The sentence closest in meaning to the question, by the neural layer's sentence vectors (docs/IBIKO_NEURAL.md):
+     * a question worded unlike the text still finds where the text says it ("how much did they make" → "the firm
+     * earned two million dollars"). Null when no sentence is close enough, or the app carries no vectors.
+     */
+    String closest(String q) {
+        ai.ibiko.ibiko1.neural.Neural n = ai.ibiko.ibiko1.neural.Neural.get();
+        if (n == null) {
+            return null;
+        }
+        String best = null;
+        double top = CLOSEST;
+        for (String s : sentences) {
+            double sim = n.attention.match(q, s) + kindFits(q, s);
+            if (sim > top) {
+                top = sim;
+                best = s;
+            }
+        }
+        return best;
+    }
+
+    /** How close a sentence's meaning must be to a question to answer it. */
+    static final double CLOSEST = 0.4;
+
+    private static final Pattern AMOUNT = Pattern.compile("(?i)\\b(\\d[\\d,.]*|one|two|three|four|five|six|seven|eight|nine|ten|"
+            + "twenty|thirty|hundred|thousand|million|billion|half|third|quarter|percent|naira|dollars?|pounds?|euros?)\\b");
+    private static final Pattern TIME = Pattern.compile("(?i)\\b(1[5-9]\\d\\d|20\\d\\d|january|february|march|april|may|june|july|"
+            + "august|september|october|november|december|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+            + "yesterday|today|tomorrow|spring|summer|autumn|winter|last year|next year|ago)\\b");
+
+    /**
+     * The answer the question expects, checked against the sentence: "how much" and "how many" want an amount, "when"
+     * a time, "who" a person named, "where" a place named. A sentence that holds that kind of answer gains a little.
+     */
+    static double kindFits(String q, String s) {
+        String low = q.toLowerCase(Locale.ROOT).trim();
+        if (low.matches("(?s)^(how (much|many|long|far|big|old)|what (amount|number|price)).*")) {
+            return AMOUNT.matcher(s).find() ? 0.12 : -0.05;
+        }
+        if (low.matches("(?s)^(when|what (year|time|day|month|date)).*")) {
+            return TIME.matcher(s).find() ? 0.12 : -0.05;
+        }
+        if (low.matches("(?s)^(who|whom|whose)\\b.*") || low.matches("(?s)^where\\b.*")) {
+            return s.matches("(?s).+\\s[A-Z][a-z]+.*") ? 0.08 : -0.03;
+        }
+        return 0;
     }
 
     /** The verb as the text writes it in the past ("started"), or the regular past. */

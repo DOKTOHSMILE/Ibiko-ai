@@ -68,7 +68,7 @@ public final class Reflection {
         if (CORRECTED.matcher(n).find()) {
             return Outcome.CORRECTED;
         }
-        if (RETRIED.matcher(n).find() || similar(lastRequest, n) >= SAME) {
+        if (RETRIED.matcher(n).find() || similar(lastRequest, n) >= SAME || askedAgain(lastRequest, n)) {
             return Outcome.RETRIED;
         }
         if (SHORTER.matcher(n).find() || LONGER.matcher(n).find() || LIST.matcher(n).find() || PROSE.matcher(n).find()
@@ -172,6 +172,15 @@ public final class Reflection {
         lessons.clear();
         shorter = longer = list = prose = simpler = 0;
         save();
+    }
+
+    /**
+     * The same request reworded ("what's Nigeria's capital?" after "which city is the capital of Nigeria?"): the last
+     * reply didn't do its job. Read through the guarded gate of the dictionary and the word vectors.
+     */
+    static boolean askedAgain(String last, String next) {
+        ai.ibiko.ibiko1.words.Meanings gate = ai.ibiko.ibiko1.words.Meanings.shared();
+        return gate != null && last != null && similar(last, next) >= 0.2 && gate.sameAsked(last, next);
     }
 
     /** Word overlap (Jaccard) of two messages, 0 to 1: the same request asked again scores high. */

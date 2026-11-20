@@ -61,6 +61,19 @@ public class PassageFlowTest {
             + "than 12,000 farmers across five states. In 2021, Okafor won the Africa Prize for Engineering Innovation for the "
             + "FarmLink app. She lives in Lagos with her husband, Tunde, and their two children.";
 
+    /** A passage with numbered tasks, in the chat: the tasks are done, exactly as the rules ask, not the passage summarised. */
+    @Test(timeout = 120000)
+    public void aPassageWithTasksGetsEveryTaskDone() throws Exception {
+        Store.reset();
+        Chat chat = new Chat();
+        Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+        String r = ask(brain, chat, PassageTasksTest.MESSAGE);
+        assertTrue(r, r != null && r.startsWith("1. Kemi had 14 cylinders left after Warri"));
+        assertTrue(r, !r.contains("I've read it") && !r.contains("main points"));
+        assertTrue(r, r.contains("\n\n4. Not stated in passage.\n\n"));
+        assertTrue(r, r.endsWith("{\"couriers\": [\"Kemi\", \"Tunde\", \"Musa\"], \"total_lpg_delivered_or_sold\": 64, \"benin_city_mentioned\": false}"));
+    }
+
     @Test(timeout = 120000)
     public void aPastedTextIsReadAndQuestionsAreAnsweredFromIt() throws Exception {
         java.util.function.Function<String, java.io.InputStream> was = Plug.asset;

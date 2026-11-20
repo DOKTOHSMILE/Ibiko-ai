@@ -143,6 +143,7 @@ public final class NeuralVoice {
         }
         Item it = new Item(events, id, text, speaker, speed, volume, epoch);
         it.owner = owner;
+        progressed();
         queue.offer(it);
     }
 
@@ -294,10 +295,63 @@ public final class NeuralVoice {
         worker.interrupt();
     }
 
+    /** A sentence made ahead, set aside because something to say now came first: made straight after it. */
+    private Item held;
+
+    /** The first sentence waiting to be said now (not made ahead), unless a voice load comes before it. */
+    private Item firstLive() {
+        for (Item i : queue) {
+            if (i.epoch == -1) {
+                return null; // a voice is loading first: the sentence waits for it
+            }
+            if (i.epoch >= 0) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The next thing for the voice to do. Something to say now always comes first: a reply's sentences made ahead
+     * (every reply's, kept for Listen) used to stand in front of it, so a tap on Listen waited until every reply on
+     * the screen had been made, minutes on a phone, with the ring turning all that time.
+     */
+    private Item next() throws InterruptedException {
+        Item live = firstLive();
+        if (live != null && queue.remove(live)) {
+            return live;
+        }
+        if (held != null) {
+            Item h = held;
+            held = null;
+            return h;
+        }
+        Item it = queue.take();
+        if (it.epoch == AHEAD || it.epoch == MARK) {
+            live = firstLive();
+            if (live != null && queue.remove(live)) {
+                held = it; // made (or run) right after, still before what was queued behind it
+                return live;
+            }
+        }
+        return it;
+    }
+
+    /** When the voice last got something done (a piece made or played): a stuck voice is told apart from a busy one. */
+    private volatile long progress = System.currentTimeMillis();
+
+    public long lastProgress() {
+        return progress;
+    }
+
+    private void progressed() {
+        progress = System.currentTimeMillis();
+    }
+
     private void run() {
         try {
             while (!closed) {
-                Item it = queue.take();
+                Item it = next();
                 if (it.epoch == MARK) {
                     if (!waitingAhead.isEmpty() && !ready) {
                         if (loading) {
@@ -541,10 +595,10 @@ public final class NeuralVoice {
                     pieces.add(clean(got));
                     n += got.length;
                 }
+                progressed();
                 it.fromPart = i + 1;
                 it.carried = pieces;
-                Item next = queue.peek();
-                if (next != null && next.epoch >= 0) {
+                if (i + 1 < bits.size() && firstLive() != null) {
                     // keep what is already made, so a later run does not start the paragraph over
                     if (!pieces.isEmpty() && kept != null) {
                         float[] soFar = new float[n];
@@ -555,7 +609,7 @@ public final class NeuralVoice {
                         }
                         kept.put(it.owner, known + "#part" + it.fromPart, soFar, rate);
                     }
-                    queue.offer(it); // something to say now comes first; this sentence continues where it stopped
+                    held = it; // something to say now comes first; this sentence continues where it stopped, in its place
                     return;
                 }
             }
@@ -625,6 +679,7 @@ public final class NeuralVoice {
                 it.events.onError(it.id);
                 return;
             }
+            progressed();
             boolean last = i == pieces.size() - 1;
             if ((got == null || got.length == 0) && !last) {
                 continue;
@@ -695,7 +750,11 @@ public final class NeuralVoice {
         Item it = c.item;
         final int mine = it.epoch;
         final AudioTrack t = track;
-        if (mine != epoch || t == null) {
+        if (mine != epoch) {
+            return;
+        }
+        if (t == null) {
+            it.events.onError(it.id); // no speaker to play on: the sentence ends rather than waiting for ever
             return;
         }
         try {
@@ -717,19 +776,32 @@ public final class NeuralVoice {
             for (int i = 0; i < c.samples.length && mine == epoch; i += step) {
                 applyParams(t); // a speed picked mid-sentence is heard within a tenth of a second
                 int len = Math.min(step, c.samples.length - i);
-                t.write(c.samples, i, len, AudioTrack.WRITE_BLOCKING);
-                totalWritten += len;
+                if (!writeAll(t, c.samples, i, len, mine)) {
+                    break;
+                }
             }
             if (!c.last) {
                 return; // the next piece of the same sentence follows straight on, with no pause
             }
             if (mine == epoch) {
                 float[] gap = new float[(int) (rate * GAP)];
-                t.write(gap, 0, gap.length, AudioTrack.WRITE_BLOCKING);
-                totalWritten += gap.length;
+                writeAll(t, gap, 0, gap.length, mine);
             }
-            // done when the last of it has been heard, not when it was written
-            while (mine == epoch && !closed && (t.getPlaybackHeadPosition() & 0xffffffffL) < totalWritten) {
+            // done when the last of it has been heard, not when it was written; a track whose position stops moving
+            // (the sound went elsewhere, or the device stalled it) ends the sentence instead of holding it for ever
+            long seen = -1, still = System.currentTimeMillis();
+            while (mine == epoch && !closed) {
+                long head = t.getPlaybackHeadPosition() & 0xffffffffL;
+                if (head >= totalWritten) {
+                    break;
+                }
+                if (head != seen) {
+                    seen = head;
+                    still = System.currentTimeMillis();
+                    progressed();
+                } else if (System.currentTimeMillis() - still > STALL_MS) {
+                    break;
+                }
                 Thread.sleep(15);
             }
         } catch (InterruptedException e) {
@@ -745,6 +817,45 @@ public final class NeuralVoice {
         if (mine == epoch) {
             it.events.onDone(it.id);
         }
+    }
+
+    /** How long a track may sit without playing anything before the sentence is given up. */
+    static final long STALL_MS = 4000;
+
+    /**
+     * Writes the samples without ever blocking for good. A blocking write to a paused track (a stop, Pause, or a new
+     * message pauses it) waits until the track plays again, and nothing would ever play it: the player's thread hung,
+     * every later sentence waited behind it, and Listen showed the loading ring for ever. Here the write gives way as
+     * soon as the speech is stopped, and a track that takes nothing for a while is started again or let go.
+     * False when it stopped before all was written.
+     */
+    private boolean writeAll(AudioTrack t, float[] samples, int from, int len, int mine) throws InterruptedException {
+        int done = 0;
+        long idle = System.currentTimeMillis();
+        while (done < len) {
+            if (mine != epoch || closed) {
+                return false;
+            }
+            int w = t.write(samples, from + done, len - done, AudioTrack.WRITE_NON_BLOCKING);
+            if (w < 0) {
+                throw new IllegalStateException("audio write " + w);
+            }
+            if (w > 0) {
+                done += w;
+                totalWritten += w;
+                idle = System.currentTimeMillis();
+                progressed();
+                continue;
+            }
+            if (t.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                t.play(); // full, and not playing: it was paused under this speech, so it plays on
+            }
+            if (System.currentTimeMillis() - idle > STALL_MS) {
+                return false;
+            }
+            Thread.sleep(8);
+        }
+        return true;
     }
 
     private void release() {

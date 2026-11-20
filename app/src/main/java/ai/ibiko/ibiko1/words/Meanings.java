@@ -27,6 +27,14 @@ public final class Meanings {
 
     public Meanings(MeaningIndex index) {
         this.index = index;
+        shared = this;
+    }
+
+    /** The dictionary the app opened last (memory and the truth checks use it without opening their own). */
+    private static volatile Meanings shared;
+
+    public static Meanings shared() {
+        return shared;
     }
 
     public MeaningIndex index() {
@@ -371,8 +379,34 @@ public final class Meanings {
             all.add(new Found(head, pos == null ? "" : pos, null, s));
         }
         all.sort((a, b) -> Double.compare(b.score, a.score));
+        ai.ibiko.ibiko1.neural.Neural neural = ai.ibiko.ibiko1.neural.Neural.get();
+        int pool = Math.min(all.size(), most * 24);
+        if (neural != null && !all.isEmpty()) {
+            // the words whose use sits nearest the description's meaning join the candidates (docs/IBIKO_NEURAL.md)
+            float[] v = neural.attention.encode(description);
+            Set<String> have = new HashSet<String>();
+            for (int i = 0; i < pool; i++) {
+                have.add(all.get(i).word);
+            }
+            List<Found> more = new ArrayList<Found>();
+            Set<String> said = new HashSet<String>();
+            for (String t : Words.tokens(low)) {
+                said.add(Words.key(t));
+            }
+            if (v != null) {
+                for (String w : neural.embeddings.nearest(v, 30, null)) {
+                    // not a word of the description itself, in any form ("poems" doesn't answer "writes poems")
+                    if (!have.contains(w) && !index.senses(w).isEmpty() && !Words.STOP.contains(w) && !said.contains(Words.key(w))) {
+                        more.add(new Found(w, pos == null ? "" : pos, null, all.get(Math.min(pool - 1, most * 2)).score));
+                    }
+                }
+            }
+            all = new ArrayList<Found>(all.subList(0, pool));
+            all.addAll(more);
+            pool = all.size();
+        }
         List<Found> ranked = new ArrayList<Found>();
-        for (int i = 0; i < Math.min(all.size(), most * 24); i++) {
+        for (int i = 0; i < pool; i++) {
             Found f = all.get(i);
             MeaningIndex.Sense best = bestSenseFor(f.word, asked, pos);
             double s = f.score;
@@ -385,6 +419,12 @@ public final class Meanings {
                 }
             }
             s *= 1 + 0.06 * Math.log(1 + index.frequency(f.word)); // the everyday word, when two fit as well
+            if (neural != null) {
+                // the word vectors: how well the description lines up with the word as it is used, and with what the
+                // dictionary says the word means (docs/IBIKO_NEURAL.md)
+                double a = best == null ? 0 : neural.attention.match(description, best.definition);
+                s *= Math.pow(Math.max(0.05, a), 2) * 4;
+            }
             ranked.add(new Found(f.word, best == null ? f.pos : best.pos, best == null ? null : best.definition, s));
         }
         ranked.sort((a, b) -> Double.compare(b.score, a.score));
@@ -666,13 +706,33 @@ public final class Meanings {
                 continue;
             }
             List<String> opp = opposites(w);
+            boolean opposed = false;
             for (String o : wb) {
                 for (String x : opp) {
                     if (Words.key(x).equals(Words.key(o))) {
-                        opposite = true;
+                        opposite = opposed = true;
                         tmp.opposed.add(w + " ↔ " + o);
                         usedB.add(o);
                     }
+                }
+            }
+            // no link in the dictionary and not opposites: the word vectors say whether they are used alike
+            // ("vehicle" and "car", "freezing" and "cold")
+            ai.ibiko.ibiko1.neural.Neural n = opposed ? null : ai.ibiko.ibiko1.neural.Neural.get();
+            if (n != null) {
+                String best = null;
+                double top = CLOSE;
+                for (String o : wb) {
+                    double sim = n.embeddings.similarity(w, o);
+                    if (sim >= top && !opposites(o).contains(w)) {
+                        top = sim;
+                        best = o;
+                    }
+                }
+                if (best != null) {
+                    hitA++;
+                    usedB.add(best);
+                    tmp.matched.add(w + " ~ " + best);
                 }
             }
         }
@@ -683,6 +743,142 @@ public final class Meanings {
         c.opposed.addAll(tmp.opposed);
         return c;
     }
+
+    // ------------------------------------------------------------------ the same thing asked, guarded for the truth
+
+    private static final java.util.regex.Pattern NUMBER = java.util.regex.Pattern.compile("\\d+(?:[.,]\\d+)?");
+    private static final java.util.regex.Pattern NOT = java.util.regex.Pattern.compile(
+            "(?i)\\b(not|no|never|none|nobody|nothing|neither|nor|without)\\b|n't\\b");
+
+    /** The question and frame words the gate leaves aside: they don't say what is asked about. */
+    private static final Set<String> FRAME = new HashSet<String>(Arrays.asList(("how what which who whom whose where when why "
+            + "did do does is are was were be been will would can could should tell me please know about you your i my "
+            + "much many city place country person people year time thing kind type name one").split(" ")));
+
+    /**
+     * Two words name different things: kinds of the same thing (Kenya and Uganda, Monday and Tuesday), or both names
+     * of a kind of thing at all (car and bus: the dictionary reaches "vehicle" from one and "conveyance" from the
+     * other). Alike in use, never the same; only the dictionary calling them synonyms joins them.
+     */
+    boolean siblings(String a, String b) {
+        if (thing(a) && thing(b)) {
+            return true;
+        }
+        Set<String> ba = broader(a), bb = broader(b);
+        ba.retainAll(bb);
+        return !ba.isEmpty();
+    }
+
+    /** The word is first of all the name of a kind of thing: its usual sense is a noun with a broader term. */
+    private boolean thing(String word) {
+        String h = headword(word);
+        List<MeaningIndex.Sense> ss = h == null ? null : index.senses(h);
+        return ss != null && !ss.isEmpty() && ss.get(0).pos.equals("noun") && !ss.get(0).broader.isEmpty();
+    }
+
+    /** Every broader term of the word's noun senses. */
+    private Set<String> broader(String word) {
+        Set<String> out = new HashSet<String>();
+        String h = headword(word);
+        if (h == null) {
+            return out;
+        }
+        for (MeaningIndex.Sense s : index.senses(h)) {
+            if (!s.broader.isEmpty() && s.pos.equals("noun")) {
+                out.add(s.broader.toLowerCase(Locale.ROOT));
+            }
+        }
+        return out;
+    }
+
+    /** Two words the dictionary makes the same idea: the same word, a synonym, or one listed as the other's. */
+    boolean linked(String a, String b) {
+        if (Words.key(a).equals(Words.key(b))) {
+            return true;
+        }
+        Set<String> ca = concept(a);
+        ca.remove(Words.key(a));
+        String h = headword(a);
+        if (h != null) {
+            List<MeaningIndex.Sense> ss = index.senses(h);
+            for (int i = 0; i < Math.min(3, ss.size()); i++) {
+                ca.remove(Words.key(ss.get(i).broader)); // a shared broader term makes siblings, not synonyms
+            }
+        }
+        return ca.contains(Words.key(b));
+    }
+
+    /**
+     * Whether two questions (or statements) ask the same thing however they are worded, strictly enough that what
+     * was confirmed or judged for one may be used for the other. The numbers must be the same, both or neither
+     * negated, and every word of each must have its partner in the other: the same word, a dictionary synonym, or a
+     * word the vectors put close that the dictionary doesn't call a sibling ("Kenya" and "Uganda") or an opposite
+     * ("rose" and "fell"). Vectors alone never decide what is true.
+     */
+    public boolean sameAsked(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!numbers(a).equals(numbers(b)) || NOT.matcher(a).find() != NOT.matcher(b).find()) {
+            return false;
+        }
+        List<String> wa = asked(a), wb = asked(b);
+        if (wa.isEmpty() || wb.isEmpty()) {
+            return false;
+        }
+        ai.ibiko.ibiko1.neural.Neural n = ai.ibiko.ibiko1.neural.Neural.get();
+        return partnered(wa, wb, n) && partnered(wb, wa, n);
+    }
+
+    private List<String> asked(String s) {
+        List<String> out = new ArrayList<String>();
+        for (String w : meaningful(s)) {
+            if (!FRAME.contains(w)) {
+                out.add(w);
+            }
+        }
+        return out;
+    }
+
+    private static Set<String> numbers(String s) {
+        Set<String> out = new HashSet<String>();
+        java.util.regex.Matcher m = NUMBER.matcher(s);
+        while (m.find()) {
+            out.add(m.group());
+        }
+        return out;
+    }
+
+    private boolean partnered(List<String> from, List<String> to, ai.ibiko.ibiko1.neural.Neural n) {
+        for (String w : from) {
+            boolean ok = false;
+            for (String o : to) {
+                if (linked(w, o) || linked(o, w)) {
+                    ok = true;
+                    break;
+                }
+            }
+            if (!ok && n != null) {
+                for (String o : to) {
+                    if (n.embeddings.similarity(w, o) >= SAME_IDEA && !siblings(w, o)
+                            && !opposites(w).contains(o) && !opposites(o).contains(w)) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** How close two words' vectors must be for the gate to call them the same idea (the dictionary not objecting). */
+    static final double SAME_IDEA = 0.5;
+
+    /** How close two words' vectors must be to count as the same idea when the dictionary doesn't link them. */
+    static final double CLOSE = 0.62;
 
     /** A sentence's meaningful words, as written, each once. */
     static List<String> meaningful(String s) {
