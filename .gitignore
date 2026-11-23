@@ -18,3 +18,4 @@ releases/
 !releases/README.md
 app/.cxx/
 app/.test-tmp/
+__pycache__/
