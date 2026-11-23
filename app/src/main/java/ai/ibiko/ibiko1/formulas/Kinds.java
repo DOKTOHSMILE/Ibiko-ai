@@ -29,7 +29,7 @@ public final class Kinds {
     private Kinds() {
     }
 
-    private static final Pattern IS_A = Pattern.compile("(?i)^(?:is|are|was|were)\\s+(?:a\\s+|an\\s+)?((?:the\\s+)?.{2,40}?)\\s+"
+    private static final Pattern IS_A = Pattern.compile("(?i)^(?:is|are|was|were)\\s+((?:a\\s+|an\\s+|the\\s+)?.{2,40}?)\\s+"
             + "(?:a kind of|a type of|a sort of|a form of|an example of|a member of the|a|an|one of the)\\s+(.{2,40}?)[?.!\\s]*$");
     private static final Pattern ARE = Pattern.compile("(?i)^(?:are|were)\\s+([\\p{L}-]{3,})\\s+([\\p{L}-]{3,})[?.!\\s]*$");
 
@@ -50,11 +50,25 @@ public final class Kinds {
     /** One step up: what a thing is, as said ("an amphibian"), and the word to go on from ("amphibian"). */
     public static final class Step {
         public final String thing, said, head;
+        /** The thing as the text named it ("Gold", "A frog", "Dogs"); null when it said "it" or "they". */
+        public final String named;
 
         Step(String thing, String said, String head) {
+            this(thing, said, head, null);
+        }
+
+        Step(String thing, String said, String head, String sentence) {
             this.thing = thing;
             this.said = said;
             this.head = head;
+            String n = null;
+            if (sentence != null) {
+                Matcher m = Pattern.compile("^(.{2,60}?)\\s+(?:\\([^)]*\\)\\s+)?(?:is|are|was|were)\\b").matcher(sentence.trim());
+                if (m.find() && !m.group(1).matches("(?i)(it|they|these|this|both|that)")) {
+                    n = m.group(1).replaceAll("\\s*\\([^)]*\\)", "").trim();
+                }
+            }
+            this.named = n;
         }
     }
 
@@ -82,7 +96,7 @@ public final class Kinds {
                 continue;
             }
             for (Contrast.Kind k : ks) {
-                Step step = new Step(at[0], k.said, k.head);
+                Step step = new Step(at[0], k.said, k.head, k.sentence);
                 String head = Causes.stem(last(k.head));
                 if (head.equals(goal) || saysKind(k.said, kind)) {
                     List<Step> out = new ArrayList<Step>();
@@ -100,7 +114,7 @@ public final class Kinds {
                 String head = Causes.stem(last(k.head));
                 if (seen.add(head)) {
                     String next = singular(k.head);
-                    cameFrom.put(next, new Step(at[0], k.said, k.head));
+                    cameFrom.put(next, new Step(at[0], k.said, k.head, k.sentence));
                     queue.add(new String[] {next, String.valueOf(depth + 1)});
                 }
             }
@@ -146,13 +160,23 @@ public final class Kinds {
         StringBuilder b = new StringBuilder("Yes. ");
         for (int i = 0; i < steps.size(); i++) {
             Step s = steps.get(i);
-            boolean plural = !s.said.matches("(?i)^(a|an|the)\\b.*");
-            String who = plural ? (Character.isUpperCase(s.thing.charAt(0)) ? s.thing
-                    : Contrast.plural(s.thing.replaceFirst("(?i)^(a|an|the)\\s+", ""))) : named(s.thing);
+            // "amphibians", "a group of animals", "a class of insects": said of them all ("mammals are a group of …")
+            boolean plural = !s.said.matches("(?i)^(a|an|the)\\b.*")
+                    || s.said.matches("(?i)^(a|an|the)\\s+(\\w+\\s+)?(group|family|class|order|kind|type|set|collection|genus|species|superorder|phylum)\\s+of\\b.*");
+            String bare = s.thing.replaceFirst("(?i)^(a|an|the)\\s+", "");
+            String who = s.named != null && plural == s.named.matches("(?i)^(?!a |an |the ).*s$")
+                    ? (i == 0 || Character.isUpperCase(bare.charAt(0)) ? s.named : lowerStart(s.named)) // as the text named it
+                    : plural ? (Character.isUpperCase(bare.charAt(0)) ? bare : Contrast.plural(bare))
+                    : i == 0 ? s.thing // as it was asked: "gold", "a frog", "the sun"
+                    : named(s.thing);
             String line = who + (plural ? " are " : " is ") + s.said;
             b.append(i == 0 ? Character.toUpperCase(line.charAt(0)) + line.substring(1) : line).append(i + 1 < steps.size() ? "; " : ".");
         }
         return b.toString();
+    }
+
+    private static String lowerStart(String s) {
+        return s.isEmpty() ? s : Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
     private static String named(String thing) {

@@ -77,7 +77,7 @@ public final class Contrast {
             + "(?:(a|an|the|one of the|any of the|a kind of|a type of|a group of|a family of|a member of the)\\s+)?(.+)$");
     private static final Pattern KIND_END = Pattern.compile("(?i)\\s(that|which|who|whose|with|of|in|from|for|by|used|found|living|made|"
             + "where|when|known|called|native|between|on|at|to|and|but|given)\\b|"
-            + ",(?=\\s*(?:the|a|an|and|or|which|who|that|it|its|located|known|also|but|in|on|with|one|usually|often|mostly)\\b|\\s*\\p{Lu})|;|\\(");
+            + ",(?=\\s*(?:the|a|an|and|or|which|who|that|it|its|located|known|also|but|in|on|with|one|usually|often|mostly)\\b|\\s*(?-i:\\p{Lu}))|;|\\(");
 
     /** D2: the kind from the first sentence that says what the thing is; null when none does. */
     public static Kind kind(String text) {

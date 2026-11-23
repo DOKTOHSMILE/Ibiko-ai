@@ -35,8 +35,8 @@ public class KindsTest {
 
     @Test
     public void readsTheQuestion() {
-        assertArrayEquals(new String[] {"frog", "animal"}, Kinds.asked("Is a frog an animal?"));
-        assertArrayEquals(new String[] {"tomato", "fruit"}, Kinds.asked("Is a tomato a kind of fruit?"));
+        assertArrayEquals(new String[] {"a frog", "animal"}, Kinds.asked("Is a frog an animal?"));
+        assertArrayEquals(new String[] {"a tomato", "fruit"}, Kinds.asked("Is a tomato a kind of fruit?"));
         assertArrayEquals(new String[] {"whales", "mammals"}, Kinds.asked("Are whales mammals?"));
         assertArrayEquals(new String[] {"the sun", "star"}, Kinds.asked("Is the sun a star?"));
         assertNull(Kinds.asked("Is it raining?"));
