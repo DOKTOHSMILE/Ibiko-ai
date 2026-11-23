@@ -1888,6 +1888,11 @@ public final class Ibiko1 {
         if (siteAsk != null || siteChange) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
         }
+        // a small web app asked to be made: "make a calculator", "I need a contact form"
+        final ai.ibiko.ibiko1.formulas.Apps.App appAsk = snippet == null ? apps().asked(t) : null; // weighed with a site change
+        if (appAsk != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.APP);
+        }
         final String[] lastCode = lastRecipe;
         final String followLang = lastCode == null ? null : ai.ibiko.ibiko1.formulas.Recipes.followUp(t);
         final ai.ibiko.ibiko1.formulas.Recipes.Ask sureCoding = snippet != null ? null : followLang != null && !lastCode[0].startsWith("q:")
@@ -1960,6 +1965,13 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case APP:
+                    turnDomain = "web";
+                    final String made = ai.ibiko.ibiko1.formulas.Apps.reply(appAsk);
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading your request: a " + appAsk.name, "Taking my " + appAsk.name + ", tested in a browser",
+                            "Saying what it does and how it works"), () -> saysExact(who, made));
+                    return true;
                 case CODING:
                     if (codingTurn(who, t, coding)) {
                         turnDomain = "code";
@@ -2164,6 +2176,22 @@ public final class Ibiko1 {
     }
 
     private ai.ibiko.ibiko1.formulas.Sites sites;
+
+    private ai.ibiko.ibiko1.formulas.Apps apps;
+
+    /** The small web apps (knowledge/web/apps.tsv: a newer one downloaded to the phone first). */
+    public synchronized ai.ibiko.ibiko1.formulas.Apps apps() {
+        if (apps == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/web/apps.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            apps = new ai.ibiko.ibiko1.formulas.Apps(in);
+        }
+        return apps;
+    }
 
     /** What it knows about kinds of websites (shipped coded: knowledge/web/sites.tsv.ibk). */
     public synchronized ai.ibiko.ibiko1.formulas.Sites sites() {

@@ -309,6 +309,10 @@ public class WhyFlowTest {
             assertTrue("a website by its words: " + html, html.contains("Sweet Crumbs") && html.contains("```html\n<!doctype html>"));
             String what = ask(brain, chat, "What is a website?");
             assertTrue(what, what.startsWith("Every website is made of the same layers"));
+            String calc = ask(brain, chat, "Make a calculator");
+            assertTrue("a small app asked for: " + calc, calc.startsWith("Here's a calculator: one HTML file.") && calc.contains("Tested in a browser"));
+            String form = ask(brain, chat, "I need a contact form");
+            assertTrue(form, form.startsWith("Here's a contact form: one HTML file."));
             String data = ask(brain, chat, "Sort these numbers: 5 3 1");
             assertTrue("data in it: a thing to do, not code: " + data, !data.contains("```"));
         } finally {

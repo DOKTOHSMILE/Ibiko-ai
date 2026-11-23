@@ -33,7 +33,7 @@ public final class Readings {
 
     /** What a message can be. */
     public enum Kind {
-        CODE("code to explain", "code"), CODING("code to write", "code"), SITE("a website", "web"), CLAIM("a claim to check", "facts"),
+        CODE("code to explain", "code"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
         WORD("a word's meaning", "language"), SYNTAX("a sentence's structure", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
         CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
         KINDQ("whether one thing is a kind of another", "kinds"), AHEAD("what something leads to", "reasons"), WHY("a reason", "reasons");
@@ -93,7 +93,8 @@ public final class Readings {
                 "sort", "reverse", "factorial", "fibonacci", "prime", "dictionary", "hashmap", "framework", "react", "node", "terminal"));
         VOCAB.put("web", set("website", "websites", "site", "sites", "page", "pages", "landing", "homepage", "section", "sections", "header",
                 "footer", "layout", "responsive", "design", "domain", "hosting", "html", "css", "menu", "navigation", "seo", "portfolio",
-                "blog", "shop", "store", "ecommerce", "e-commerce", "template", "theme", "wordpress", "build", "online"));
+                "blog", "shop", "store", "ecommerce", "e-commerce", "template", "theme", "wordpress", "build", "online", "app", "form", "login",
+                "calculator", "timer", "quiz", "button", "buttons"));
         VOCAB.put("facts", set("capital", "president", "born", "population", "country", "city", "founded", "founder", "currency", "language",
                 "spoken", "located", "where", "when", "who", "married", "tallest", "largest", "king", "queen", "leader", "history"));
         VOCAB.put("language", set("mean", "means", "meaning", "word", "words", "definition", "define", "synonym", "opposite", "spell",
@@ -120,6 +121,7 @@ public final class Readings {
             case TALK: return 0.8;
             case CLAIM: return 0.75;
             case SITE: return 0.7;
+            case APP: return 0.75; // a named app asked to be made: more particular than a website
             case CODING: return 0.7;
             case FACT: return 0.55;
             case CONTRAST: return 0.7;
