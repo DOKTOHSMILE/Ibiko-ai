@@ -68,6 +68,10 @@ public class WhyFlowTest {
         assertTrue(further, further.startsWith("That's as far back as what I've read goes"));
         String told = ask(brain, chat, "The ocean warmed up");
         assertTrue(told, told.contains("The winds shifted south because the ocean warmed up"));
+        String way = ask(brain, chat, "Garri is made by grating, pressing and frying cassava.");
+        assertTrue(way, way.startsWith("Noted: how Garri is made"));
+        String how = ask(brain, chat, "How is garri made?");
+        assertTrue(how, how.startsWith("Garri is made by grating, pressing and frying cassava."));
         // next time, the chain goes a step further
         ask(brain, chat, "Why was the harvest in Kano poor?");
         String again = ask(brain, chat, "why?");

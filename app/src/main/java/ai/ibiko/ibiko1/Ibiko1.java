@@ -871,6 +871,10 @@ public final class Ibiko1 {
                 return;
             }
         }
+        // how something is made, formed or done, or how it works: the way read out of what it knows and reads
+        if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW && answerHow(who, t)) {
+            return;
+        }
         // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
             return;
@@ -1700,6 +1704,51 @@ public final class Ibiko1 {
         return true;
     }
 
+    /**
+     * A how-question answered from the ways it knows (read before, or told), then from the encyclopedia's article on
+     * the thing asked about (read for how it is made or works, and kept). False when neither says.
+     */
+    private boolean answerHow(String who, String question) {
+        List<ai.ibiko.ibiko1.formulas.Process.Way> known = facts().ways();
+        ai.ibiko.ibiko1.formulas.Process.Way way = ai.ibiko.ibiko1.formulas.Process.how(question, known);
+        String title = null;
+        if (way == null) {
+            for (Encyclopedia.Article a : whyArticles(question)) {
+                List<ai.ibiko.ibiko1.formulas.Process.Way> read = new ArrayList<ai.ibiko.ibiko1.formulas.Process.Way>(
+                        ai.ibiko.ibiko1.formulas.Process.read(a.text, a.title));
+                if (read.isEmpty()) {
+                    continue;
+                }
+                way = ai.ibiko.ibiko1.formulas.Process.how(question, read);
+                if (way != null) {
+                    title = a.title;
+                    facts().learn(a.text, a.title, 2, System.currentTimeMillis()); // what it read is kept
+                    break;
+                }
+            }
+        }
+        if (way == null || knowledge().rejected(question, way.said())) {
+            return false;
+        }
+        final ai.ibiko.ibiko1.formulas.Process.Way found = way;
+        final String source = title;
+        how = How.MEMORY;
+        List<String> steps = new ArrayList<String>();
+        steps.add("Reading your question: it asks how");
+        steps.add(source == null ? "Looking through the ways I've read and been told" : "Reading my encyclopedia's article on " + source + " for how");
+        steps.add(found.steps.isEmpty() ? "Found how " + Causes0.plain(found.thing) + " is " + found.doing : "Found the steps, in order");
+        think(steps, () -> {
+            if (source == null) {
+                saysSure(who, found.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED, "From what I've read and been told");
+            } else {
+                saysSure(who, found.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                        "Source: Simple English Wikipedia, \u201c" + source + "\u201d");
+            }
+            rateable(question, found.said());
+        });
+        return true;
+    }
+
     /** Small helpers for saying a reason in a step. */
     private static final class Causes0 {
         static String plain(String s) {
@@ -2102,6 +2151,14 @@ public final class Ibiko1 {
                 got.add(h.clause() + " " + h.when.on());
             }
             return "Noted: " + String.join("; ", got) + ". I'll use it when I work things out.";
+        }
+        // a way ("Glass is made by melting sand", "First …, then …"): understood as how it is done and kept, for how-questions
+        List<ai.ibiko.ibiko1.formulas.Process.Way> ways = ai.ibiko.ibiko1.formulas.Process.read(said, null);
+        if (!ways.isEmpty() && !said.matches("(?i)^(today|tomorrow|yesterday|i|we|my|our|you)\\b.*")) {
+            facts().learn(said, null, 2, System.currentTimeMillis()); // the pilot's own words: as good as a source
+            ai.ibiko.ibiko1.formulas.Process.Way w = ways.get(0);
+            return "Noted: how " + w.thing + (w.steps.isEmpty() ? " is " + w.doing : " is done, in " + w.steps.size() + " steps")
+                    + ". I'll use it when I'm asked how.";
         }
         // a reason ("Plants are green because of chlorophyll"): understood as cause and effect and kept, for why-questions
         List<ai.ibiko.ibiko1.formulas.Causes.Link> reasons = ai.ibiko.ibiko1.formulas.Causes.read(said, null);

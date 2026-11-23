@@ -187,6 +187,17 @@ public final class Facts {
             changed |= see(t, sightings, now);
             added += all.size() > was ? 1 : 0;
         }
+        // how a thing is made, formed or done, and how it works ("Glass is made by melting sand"; steps in order): kept
+        // as (glass | way made | by melting sand), the steps as (bread | way steps | mix … || knead …)
+        for (ai.ibiko.ibiko1.formulas.Process.Way w : ai.ibiko.ibiko1.formulas.Process.read(text, topic)) {
+            String object = w.steps.isEmpty() ? w.means : String.join(" || ", w.steps);
+            String surface = w.steps.isEmpty() ? w.sentence : w.means;
+            Grammar.Triple t = new Grammar.Triple(w.thing, "way " + w.doing, object.length() > 600 ? object.substring(0, 600) : object,
+                    surface.length() > 300 ? surface.substring(0, 300) : surface);
+            int was = all.size();
+            changed |= see(t, sightings, now);
+            added += all.size() > was ? 1 : 0;
+        }
         while (all.size() > MOST) {
             changes++;
             all.remove(weakest());
@@ -224,6 +235,25 @@ public final class Facts {
             Grammar.Triple t = r.fact;
             if (r.n >= 2 && t.relation.matches("because|because of|so that|in order to")) {
                 out.add(new ai.ibiko.ibiko1.formulas.Causes.Link(t.subject, t.object, t.relation, t.surface));
+            }
+        }
+        return out;
+    }
+
+    /** The ways it has read and been told (how a thing is made, formed, done, works), sure ones only. */
+    public synchronized List<ai.ibiko.ibiko1.formulas.Process.Way> ways() {
+        List<ai.ibiko.ibiko1.formulas.Process.Way> out = new ArrayList<ai.ibiko.ibiko1.formulas.Process.Way>();
+        for (Row r : all) {
+            Grammar.Triple t = r.fact;
+            if (r.n < 2 || !t.relation.startsWith("way ")) {
+                continue;
+            }
+            String doing = t.relation.substring(4);
+            if (doing.equals("steps")) {
+                out.add(new ai.ibiko.ibiko1.formulas.Process.Way(t.subject, doing, t.surface == null ? "" : t.surface,
+                        new ArrayList<String>(java.util.Arrays.asList(t.object.split(" \\|\\| "))), t.object));
+            } else {
+                out.add(new ai.ibiko.ibiko1.formulas.Process.Way(t.subject, doing, t.object, null, t.surface));
             }
         }
         return out;
@@ -274,7 +304,7 @@ public final class Facts {
             return false;
         }
         String r = a.relation;
-        if (r.matches("because|because of|so that|in order to")) {
+        if (r.matches("because|because of|so that|in order to") || r.startsWith("way ")) {
             return false; // a thing can have more than one reason: a second one adds, it doesn't contradict
         }
         return r.startsWith("born ") || r.endsWith(" in") && a.object.matches(".*\\d{3,4}.*") && b.object.matches(".*\\d{3,4}.*")
