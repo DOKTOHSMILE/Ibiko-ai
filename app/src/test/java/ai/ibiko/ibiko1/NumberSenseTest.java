@@ -64,6 +64,33 @@ public class NumberSenseTest {
     }
 
     @Test
+    public void thousandsMillionsAndWhichWayADateReads() {
+        List<NumberSense.Found> k = NumberSense.read("I paid 50k for the phone.");
+        assertEquals(Kind.MONEY, k.get(0).kind());
+        assertEquals(50000.0, k.get(0).value, 0.1);
+        assertEquals(Kind.QUANTITY, NumberSense.read("The page has 12k followers.").get(0).kind());
+        assertEquals(2500000.0, NumberSense.read("They raised 2.5m naira.").get(0).value, 0.1);
+        assertTrue(NumberSense.explain("Due 25/12/2024.").contains("day first (25 can't be a month)"));
+        assertTrue(NumberSense.explain("Due 12/25/2024.").contains("month first (25 can't be a month)"));
+        assertTrue(NumberSense.explain("Due 05/06/2024.").contains("could be month first"));
+    }
+
+    @Test
+    public void whatIsPrivateIsNeverKept() {
+        assertEquals("My PIN is [a code] and my OTP is [a code].", NumberSense.redact("My PIN is 1960 and my OTP is 0451."));
+        assertEquals("Call me on [a phone number] tomorrow.", NumberSense.redact("Call me on 0803 123 4567 tomorrow."));
+        assertEquals("My password is [a code] ok", NumberSense.redact("My password is hunter2 ok"));
+        assertEquals("Nigeria became independent in 1960.", NumberSense.redact("Nigeria became independent in 1960."));
+        assertEquals("About 1200 people live there.", NumberSense.redact("About 1200 people live there."));
+        assertEquals("Card [a code] expired.", NumberSense.redact("Card 4111 1111 1111 1111 expired."));
+        Facts f = new Facts(null);
+        f.learn("My PIN is 1960. Nigeria gained independence on 1 October 1960.", null, 2, 1L);
+        for (ai.ibiko.ibiko1.formulas.Grammar.Triple t : f.all()) {
+            assertTrue("no PIN kept: " + t, !(t.object + t.surface).contains("1960") || t.toString().contains("October"));
+        }
+    }
+
+    @Test
     public void askedToReadTheNumbers() {
         WordTalk talk = new WordTalk(null);
         assertTrue(WordTalk.asks("Read the numbers in: Call 0803 123 4567 at 1430 hours, PIN 1960"));

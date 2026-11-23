@@ -93,7 +93,8 @@ public final class NumberSense {
     // ------------------------------------------------------------------ N1 find
 
     /** A number in figures: digits, with the separators numbers are written with, a leading + or currency sign. */
-    private static final Pattern FIGURES = Pattern.compile("(?<![\\p{L}\\d])([+]?\\d[\\d\\s().,:/-]*\\d|\\d)(?:\\s?(st|nd|rd|th))?(?![\\d])");
+    private static final Pattern FIGURES = Pattern.compile("(?<![\\p{L}\\d])([+]?\\d[\\d\\s().,:/-]*\\d|\\d)(?:\\s?(st|nd|rd|th)"
+            + "|(k|K|m|M|bn|BN|b|B)(?![\\p{L}]))?(?![\\d])"); // 3rd, 21st; 50k, 2.5m, 1bn stuck on
     private static final String[] ONES = {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
         "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
     private static final String[] TENS = {"", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"};
@@ -118,7 +119,7 @@ public final class NumberSense {
             // groups that aren't a phone number's
             for (int[] part : parts(sentence, m.start(1), end)) {
                 String t = sentence.substring(part[0], part[1]);
-                String suffix = part[1] == end && m.group(2) != null ? m.group(2) : null;
+                String suffix = part[1] != end ? null : m.group(2) != null ? m.group(2) : m.group(3);
                 out.add(found(sentence, t, part[0], suffix != null ? m.end() : part[1], suffix, topic));
             }
         }
@@ -225,6 +226,11 @@ public final class NumberSense {
         } catch (NumberFormatException e) {
             v = Double.NaN;
         }
+        if (suffix != null && !Double.isNaN(v)) {
+            // "50k" is 50,000, "2.5m" 2,500,000, "1bn" a billion
+            String x = suffix.toLowerCase(Locale.US);
+            v *= x.equals("k") ? 1e3 : x.equals("m") ? 1e6 : x.equals("b") || x.equals("bn") ? 1e9 : 1;
+        }
         return found(s, t, start, end, suffix, topic, v);
     }
 
@@ -259,13 +265,17 @@ public final class NumberSense {
         if (has(before, "call", "phone", "tel", "telephone", "mobile", "number", "whatsapp", "contact", "text", "sms", "reach", "dial", "line")) {
             phone += digits.length() >= 7 ? 3 : 0.5;
         }
-        if (phone > 0) {
+        // a card number: 13 to 19 digits in groups of four
+        boolean card = digits.length() >= 13 && digits.length() <= 19 && t.matches("\\d{4}([\\s-]\\d{4}){2,3}([\\s-]?\\d{1,3})?");
+        if (card) {
+            r.add(new Reading(Kind.CODE, 7, "a card number's shape (groups of four)"));
+        } else if (phone > 0) {
             r.add(new Reading(Kind.PHONE, phone, "a phone number's shape" + (phone >= 4 ? " and words" : "")));
         }
 
         // date: d/m/y, or a number beside a month name
         if (slashDate) {
-            r.add(new Reading(Kind.DATE, 5, "written as a date (day, month and year)"));
+            r.add(new Reading(Kind.DATE, 5, dateOrder(t)));
         }
         if ((before.matches(".*\\b(" + MONTHS + ")\\.?,?\\s*(\\d{1,2}(st|nd|rd|th)?,?\\s*)?$") || after.matches("^\\s*(st|nd|rd|th)?\\s*(of\\s+)?(" + MONTHS + ")\\b.*"))
                 && (value >= 1 && value <= 31 || plain4)) {
@@ -282,8 +292,14 @@ public final class NumberSense {
 
         // money: a currency sign or word, k/m stuck on, or words of buying and paying
         if (before.matches(".*(₦|\\$|£|€)\\s*$") || before.matches(".*(^|[^\\p{L}])(ngn|usd|n)\\s?$") || has(after, "naira", "dollars", "dollar", "pounds", "euros", "cedis", "kobo",
-                "usd", "ngn") || suffix != null && suffix.matches("(?i)k|m|bn")) {
+                "usd", "ngn")) {
             r.add(new Reading(Kind.MONEY, 5, "a currency with it"));
+        } else if (suffix != null && suffix.matches("(?i)k|m|bn|b")) {
+            // 50k: thousands; money when the sentence is about prices or paying, else a count ("50k followers")
+            boolean pay = "money".equals(topic) || has(before, "cost", "costs", "price", "pay", "paid", "salary", "budget", "fee", "sell",
+                    "sold", "buy", "bought", "worth", "earn", "earned", "spent", "charge", "charged");
+            r.add(new Reading(pay ? Kind.MONEY : Kind.QUANTITY, 4.5, "written in " + (suffix.equalsIgnoreCase("k") ? "thousands"
+                    : suffix.equalsIgnoreCase("m") ? "millions" : "billions") + " (“" + t + suffix + "”)" + (pay ? ", and about paying" : "")));
         } else if (has(before, "cost", "costs", "price", "pay", "paid", "pays", "sell", "sold", "buy", "bought", "salary", "fee", "fees",
                 "charge", "charged", "worth", "budget", "earn", "earned", "spent", "spend", "owe")) {
             r.add(new Reading(Kind.MONEY, 2.5, "words of paying or prices before it"));
@@ -390,6 +406,25 @@ public final class NumberSense {
     private static final String MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december"
             + "|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec";
 
+    /**
+     * Which way a written date reads: 25/12/2024 can only be day first, 12/25/2024 only month first; 05/06/2024 could
+     * be either, and is read day first (as dates are written in Nigeria and Britain), saying so.
+     */
+    static String dateOrder(String t) {
+        String[] p = t.split("[/.-]");
+        if (p.length != 3 || p[0].length() > 2) {
+            return "written as a date (year first)";
+        }
+        int a = Integer.parseInt(p[0]), b = Integer.parseInt(p[1]);
+        if (a > 12 && b <= 12) {
+            return "written as a date, day first (" + a + " can't be a month)";
+        }
+        if (b > 12 && a <= 12) {
+            return "written as a date, month first (" + b + " can't be a month)";
+        }
+        return "written as a date, read day first; it could be month first";
+    }
+
     /** What a sentence is about, for N4: history, money, contact, time; or "". */
     static String topicOf(String s) {
         String t = s.toLowerCase(Locale.US);
@@ -452,6 +487,32 @@ public final class NumberSense {
             }
         }
         return false;
+    }
+
+    /**
+     * The text with what is private taken out before anything is kept: PINs, one-time codes, passwords, account,
+     * card, BVN and NIN numbers, and phone numbers become "[a code]" or "[a phone number]". What is learned from a
+     * message (its facts, its language) never holds them; the message itself, in its chat, is unchanged.
+     */
+    public static String redact(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        // a secret written as a word: "my password is hunter2", "pin: abcd"
+        String t = text.replaceAll("(?i)\\b(password|passcode|passwd|pin|otp|cvv|secret code)(\\s*(is|:|=)\\s*)([^\\s,;!?]+?)(?=[.,;!?]?(\\s|$))", "$1$2[a code]");
+        StringBuilder out = new StringBuilder();
+        int last = 0;
+        for (Found f : read(t)) {
+            Kind k = f.kind();
+            boolean secret = k == Kind.PHONE || k == Kind.CODE && (f.why().matches(".*“(pin|otp|code|password|passcode|account|acct|"
+                    + "bvn|nin|serial)”.*") || f.why().contains("card number")) || k != Kind.YEAR && f.text.replaceAll("\\D", "").length() >= 12; // a card number
+            if (!secret || f.start < last) {
+                continue;
+            }
+            out.append(t, last, f.start).append(k == Kind.PHONE ? "[a phone number]" : "[a code]");
+            last = f.end;
+        }
+        return out.append(t.substring(last)).toString();
     }
 
     /** The numbers of a sentence and what each was read as, in words (for the steps, or to explain). */

@@ -91,6 +91,7 @@ public final class Learner {
      * answer, or an acceptance), and it is read for grammar and sentence shapes.
      */
     public synchronized Verdict heard(String message, long now) {
+        message = ai.ibiko.ibiko1.formulas.NumberSense.redact(message); // never learned from: PINs, codes, phone numbers
         Verdict v = Verdict.NONE;
         if (pendingAnswer != null && message != null) {
             pendingAge++;
@@ -191,6 +192,7 @@ public final class Learner {
 
     /** Reads a text from {@code source}: grammar always, sentence shapes for all but social posts. */
     public synchronized void read(String text, Source source, long now) {
+        text = ai.ibiko.ibiko1.formulas.NumberSense.redact(text); // never learned from: PINs, codes, phone numbers
         if (text == null || text.trim().isEmpty()) {
             return;
         }

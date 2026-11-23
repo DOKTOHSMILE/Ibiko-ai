@@ -242,7 +242,8 @@ public final class Ibiko1 {
                 Encyclopedia e = encyclopedia();
                 return e == null ? null : e.find(title);
             }, subject -> facts().happenings(subject),
-                    article -> facts().learn(article.text, article.title, 2, System.currentTimeMillis()));
+                    article -> facts().learn(article.text, article.title, 2, System.currentTimeMillis()))
+                    .measures((subject, what) -> facts().measure(subject, what));
         }
         return composer;
     }
@@ -485,7 +486,7 @@ public final class Ibiko1 {
         replied = false;
         understood(said, conversationId); // references stay inside this chat, not another chat's recent objects
         foresight().heard(said, Methods.kind(said), System.currentTimeMillis()); // what this pilot asks after what
-        learner().heard(said, System.currentTimeMillis());
+        learner().heard(ai.ibiko.ibiko1.formulas.NumberSense.redact(said), System.currentTimeMillis()); // never a PIN or a phone number
     }
 
     /**
