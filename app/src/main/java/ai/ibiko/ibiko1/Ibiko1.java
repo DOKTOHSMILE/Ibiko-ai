@@ -917,63 +917,9 @@ public final class Ibiko1 {
                 return;
             }
         }
-        // two things told apart ("difference between a frog and a toad"): each read for what kind of thing it is and
-        // what is said of it, then compared: the same kind or not, and what sets each apart
-        final String[] pair = ai.ibiko.ibiko1.formulas.Contrast.pair(t);
-        if (pair != null && encyclopedia() != null) {
-            final Encyclopedia.Article a = encyclopedia().find(pair[0]), b = encyclopedia().find(pair[1]);
-            final String told = a == null || b == null || a.title.equals(b.title) ? null
-                    : ai.ibiko.ibiko1.formulas.Contrast.tell(pair[0], a.text, pair[1], b.text);
-            if (told != null && !knowledge().rejected(t, told)) {
-                how = How.MEMORY;
-                long now = System.currentTimeMillis();
-                facts().learn(a.text, a.title, 2, now); // what it read is kept
-                facts().learn(b.text, b.title, 2, now);
-                think(Arrays.asList("Reading your question: two things to tell apart", "Reading my encyclopedia on " + a.title + " and on " + b.title,
-                        "Finding what kind of thing each is", "Finding what each says that the other doesn't"), () -> {
-                            saysSure(who, told, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
-                                    "Source: Simple English Wikipedia, \u201c" + a.title + "\u201d and \u201c" + b.title + "\u201d");
-                            rateable(t, told);
-                        });
-                return;
-            }
-        }
-        // how something is made, formed or done, or how it works: the way read out of what it knows and reads
-        if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW && answerHow(who, t)) {
-            return;
-        }
-        // "is a frog an animal?": worked out by going up what each thing is (a frog is an amphibian, an amphibian is …)
-        final String[] kindAsked = ai.ibiko.ibiko1.formulas.Kinds.asked(t);
-        if (kindAsked != null && encyclopedia() != null) {
-            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
-                Encyclopedia.Article a = encyclopedia().find(name);
-                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
-            });
-            if (chain != null) {
-                final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);
-                if (!knowledge().rejected(t, yes)) {
-                    how = How.MEMORY;
-                    List<String> steps = new ArrayList<String>();
-                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
-                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : chain) {
-                        steps.add("Reading what " + st.thing + " is: " + st.said);
-                    }
-                    steps.add("Reached " + kindAsked[1] + ": yes");
-                    think(steps, () -> {
-                        saysSure(who, yes, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
-                                "Worked out from Simple English Wikipedia, step by step");
-                        rateable(t, yes);
-                    });
-                    return;
-                }
-            }
-        }
-        // what something leads to ("what happens if the rains fail?"): forward along the causes it has read and been told
-        if (ai.ibiko.ibiko1.formulas.Causes.ahead(t) != null && answerThen(who, t)) {
-            return;
-        }
-        // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
-        if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
+        // reasoning (tell two things apart, how, is X a Y, what follows, why): every reading this message allows,
+        // weighed with its words and the conversation, the best tried first
+        if (reasoned(who, t)) {
             return;
         }
         // facts put together into an answer no single fact holds: an age at an event, who is older, the years between,
@@ -1943,6 +1889,107 @@ public final class Ibiko1 {
                     return false; // the word reader, further on, answers it
                 default:
                     break;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The second weighing: the reasoning readings a question allows (two things told apart, how something is done,
+     * whether one thing is a kind of another, what something leads to, a reason), ranked by the message's own words
+     * and the conversation, tried best first; the ones that don't answer fall through to the next. False: none did.
+     */
+    private boolean reasoned(final String who, final String t) {
+        List<ai.ibiko.ibiko1.formulas.Readings.Kind> offered = new ArrayList<ai.ibiko.ibiko1.formulas.Readings.Kind>();
+        ai.ibiko.ibiko1.formulas.Asking.Wants wants = ai.ibiko.ibiko1.formulas.Asking.of(t).wants;
+        if (ai.ibiko.ibiko1.formulas.Contrast.pair(t) != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CONTRAST);
+        }
+        if (wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.HOW);
+        }
+        if (ai.ibiko.ibiko1.formulas.Kinds.asked(t) != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.KINDQ);
+        }
+        if (ai.ibiko.ibiko1.formulas.Causes.ahead(t) != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.AHEAD);
+        }
+        if (wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.WHY);
+        }
+        if (offered.isEmpty()) {
+            return false;
+        }
+        List<ai.ibiko.ibiko1.formulas.Readings.Reading> order = ai.ibiko.ibiko1.formulas.Readings.weigh(t, offered, readingContext);
+        if (order.size() > 1) {
+            String weighed = ai.ibiko.ibiko1.formulas.Readings.said(order);
+            contextStep = contextStep == null ? weighed : contextStep + "; " + weighed;
+        }
+        for (ai.ibiko.ibiko1.formulas.Readings.Reading r : order) {
+            boolean done;
+            switch (r.kind) {
+                case CONTRAST: done = contrastTurn(who, t); break;
+                case HOW: done = answerHow(who, t); break;
+                case KINDQ: done = kindTurn(who, t); break;
+                case AHEAD: done = answerThen(who, t); break;
+                case WHY: done = answerWhy(who, t); break;
+                default: done = false;
+            }
+            if (done) {
+                turnDomain = r.kind.domain;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean contrastTurn(final String who, final String t) {
+        final String[] pair = ai.ibiko.ibiko1.formulas.Contrast.pair(t);
+        if (pair != null && encyclopedia() != null) {
+            final Encyclopedia.Article a = encyclopedia().find(pair[0]), b = encyclopedia().find(pair[1]);
+            final String told = a == null || b == null || a.title.equals(b.title) ? null
+                    : ai.ibiko.ibiko1.formulas.Contrast.tell(pair[0], a.text, pair[1], b.text);
+            if (told != null && !knowledge().rejected(t, told)) {
+                how = How.MEMORY;
+                long now = System.currentTimeMillis();
+                facts().learn(a.text, a.title, 2, now); // what it read is kept
+                facts().learn(b.text, b.title, 2, now);
+                think(Arrays.asList("Reading your question: two things to tell apart", "Reading my encyclopedia on " + a.title + " and on " + b.title,
+                        "Finding what kind of thing each is", "Finding what each says that the other doesn't"), () -> {
+                            saysSure(who, told, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                                    "Source: Simple English Wikipedia, \u201c" + a.title + "\u201d and \u201c" + b.title + "\u201d");
+                            rateable(t, told);
+                        });
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean kindTurn(final String who, final String t) {
+        final String[] kindAsked = ai.ibiko.ibiko1.formulas.Kinds.asked(t);
+        if (kindAsked != null && encyclopedia() != null) {
+            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
+                Encyclopedia.Article a = encyclopedia().find(name);
+                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
+            });
+            if (chain != null) {
+                final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);
+                if (!knowledge().rejected(t, yes)) {
+                    how = How.MEMORY;
+                    List<String> steps = new ArrayList<String>();
+                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
+                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : chain) {
+                        steps.add("Reading what " + st.thing + " is: " + st.said);
+                    }
+                    steps.add("Reached " + kindAsked[1] + ": yes");
+                    think(steps, () -> {
+                        saysSure(who, yes, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
+                                "Worked out from Simple English Wikipedia, step by step");
+                        rateable(t, yes);
+                    });
+                    return true;
+                }
             }
         }
         return false;

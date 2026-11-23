@@ -76,4 +76,15 @@ public class CodeReaderTest {
         String step = Readings.said(site);
         assertTrue(step, step.startsWith("Weighing what you meant: a website (") && step.contains("also possible: a word's meaning"));
     }
+
+    @Test
+    public void reasoningReadingsAreWeighedToo() {
+        List<Readings.Reading> r = Readings.weigh("What is the difference between a whale and a fish?",
+                Arrays.asList(Readings.Kind.KINDQ, Readings.Kind.CONTRAST), new Readings.Context());
+        assertEquals(Readings.Kind.CONTRAST, r.get(0).kind);
+        assertTrue(r.get(0).why, r.get(0).why.contains("comparing"));
+        Readings.Context causes = new Readings.Context().said("reasons");
+        List<Readings.Reading> next = Readings.weigh("How come?", Arrays.asList(Readings.Kind.HOW, Readings.Kind.WHY), causes);
+        assertEquals("after talk of causes, \"how come?\" asks a reason", Readings.Kind.WHY, next.get(0).kind);
+    }
 }
