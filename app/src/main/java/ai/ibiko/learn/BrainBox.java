@@ -347,8 +347,8 @@ public final class BrainBox {
         }
         String kind = kind(order);
         List<String> words = words(text);
-        if (kind.isEmpty() || NOT_ACTIONS.contains(kind) || words.isEmpty() || order.length() > 400) {
-            return;
+        if (kind.isEmpty() || NOT_ACTIONS.contains(kind) || words.isEmpty() || order.length() > 400 || !fits(text, order)) {
+            return; // a model's slip ("Hello" answered with plan mode) is not learned as a habit
         }
         for (int i = examples.size() - 1; i >= 0; i--) {
             if (examples.get(i).words.equals(words)) {
@@ -599,6 +599,70 @@ public final class BrainBox {
     }
 
     public synchronized String recall(String text) {
+        String order = recallAny(text);
+        return order == null || !fits(text, order) ? null : order;
+    }
+
+    /**
+     * Small talk ("hello", "thanks", "how are you") never sets off a learned action, and a control of the app is carried
+     * out only when the message names it: plan mode needs "plan", settings "settings", a new chat "new" or "chat". What a
+     * model got wrong once (or a near-match on a word or two) can't switch a mode on by itself.
+     */
+    static boolean fits(String text, String order) {
+        String kindName;
+        try {
+            // the suit's code ("§PM"), or the older written form ("DO TIME")
+            ai.ibiko.llm.BrainOrder o = ai.ibiko.llm.BrainOrder.leading(order);
+            kindName = o != null ? o.kind.name() : kind(order == null ? "" : order);
+        } catch (RuntimeException e) {
+            kindName = kind(order == null ? "" : order);
+        }
+        if (kindName.isEmpty() || NOT_ACTIONS.contains(kindName)) {
+            return true;
+        }
+        String t = (text == null ? "" : text).toLowerCase(Locale.US).trim();
+        boolean smallTalk = t.matches("^(hi|hello|hey|hiya|howdy|good (morning|afternoon|evening|night)|morning|evening|thanks?|"
+                + "thank you|thanks a lot|ok|okay|cool|nice|great|lol|yes|yeah|no|nope|how are you|how far|wetin dey|sup|what'?s up)"
+                + "\\b[\\s\\p{P}\\p{So}]*(there|ibiko|obi|ivie|bro|sis|friend|dear|o)?[\\s\\p{P}\\p{So}]*$");
+        String needs;
+        switch (kindName) {
+            case "GREET":
+                return true;
+            case "PLANMODE":
+                needs = "\\bplan";
+                break;
+            case "AUTOON":
+            case "AUTOOFF":
+                needs = "\\b(auto|approv|accept|ask(ing)? (me )?(first|before)|permission)";
+                break;
+            case "NEWCHAT":
+                needs = "\\b(new|fresh|another|start over|clear)\\b|\\bchat\\b|\\bconversation\\b";
+                break;
+            case "SETTINGS":
+                needs = "\\b(setting|settings|preferences|options|configur)";
+                break;
+            case "RETRY":
+                needs = "\\b(retry|again|redo|regenerate|try (that|it)|once more)";
+                break;
+            case "SWITCH":
+                needs = "\\b(switch|change|swap|talk to|speak to|use|bring|call)\\b|\\b(obi|ivie|ibiko)\\b";
+                break;
+            case "CONFIRM":
+                needs = "^(yes|yeah|yep|ok|okay|sure|go ahead|do it|confirm|approve|proceed|send it|post it)\\b";
+                break;
+            case "CANCEL":
+                needs = "\\b(no|cancel|stop|don'?t|abort|never ?mind|forget it)\\b";
+                break;
+            case "CARRYON":
+                needs = "\\b(continue|carry on|go on|keep going|proceed|next|finish)";
+                break;
+            default:
+                return !smallTalk; // any other action: never from a greeting or a thanks
+        }
+        return java.util.regex.Pattern.compile(needs).matcher(t).find();
+    }
+
+    private String recallAny(String text) {
         List<String> words = words(text);
         if (words.isEmpty() || examples.isEmpty()) {
             return null;

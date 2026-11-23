@@ -38,8 +38,31 @@ public final class CampaignImage {
 
     /** As above, {@code width} by {@code height} pixels (a story, a banner). */
     public static File render(Context context, final String html, File out, final int width, final int height) {
+        return drawn(context, html, out, width, height).file;
+    }
+
+    /** A picture drawn, and what was still wrong with its layout after it was put right (null when nothing). */
+    public static final class Drawn {
+        public final File file;
+        /** "words overlap", "words off the picture", "words hard to read"; null for a clean picture. */
+        public final String problem;
+
+        Drawn(File file, String problem) {
+            this.file = file;
+            this.problem = problem;
+        }
+    }
+
+    /**
+     * Strict about the words, whoever designed the page: once it has drawn, every piece of text is measured. Words running
+     * off the picture are made smaller until they fit; shapes are put behind the words; words that collide are made
+     * smaller apart; then the drawn picture itself is read under each piece of text, and words that don't stand out
+     * from what is behind them (yellow on yellow, white on a pale sky) are set in white or near-black with a soft halo.
+     * What still can't be put right is said in {@link Drawn#problem}, so a design that fails can be replaced.
+     */
+    public static Drawn drawn(Context context, final String html, File out, final int width, final int height) {
         if (html == null || html.isEmpty()) {
-            return null;
+            return new Drawn(null, null);
         }
         if (Looper.myLooper() == Looper.getMainLooper()) {
             throw new IllegalStateException("drawing waits for the page: call it off the main thread");
@@ -48,6 +71,7 @@ public final class CampaignImage {
         final Handler main = new Handler(Looper.getMainLooper());
         final CountDownLatch done = new CountDownLatch(1);
         final Bitmap[] shot = {null};
+        final String[] problem = {null};
         final WebView[] holder = {null};
         main.post(() -> {
             try {
@@ -56,7 +80,8 @@ public final class CampaignImage {
                 w.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null); // drawn off screen, into a bitmap
                 holder[0] = w;
                 WebSettings s = w.getSettings();
-                s.setJavaScriptEnabled(false); // a picture needs no script
+                // the page's own scripts were taken out (CampaignPlanner.picture); script is on only for the layout check
+                s.setJavaScriptEnabled(true);
                 s.setAllowFileAccess(false);
                 s.setAllowContentAccess(false);
                 s.setDomStorageEnabled(false);
@@ -85,22 +110,32 @@ public final class CampaignImage {
 
                     @Override
                     public void onPageFinished(WebView view, String url) {
-                        main.postDelayed(() -> {
-                            try {
-                                Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-                                Canvas c = new Canvas(b);
-                                c.drawColor(0xFFFFFFFF); // a page with no background draws on white, not black
-                                view.draw(c);
-                                if (blank(b)) {
-                                    b.recycle(); // nothing was drawn (a page that never painted): no picture, not a white square
-                                } else {
-                                    shot[0] = b;
-                                }
-                            } catch (RuntimeException | OutOfMemoryError e) {
-                                shot[0] = null;
+                        main.postDelayed(() -> view.evaluateJavascript(Layout.CHECK, found -> main.postDelayed(() -> {
+                            Layout.Report rep = Layout.Report.of(found);
+                            Bitmap b = capture(view, width, height);
+                            if (b == null) {
+                                done.countDown();
+                                return;
                             }
-                            done.countDown();
-                        }, SETTLE_MS);
+                            String dull = Layout.dull(b, rep);
+                            if (dull.isEmpty()) {
+                                shot[0] = b;
+                                problem[0] = rep.problem();
+                                done.countDown();
+                                return;
+                            }
+                            // words that don't stand out: set in white or near-black, then drawn again and read again
+                            b.recycle();
+                            view.evaluateJavascript(Layout.legible(dull), ignored -> main.postDelayed(() -> {
+                                Bitmap again = capture(view, width, height);
+                                if (again != null) {
+                                    shot[0] = again;
+                                    String still = Layout.dull(again, rep);
+                                    problem[0] = rep.problem() != null ? rep.problem() : still.isEmpty() ? null : "words hard to read";
+                                }
+                                done.countDown();
+                            }, Layout.REDRAW_MS));
+                        }, Layout.REDRAW_MS)), SETTLE_MS);
                     }
                 });
                 w.loadDataWithBaseURL("https://ibiko.local/", fit(html, width, height), "text/html", "utf-8", null);
@@ -121,7 +156,7 @@ public final class CampaignImage {
         });
         Bitmap b = shot[0];
         if (b == null) {
-            return null;
+            return new Drawn(null, null);
         }
         try {
             File dir = out.getParentFile();
@@ -135,11 +170,11 @@ public final class CampaignImage {
             }
             if (!part.renameTo(out)) {
                 part.delete();
-                return null;
+                return new Drawn(null, null);
             }
-            return out;
+            return new Drawn(out, problem[0]);
         } catch (IOException e) {
-            return null;
+            return new Drawn(null, null);
         } finally {
             b.recycle();
         }
@@ -154,6 +189,23 @@ public final class CampaignImage {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?is)(<!doctype html.*?</html>|<html.*?</html>)").matcher(r);
         String h = m.find() ? m.group(1) : r.replaceAll("(?s)^.*?```(?:html)?\\s*", "").replaceAll("(?s)```.*$", "");
         return CampaignPlanner.picture(h);
+    }
+
+    /** The page as it is drawn now, or null when it drew nothing (a page that never painted, not a white square). */
+    static Bitmap capture(WebView view, int width, int height) {
+        try {
+            Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(b);
+            c.drawColor(0xFFFFFFFF); // a page with no background draws on white, not black
+            view.draw(c);
+            if (blank(b)) {
+                b.recycle();
+                return null;
+            }
+            return b;
+        } catch (RuntimeException | OutOfMemoryError e) {
+            return null;
+        }
     }
 
     private static boolean slow;

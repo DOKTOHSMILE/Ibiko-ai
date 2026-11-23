@@ -318,7 +318,8 @@ public final class DesignGen {
         String head = headline == null || headline.trim().isEmpty() ? "" : headline.trim();
         int len = Math.max(8, head.length());
         int size = (int) Math.max(68, Math.min(display ? 170 : 128, (display ? 1900 : 1450) / Math.sqrt(len) * (w / 1080.0)));
-        String accent = p.dark || hasPhoto ? p.a2 : p.a1;
+        // the lit word stands out from the ground it sits on (3:1 at least): never yellow on pale yellow
+        String accent = hasPhoto ? p.a2 : readable(p.dark ? p.a2 : p.a1, p);
         int pad = (int) (w * (0.075 + r.nextInt(3) / 100.0));
         // where the words go, so the shapes keep clear of them
         double textW = layout == 4 ? w * 0.62 : w - 2.0 * pad;
@@ -396,6 +397,21 @@ public final class DesignGen {
                 s.append("<div style=\"position:absolute;left:").append(pad).append("px;right:").append(pad).append("px;bottom:").append(pad).append("px\">").append(words).append("</div>");
         }
         return s.append("</body></html>").toString();
+    }
+
+    /** An accent colour moved darker (light pictures) or lighter (dark ones) until it reads on both ground tones. */
+    static String readable(String accent, Palette p) {
+        int bg = Integer.parseInt(p.bg.substring(1), 16), bg2 = Integer.parseInt(p.bg2.substring(1), 16);
+        String c = accent;
+        double h = hue(accent);
+        for (int l = p.dark ? 60 : 45, step = 0; step < 12; step++, l += p.dark ? 4 : -4) {
+            int v = Integer.parseInt(c.substring(1), 16);
+            if (Layout.contrast(v, bg) >= Layout.LEAST && Layout.contrast(v, bg2) >= Layout.LEAST) {
+                return c;
+            }
+            c = hsl(h, 85, Math.max(5, Math.min(95, l)));
+        }
+        return p.dark ? "#ffffff" : p.text;
     }
 
     /** A seed for a new picture: different every time it is asked for. */
