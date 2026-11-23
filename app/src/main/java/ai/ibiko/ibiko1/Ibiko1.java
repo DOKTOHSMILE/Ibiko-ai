@@ -1782,6 +1782,21 @@ public final class Ibiko1 {
         return "Noted.";
     }
 
+    /** A message it couldn't answer because something inside it failed: said plainly, and logged, instead of a crash. */
+    void broke(Throwable e) {
+        try {
+            android.util.Log.e("Ibiko1", "answer failed", e);
+        } catch (RuntimeException | LinkageError ignored) {
+            // no Android log (a plain JVM): the reply still says it
+        }
+        try {
+            saysPlain(host.persona(), "Something inside me failed while I was reading that (" + e.getClass().getSimpleName()
+                    + "), so I couldn't answer it. Please try again, or ask it another way.");
+        } catch (RuntimeException | LinkageError ignored) {
+            // nothing more it can do
+        }
+    }
+
     /**
      * The pilot marked an answer (from any model): right keeps it for its intent, wrong marks it so it is never given
      * again and keeps the question for the next learning session.

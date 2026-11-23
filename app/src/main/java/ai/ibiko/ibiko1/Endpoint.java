@@ -19,7 +19,12 @@ public final class Endpoint {
 
     /** One user message for the model to answer. */
     public void chat(String message) {
-        model.answer(message);
+        try {
+            model.answer(message);
+        } catch (RuntimeException | LinkageError e) {
+            // one broken formula (a pattern Android can't compile, say) answers that it broke; it never closes the app
+            model.broke(e);
+        }
     }
 
     /** The pilot marked an answer right or wrong. */
