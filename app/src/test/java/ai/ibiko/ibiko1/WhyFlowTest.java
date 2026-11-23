@@ -238,6 +238,12 @@ public class WhyFlowTest {
             assertTrue("the same task, another language: " + rust, rust.startsWith("Here's how to reverse a string in Rust:"));
             String any = ask(brain, chat, "Write a factorial function");
             assertTrue("the chat's language goes on: " + any, any.startsWith("Here's how to work out a factorial in Rust:"));
+            String site = ask(brain, chat, "Build me a website for my bakery called Sweet Crumbs in Lagos, WhatsApp 0803 123 4567");
+            assertTrue(site, site.startsWith("Here's a restaurant or food website for Sweet Crumbs in Lagos:") && site.contains("```html\n<!doctype html>"));
+            String need = ask(brain, chat, "What does a restaurant website need?");
+            assertTrue(need, need.startsWith("A restaurant or food website shows the food"));
+            String made = ask(brain, chat, "What is a website made of?");
+            assertTrue(made, made.startsWith("Every website is made of the same layers"));
             String kotlin = ask(brain, chat, "How do I sort a list in Kotlin?");
             assertTrue("offline, not in its recipes: said plainly: " + kotlin, kotlin.startsWith("I don't have that in Kotlin yet"));
         } finally {

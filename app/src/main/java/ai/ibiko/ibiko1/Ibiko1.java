@@ -704,6 +704,11 @@ public final class Ibiko1 {
         // words, meanings and grammar: what a word means (here), the word for a meaning, synonyms, a sentence explained,
         // whether two say the same, a word's morphemes, whether a sentence is grammatical
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
+        // websites: built offline for a request, kinds explained and told apart, what a website is made of
+        final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = ai.ibiko.ibiko1.formulas.Sites.read(t);
+        if (siteAsk != null && siteTurn(who, t, siteAsk)) {
+            return;
+        }
         final WordTalk byTopic = topic == null && !t.matches("(?is).*\\b(in|for)\\s+\\p{L}+\\s*[?.!]*$") ? null : wordTalk();
         if (byTopic != null) {
             byTopic.topic(topic);
@@ -1870,6 +1875,85 @@ public final class Ibiko1 {
                     }, "ibiko1-code-lookup").start();
                 });
         return true;
+    }
+
+    private ai.ibiko.ibiko1.formulas.Sites sites;
+
+    /** What it knows about kinds of websites (shipped coded: knowledge/web/sites.tsv.ibk). */
+    public synchronized ai.ibiko.ibiko1.formulas.Sites sites() {
+        if (sites == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/web/sites.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            sites = new ai.ibiko.ibiko1.formulas.Sites(in);
+        }
+        return sites;
+    }
+
+    /**
+     * W1–W4: a website request. Built: the kind read from the request (a bakery is a restaurant site), the business's name,
+     * place and number put in, one responsive HTML file given whole. Explained or compared: from what it knows of each
+     * kind. False when it names no kind it knows (the rest of Ibiko, or the coding agent, takes it).
+     */
+    private boolean siteTurn(final String who, final String t, ai.ibiko.ibiko1.formulas.Sites.Ask ask) {
+        final ai.ibiko.ibiko1.formulas.Sites book = sites();
+        if (book.size() == 0) {
+            return false;
+        }
+        how = How.MEMORY;
+        switch (ask.is) {
+            case MADE_OF: {
+                final String said = ai.ibiko.ibiko1.formulas.Sites.madeOf();
+                think(Arrays.asList("Reading your question: what a website is made of"), () -> saysPlain(who, said));
+                return true;
+            }
+            case EXPLAIN: {
+                final ai.ibiko.ibiko1.formulas.Sites.Kind k = book.kind(ask.a);
+                if (k == null) {
+                    return false;
+                }
+                final String said = ai.ibiko.ibiko1.formulas.Sites.explain(k);
+                think(Arrays.asList("Reading your question: a kind of website", "What I know of a " + k.name), () -> saysPlain(who, said));
+                return true;
+            }
+            case COMPARE: {
+                final ai.ibiko.ibiko1.formulas.Sites.Kind a = book.kind(ask.a), b = book.kind(ask.b);
+                if (a == null || b == null || a == b) {
+                    return false;
+                }
+                final String said = ai.ibiko.ibiko1.formulas.Sites.compare(a, b);
+                think(Arrays.asList("Reading your question: two kinds of website", "What each is for, its sections, features and design"),
+                        () -> saysPlain(who, said));
+                return true;
+            }
+            default: {
+                ai.ibiko.ibiko1.formulas.Sites.Kind found = book.kind(t);
+                final ai.ibiko.ibiko1.formulas.Sites.Kind k = found != null ? found : book.kind("business");
+                if (k == null) {
+                    return false;
+                }
+                final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
+                final String html = ai.ibiko.ibiko1.formulas.Sites.build(k, brief);
+                List<String> heads = new ArrayList<String>();
+                for (String[] sec : k.sections) {
+                    heads.add(sec[1]);
+                }
+                String name = brief.name.isEmpty() ? "your business" : brief.name;
+                final String said = "Here's a " + k.name + " for " + name + (brief.place.isEmpty() ? "" : " in " + brief.place) + ": "
+                        + String.join(" · ", heads) + ". It works on phones first, and its forms "
+                        + (brief.phone.isEmpty() && brief.email.isEmpty() ? "need your WhatsApp number or email (tell me and I'll put it in)"
+                        : "send straight to " + (brief.phone.isEmpty() ? "your email" : "your WhatsApp")) + ".\n\n```html\n" + html + "```\n\n"
+                        + "Save it as index.html and open it in a browser. Change the words, prices and photos to your own. To put it online free: "
+                        + "drag it onto Netlify Drop, or use GitHub Pages. For logins, payments or a database, choose a model and the coding agent can build on it.";
+                think(Arrays.asList("Reading your request: a website to build", "It's a " + k.name + (found == null ? " (no kind named: a business site)" : ""),
+                        "Taking the name, place and number from what you said", "Laying out its sections: " + String.join(", ", heads),
+                        "Writing the page: HTML, CSS for phones first, and the script for the menu and forms"), () -> saysExact(who, said));
+                return true;
+            }
+        }
     }
 
     private static String shownAll(List<String> langs) {
