@@ -73,4 +73,27 @@ public class WhyFlowTest {
         String again = ask(brain, chat, "why?");
         assertTrue(again, again.startsWith("The winds shifted south because the ocean warmed up."));
     }
+
+    @Test(timeout = 120000)
+    public void twoThingsAreToldApartFromTheEncyclopedia() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String told = ask(brain, chat, "What is the difference between an ocean and a sea?");
+            assertTrue(told, told.startsWith("Ocean is a large body of water between continents; sea is a large body of salt water."));
+            assertTrue(told, told.contains("• Ocean:") && told.contains("• Sea:"));
+            assertTrue(String.valueOf(chat.steps), chat.steps.contains("Finding what kind of thing each is"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }

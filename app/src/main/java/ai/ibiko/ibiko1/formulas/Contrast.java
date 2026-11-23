@@ -43,6 +43,9 @@ public final class Contrast {
             Matcher m = Pattern.compile(f).matcher(q);
             if (m.matches()) {
                 String a = bare(m.group(1)), b = bare(m.group(2));
+                if (m.start(1) == 0 && !a.contains(" ") && Character.isLowerCase(b.charAt(0))) {
+                    a = a.toLowerCase(Locale.US); // "Moth or butterfly": the capital is the sentence's, not a name's
+                }
                 if (!a.isEmpty() && !b.isEmpty() && !a.equalsIgnoreCase(b) && a.split(" ").length <= 6 && b.split(" ").length <= 6) {
                     return new String[] {a, b};
                 }
@@ -59,6 +62,8 @@ public final class Contrast {
     public static final class Kind {
         /** The kind as said ("an amphibian", "a large reptile"), its head word ("amphibian"), the rest ("with long legs"). */
         public final String said, head, rest, sentence;
+        /** Said of them all, without "a": "Moths are insects". */
+        public boolean all;
 
         Kind(String said, String head, String rest, String sentence) {
             this.said = said;
@@ -69,9 +74,9 @@ public final class Contrast {
     }
 
     private static final Pattern IS_A = Pattern.compile("(?i)^(.{2,80}?)\\s+(?:\\([^)]*\\)\\s+)?(?:is|are|was|were)\\s+(?:also\\s+)?"
-            + "(a|an|the|one of the|any of the|a kind of|a type of|a group of|a family of|a member of the)\\s+(.+)$");
+            + "(?:(a|an|the|one of the|any of the|a kind of|a type of|a group of|a family of|a member of the)\\s+)?(.+)$");
     private static final Pattern KIND_END = Pattern.compile("(?i)\\s(that|which|who|whose|with|of|in|from|for|by|used|found|living|made|"
-            + "where|when|known|called|native|between|on|at|to|and|or|but)\\b|,|;|\\(");
+            + "where|when|known|called|native|between|on|at|to|and|but|given)\\b|,|;|\\(");
 
     /** D2: the kind from the first sentence that says what the thing is; null when none does. */
     public static Kind kind(String text) {
@@ -80,19 +85,44 @@ public final class Contrast {
             if (!m.matches()) {
                 continue;
             }
-            String det = m.group(2).toLowerCase(Locale.US);
+            String det = m.group(2) == null ? "" : m.group(2).toLowerCase(Locale.US);
+            if (det.isEmpty() && !s.matches("(?is).*?\\s(are|were)\\s.*")) {
+                continue; // "Frogs are amphibians" says a kind without "a"; "Lagos is big" doesn't
+            }
             String pred = m.group(3).trim();
             Matcher end = KIND_END.matcher(pred);
             int at = end.find() ? end.start() : pred.length();
             String kind = pred.substring(0, at).trim();
             String rest = pred.substring(at).replaceFirst("^[,;\\s]+", "").trim();
-            if (kind.isEmpty() || kind.split(" ").length > 5) {
+            if (kind.isEmpty() || kind.split(" ").length > 5 || det.isEmpty() && kind.split(" ")[0].matches("(?i)\\w+(ed|ing|ly)|not|very|so|too|also|still")) {
                 continue;
             }
             String[] w = kind.split("\\s+");
             String head = w[w.length - 1].toLowerCase(Locale.US);
-            String said = (det.matches("a|an") ? det + " " : det.startsWith("the") ? "" : det + " ") + kind;
-            return new Kind(said.trim(), head, rest, s);
+            if (kind.toLowerCase(Locale.US).matches("(.*\\s)?(name|names|word|term|title|surname|nickname|abbreviation|acronym)(\\s.*)?")) {
+                return null; // what a word means, not what a thing is: it can't be told apart this way
+            }
+            // "a genus of crocodilians", "a body of water": the kind is what the container word is of
+            Matcher of = Pattern.compile("(?i)^of\\s+((?:the\\s+)?[\\p{L}-]+(?:\\s+[\\p{L}-]+){0,2}?)(?=\\s+(?:that|which|who|with|in|from|for|by|"
+                    + "used|found|living|where|known|called|and|or)\\b|[,;(]|$)").matcher(rest);
+            if (head.matches("genus|genera|species|family|families|group|groups|kind|kinds|type|types|sort|variety|breed|member|members|order|"
+                    + "class|subfamily|branch|body|bodies|part|piece|area|unit|form|collection|set") && of.find()) {
+                String target = of.group(1).replaceFirst("(?i)^the\\s+", "");
+                rest = rest.substring(of.end()).replaceFirst("^[,;\\s]+", "").trim();
+                kind = kind + " of " + target;
+                if (head.matches("body|bodies|part|piece|area|unit|form|collection|set")) {
+                    head = kind.toLowerCase(Locale.US).replaceFirst("^(\\w+\\s+)*?(?=" + head + "\\b)", ""); // "body of water", whole
+                } else {
+                    String[] t = target.split("\\s+");
+                    head = Causes.stem(t[t.length - 1]); // "crocodilians" → the kind they are
+                }
+            }
+            // "the second largest city" keeps its "the"; "the day-to-day change" reads as "day-to-day change"
+            boolean most = kind.matches("(?i)^(\\w+\\s+)?(\\w+est|most|largest|biggest|first|only|main|oldest|second|third)\\b.*");
+            String said = (det.matches("a|an") ? det + " " : det.equals("the") ? (most ? "the " : "") : det.isEmpty() ? "" : det + " ") + kind;
+            Kind k = new Kind(said.trim(), head, rest, s);
+            k.all = det.isEmpty();
+            return k;
         }
         return null;
     }
@@ -163,11 +193,11 @@ public final class Contrast {
             return null;
         }
         StringBuilder out = new StringBuilder();
-        String sameHead = Causes.stem(a.head).equals(Causes.stem(b.head)) ? a.head : null;
+        String sameHead = Causes.stem(a.head).equals(Causes.stem(b.head)) ? (a.head.contains(" ") ? a.head : plainNoun(a.head, a.said)) : null;
         if (sameHead != null) {
             out.append("Both are ").append(plural(sameHead)).append(", but they differ.");
         } else {
-            out.append(cap(nameA)).append(" is ").append(a.said).append("; ").append(nameB).append(" is ").append(b.said).append(".");
+            out.append(is(nameA, a, true)).append("; ").append(is(nameB, b, false)).append(".");
         }
         Set<String> used = new HashSet<String>();
         out.append("\n\n• ").append(cap(nameA)).append(": ").append(detail(a, textA, textB, nameA, nameB, used));
@@ -194,13 +224,38 @@ public final class Contrast {
     }
 
     static String plural(String w) {
+        if (w.contains(" of ")) {
+            int at = w.indexOf(" of ");
+            return plural(w.substring(0, at)) + w.substring(at); // "bodies of water"
+        }
         if (w.matches("(?i).*(s|sh|ch|x|z)$")) {
             return w + "es";
+        }
+        if (w.matches("(?i).*um$")) {
+            return w.substring(0, w.length() - 2) + "a"; // bacterium, bacteria
         }
         if (w.matches("(?i).*[^aeiou]y$")) {
             return w.substring(0, w.length() - 1) + "ies";
         }
         return w + "s";
+    }
+
+    /** The head as written in the kind ("crocodilian" from "a genus of crocodilians" is said "crocodilian"). */
+    private static String plainNoun(String head, String said) {
+        for (String w : said.toLowerCase(Locale.US).split("\\s+")) {
+            if (Causes.stem(w).equals(Causes.stem(head))) {
+                return w.endsWith("s") && !w.endsWith("ss") && w.length() > 3 ? w.substring(0, w.length() - 1) : w;
+            }
+        }
+        return head;
+    }
+
+    /** "Frog is an amphibian", "moths are insects": a kind said without "a" is said of them all. */
+    private static String is(String name, Kind k, boolean first) {
+        boolean all = k.all;
+        String who = all && !name.matches(".*\\p{Lu}.*") ? plural(name) : name;
+        String s = who + (all && !who.equals(name) ? " are " : " is ") + k.said;
+        return first ? cap(s) : s;
     }
 
     private static String cap(String s) {
