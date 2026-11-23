@@ -55,12 +55,40 @@ public class NumberSenseTest {
         assertEquals(Kind.PERCENT, kind("Sales rose by 15 percent.", "15"));
         assertEquals(Kind.AGE, kind("She is 30 years old.", "30"));
         assertEquals(Kind.ORDINAL, kind("He came 3rd in the race.", "3"));
+        assertEquals("“36 states” is a count, not “36st”", Kind.QUANTITY, kind("Nigeria has 36 states.", "36"));
         assertEquals(Kind.QUANTITY, kind("Lagos has 15,070,000 people.", "15,070,000"));
         assertEquals(Kind.CODE, kind("Your OTP is 0451.", "0451"));
         List<NumberSense.Found> two = NumberSense.read("It gained independence in 1960 and became a republic in 1963.");
         assertEquals(2, two.size());
         assertTrue(two.get(0).kind() == Kind.YEAR && two.get(1).kind() == Kind.YEAR);
         assertTrue(NumberSense.explain("My PIN is 1960.").contains("a code or label"));
+    }
+
+    @Test
+    public void thousandsMillionsAndWhichWayADateReads() {
+        List<NumberSense.Found> k = NumberSense.read("I paid 50k for the phone.");
+        assertEquals(Kind.MONEY, k.get(0).kind());
+        assertEquals(50000.0, k.get(0).value, 0.1);
+        assertEquals(Kind.QUANTITY, NumberSense.read("The page has 12k followers.").get(0).kind());
+        assertEquals(2500000.0, NumberSense.read("They raised 2.5m naira.").get(0).value, 0.1);
+        assertTrue(NumberSense.explain("Due 25/12/2024.").contains("day first (25 can't be a month)"));
+        assertTrue(NumberSense.explain("Due 12/25/2024.").contains("month first (25 can't be a month)"));
+        assertTrue(NumberSense.explain("Due 05/06/2024.").contains("could be month first"));
+    }
+
+    @Test
+    public void whatIsPrivateIsNeverKept() {
+        assertEquals("My PIN is [a code] and my OTP is [a code].", NumberSense.redact("My PIN is 1960 and my OTP is 0451."));
+        assertEquals("Call me on [a phone number] tomorrow.", NumberSense.redact("Call me on 0803 123 4567 tomorrow."));
+        assertEquals("My password is [a code] ok", NumberSense.redact("My password is hunter2 ok"));
+        assertEquals("Nigeria became independent in 1960.", NumberSense.redact("Nigeria became independent in 1960."));
+        assertEquals("About 1200 people live there.", NumberSense.redact("About 1200 people live there."));
+        assertEquals("Card [a code] expired.", NumberSense.redact("Card 4111 1111 1111 1111 expired."));
+        Facts f = new Facts(null);
+        f.learn("My PIN is 1960. Nigeria gained independence on 1 October 1960.", null, 2, 1L);
+        for (ai.ibiko.ibiko1.formulas.Grammar.Triple t : f.all()) {
+            assertTrue("no PIN kept: " + t, !(t.object + t.surface).contains("1960") || t.toString().contains("October"));
+        }
     }
 
     @Test

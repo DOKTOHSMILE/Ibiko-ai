@@ -46,6 +46,13 @@ public final class Plug {
 
     public static volatile Web web = NONE;
 
+    /**
+     * Posts on social media for a search (public Reddit, and the networks signed in on the phone), to cross-check an
+     * answer against ({@link ai.ibiko.ibiko1.formulas.Corroborate}); empty when there is no network or nothing found.
+     */
+    public static volatile java.util.function.Function<String, java.util.List<ai.ibiko.ibiko1.formulas.Corroborate.Post>> social =
+            q -> new java.util.ArrayList<ai.ibiko.ibiko1.formulas.Corroborate.Post>();
+
     public static volatile Workers workers = new Workers() {
         @Override
         public String start(String role, String task, String brain) {

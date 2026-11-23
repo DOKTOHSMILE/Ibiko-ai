@@ -145,11 +145,21 @@ public final class Facts {
      */
     public synchronized int learn(String text, String topic, int sightings, long now) {
         int added = 0;
+        text = ai.ibiko.ibiko1.formulas.NumberSense.redact(text); // what is private (PINs, codes, phone numbers) is never kept
         boolean changed = false;
         for (Grammar.Triple t : Grammar.facts(text, topic)) {
             if (t.subject.length() < 2 || t.object.length() < 2 || t.subject.length() > 80) {
                 continue;
             }
+            int was = all.size();
+            changed |= see(t, sightings, now);
+            added += all.size() > was ? 1 : 0;
+        }
+        // how many, how long, how high, how big ("Lagos has about 15 million people"): kept as a measure of the thing,
+        // (Lagos | population | 15,000,000), to compare and rank with what it has read
+        for (ai.ibiko.ibiko1.formulas.Measures.Measure ms : ai.ibiko.ibiko1.formulas.Measures.read(text, topic)) {
+            String subject = ms.subject.replaceFirst("(?i)^the\\s+", "").trim();
+            Grammar.Triple t = new Grammar.Triple(subject, ms.what, ms.said(), ms.sentence.length() > 300 ? ms.sentence.substring(0, 300) : ms.sentence);
             int was = all.size();
             changed |= see(t, sightings, now);
             added += all.size() > was ? 1 : 0;
@@ -196,6 +206,17 @@ public final class Facts {
             }
         }
         return out;
+    }
+
+    /** The strongest sure measure read of a thing ("population", "length", "elevation", "area"), as said; or null. */
+    public synchronized String measure(String subject, String what) {
+        Row best = null;
+        for (Row r : all) {
+            if (r.n >= 2 && r.fact.relation.equals(what) && same(r.fact.subject, subject) && (best == null || r.n > best.n)) {
+                best = r;
+            }
+        }
+        return best == null ? null : best.fact.object;
     }
 
     /** One fact seen: C1 first sight, C2 seen again, C3 what it contradicts falls. True when anything changed. */

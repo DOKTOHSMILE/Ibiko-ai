@@ -158,6 +158,35 @@ public final class ResearchAnswer {
         if (all.isEmpty()) {
             return null;
         }
+        // held to the question (formulas/Asking): a sentence answers only if it names the thing asked about and its
+        // year, and for "who won", says who won; nothing about something else is stitched in
+        ai.ibiko.ibiko1.formulas.Asking.Frame frame = ai.ibiko.ibiko1.formulas.Asking.of(question);
+        if (frame.year > 0 || frame.winner) {
+            List<Scored> held = new ArrayList<Scored>();
+            for (Scored sc : all) {
+                if (frame.holds(sc.text)) {
+                    held.add(sc);
+                }
+            }
+            if (held.isEmpty()) {
+                return null; // nothing found answers it: better no answer than one about something else
+            }
+            all = held;
+        }
+        // the kind of answer asked for (a reason for why, a way for how, a date for when, a count for how many…): when
+        // some sentences give it and others only mention the subject, the ones that give it are the answer
+        if (frame.wants != ai.ibiko.ibiko1.formulas.Asking.Wants.OTHER && frame.wants != ai.ibiko.ibiko1.formulas.Asking.Wants.WHAT
+                && frame.wants != ai.ibiko.ibiko1.formulas.Asking.Wants.YES_NO) {
+            List<Scored> fit = new ArrayList<Scored>();
+            for (Scored sc : all) {
+                if (frame.answers(sc.text)) {
+                    fit.add(sc);
+                }
+            }
+            if (!fit.isEmpty()) {
+                all = fit;
+            }
+        }
         String subject = subject(question);
         if (subject != null) {
             // "what is a pig": only sentences that say what the subject itself is, never one where the word is part

@@ -42,6 +42,15 @@ final class Composer {
     /** People's last names (lower case) → the people (keys) with a birth date, so "Achebe" finds Chinua Achebe. */
     private Map<String, List<String>> surnames;
 
+    /** A measure it has read and kept about a thing (subject, "population"/"length"/…) as said, or null. */
+    private java.util.function.BiFunction<String, String, String> measured;
+
+    /** Gives it the measures it has read (memory), to compare things the built-in facts don't have. */
+    Composer measures(java.util.function.BiFunction<String, String, String> measured) {
+        this.measured = measured;
+        return this;
+    }
+
     /** What it has read and kept about a thing (its memory of events), or null for none. */
     private final java.util.function.Function<String, List<Happenings.Happening>> memory;
     /** What it reads is kept: an article read for an answer is learned from (its facts and events go into memory). */
@@ -727,21 +736,33 @@ final class Composer {
         if (two.length != 2) {
             return null;
         }
-        String a = resolve(two[0].replaceAll("\\b(higher|taller|longer|bigger|larger|more populous)\\b", " "), about);
+        String pa = two[0].replaceAll("\\b(higher|taller|longer|bigger|larger|more populous)\\b", " ").trim();
+        String a = resolve(pa, about);
         String b = resolve(two[1], about);
-        if (a == null || b == null || a.equals(b)) {
+        // what it has read and kept stands in where the built-in facts have nothing
+        String sa = a != null ? k.get(a, about).get(0) : readMeasure(pa, measure);
+        String sb = b != null ? k.get(b, about).get(0) : readMeasure(two[1], measure);
+        if (sa == null || sb == null) {
+            return null;
+        }
+        if (a == null) {
+            a = cleanName(pa);
+        }
+        if (b == null) {
+            b = cleanName(two[1]);
+        }
+        if (a.equals(b)) {
             return null;
         }
         if (!k.get(a, BuiltIn.About.CAPITAL).isEmpty() && !k.get(b, BuiltIn.About.CAPITAL).isEmpty()) {
             return null; // two countries: the reasoner over countries answers it
         }
-        double va = BuiltIn.number(k.get(a, about).get(0)), vb = BuiltIn.number(k.get(b, about).get(0));
+        double va = BuiltIn.number(sa), vb = BuiltIn.number(sb);
         if (Double.isNaN(va) || Double.isNaN(vb)) {
             return null;
         }
-        String sa = k.get(a, about).get(0), sb = k.get(b, about).get(0);
-        steps.add(k.name(a) + ": " + sa);
-        steps.add(k.name(b) + ": " + sb);
+        steps.add(shown(a) + ": " + sa + (k.get(a, about).isEmpty() ? " (read and remembered)" : ""));
+        steps.add(shown(b) + ": " + sb + (k.get(b, about).isEmpty() ? " (read and remembered)" : ""));
         String big = va >= vb ? a : b, small = big.equals(a) ? b : a;
         double hi = Math.max(va, vb), lo = Math.min(va, vb);
         String unit = "population".equals(measure) ? "" : sa.replaceAll("^[-\\d,.\\s]+", "").trim();
@@ -750,8 +771,33 @@ final class Composer {
         String times = lo > 0 && hi / lo >= 1.5 ? String.format(Locale.US, ", about %.1f times as %s", hi / lo, "population".equals(measure)
                 ? "many people" : unitWord) : "";
         steps.add("The difference: " + diff);
-        return new Reasoner.Result(k.name(big) + " is " + word + ": " + k.name(big) + " " + (va >= vb ? sa : sb) + ", " + k.name(small) + " "
+        return new Reasoner.Result(shown(big) + " is " + word + ": " + shown(big) + " " + (va >= vb ? sa : sb) + ", " + shown(small) + " "
                 + (va >= vb ? sb : sa) + " (" + diff + " more" + times + ").", steps);
+    }
+
+    /** A measure it read and kept, for a phrase ("the warri" → Warri), or null. */
+    private String readMeasure(String phrase, String measure) {
+        if (measured == null) {
+            return null;
+        }
+        String v = measured.apply(cleanName(phrase), measure);
+        if (v == null && measure.equals("length")) {
+            v = measured.apply(cleanName(phrase) + " river", measure);
+        }
+        return v;
+    }
+
+    /** A thing's name as it should be said: its own spelling in the facts, else as the question typed it. */
+    private String shown(String key) {
+        if (k.keys().contains(key)) {
+            return k.name(key);
+        }
+        String t = typed(key);
+        return t.isEmpty() ? key : Character.toUpperCase(t.charAt(0)) + t.substring(1);
+    }
+
+    private static String cleanName(String phrase) {
+        return BuiltIn.plainQuestion(phrase).replaceFirst("^(the|a|an)\\s+", "").trim();
     }
 
     /** "The longest river in Nigeria", "the highest mountain in Tanzania", "the biggest city in Kano State". */

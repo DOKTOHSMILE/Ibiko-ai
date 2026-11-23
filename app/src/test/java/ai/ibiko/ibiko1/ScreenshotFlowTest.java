@@ -106,6 +106,10 @@ public class ScreenshotFlowTest {
             String age = ask(brain, chat, "How old was Chinua Achebe when Nigeria became independent?");
             assertTrue(age, age.contains("Chinua Achebe was 29 when Nigeria became independent"));
             assertTrue("the working is shown: " + chat.steps, String.join("|", chat.steps).contains("putting facts together"));
+            // the screenshot: a typo in a name, about a year still to come; read right, and answered so
+            String future = ask(brain, chat, "who won the 2099 world up?");
+            assertTrue(future + " | " + chat.steps, future.startsWith("That hasn't happened yet: the 2099 World Cup is still to come"));
+            assertTrue(chat.steps.toString(), String.join("|", chat.steps).contains("Read “world up” as “World Cup”"));
             // told, kept, and reasoned with: Ghana's article has no date, so only what the pilot said can answer
             String told = ask(brain, chat, "Ghana became independent on 6 March 1957.");
             assertTrue(told, told.startsWith("Noted: Ghana became independent on 6 March 1957"));

@@ -242,7 +242,8 @@ public final class Ibiko1 {
                 Encyclopedia e = encyclopedia();
                 return e == null ? null : e.find(title);
             }, subject -> facts().happenings(subject),
-                    article -> facts().learn(article.text, article.title, 2, System.currentTimeMillis()));
+                    article -> facts().learn(article.text, article.title, 2, System.currentTimeMillis()))
+                    .measures((subject, what) -> facts().measure(subject, what));
         }
         return composer;
     }
@@ -485,7 +486,7 @@ public final class Ibiko1 {
         replied = false;
         understood(said, conversationId); // references stay inside this chat, not another chat's recent objects
         foresight().heard(said, Methods.kind(said), System.currentTimeMillis()); // what this pilot asks after what
-        learner().heard(said, System.currentTimeMillis());
+        learner().heard(ai.ibiko.ibiko1.formulas.NumberSense.redact(said), System.currentTimeMillis()); // never a PIN or a phone number
     }
 
     /**
@@ -979,6 +980,21 @@ public final class Ibiko1 {
                     "Weighing the other side"), () -> saysPlain(who, ai.ibiko.ibiko1.formulas.Critical.deliberate(t)));
             return;
         }
+        // thinking before looking (formulas/Asking): a name it nearly is ("world up" → "World Cup"), what is asked for,
+        // and whether it can have happened yet
+        final List<String> framing = new ArrayList<String>();
+        final String asked = repaired(t, framing);
+        final ai.ibiko.ibiko1.formulas.Asking.Frame frame = ai.ibiko.ibiko1.formulas.Asking.of(asked);
+        int thisYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+        if (frame.notYet(thisYear)) {
+            final String notYet = notYet(frame, asked, thisYear);
+            framing.add(0, "Reading your question");
+            framing.add("Looking for " + frame.said());
+            framing.add("It's " + thisYear + " now: " + frame.year + " hasn't come yet");
+            how = How.MEMORY;
+            think(framing, () -> saysPlain(who, notYet));
+            return;
+        }
         if (!host.online() && host.modelReady()) {
             // offline, not in memory: the device's model answers, with what Ibiko v1 already knows about it
             final String subject0 = ResearchAnswer.subject(t);
@@ -993,11 +1009,17 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Checking what I already know"), () -> saysPlain(who, offline));
             return;
         }
-        final String subject = ResearchAnswer.subject(t);
+        final String subject = ResearchAnswer.subject(asked);
         how = How.RESEARCH;
         final Methods.Way way = methods().recall(t);
-        think(Arrays.asList("Reading your question", "Checking what I already know",
-                way != null ? "Following the way that worked before: " + way.said() : "Thinking it through"), () -> {
+        List<String> researching = new ArrayList<String>(Arrays.asList("Reading your question"));
+        researching.addAll(framing);
+        if (frame.wants != ai.ibiko.ibiko1.formulas.Asking.Wants.OTHER) {
+            researching.add("Looking for " + frame.said());
+        }
+        researching.add("Checking what I already know");
+        researching.add(way != null ? "Following the way that worked before: " + way.said() : "Thinking it through");
+        think(researching, () -> {
                     final int mine = token;
                     new Thread(() -> {
                         ResearchAnswer r = null;
@@ -1009,7 +1031,7 @@ public final class Ibiko1 {
                             }
                         }
                         if (r == null) {
-                            r = LearningJob.research(host.context(), t);
+                            r = LearningJob.research(host.context(), asked); // the question as understood (its name repaired)
                         }
                         if (r != null) {
                             long now = System.currentTimeMillis();
@@ -1017,6 +1039,9 @@ public final class Ibiko1 {
                             learner().read(r.text, Learner.Source.RESEARCH, now);
                         }
                         final ResearchAnswer found = r != null && knowledge().rejected(t, r.shown()) ? null : r;
+                        // cross-checked against social media: a structured search (the thing, its year, the answer's own
+                        // words), posts weighed for independent accounts that state it or dispute it
+                        final ai.ibiko.ibiko1.formulas.Corroborate.Verdict social = found == null ? null : crossCheck(asked, frame, found.text);
                         host.onScreen(() -> {
                             if (mine != token) {
                                 return; // a newer message took over
@@ -1043,16 +1068,92 @@ public final class Ibiko1 {
                             }
                             final String shown = found.shown();
                             List<String> more = new ArrayList<String>();
+                            String socialSaid = social == null ? "" : social.said();
+                            if (!socialSaid.isEmpty()) {
+                                more.add("Checking it against social media");
+                                more.add(socialSaid);
+                            }
                             more.add("Writing the answer");
+                            // a single source that many independent accounts back up is as good as two; disputed, it says so
+                            final boolean backed = social != null && social.confirmed();
+                            final String note = (found.sources.isEmpty() ? "" : "Read: " + String.join(", ", found.sources))
+                                    + (socialSaid.isEmpty() ? "" : (found.sources.isEmpty() ? "" : " · ") + socialSaid);
                             think(more, () -> {
-                                saysSure(who, shown, found.sources.size() >= 2 ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
+                                saysSure(who, shown, found.sources.size() >= 2 || backed ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
                                         : ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE,
-                                        found.sources.isEmpty() ? null : "Read: " + String.join(", ", found.sources)); // one block
+                                        note.isEmpty() ? null : note); // one block
                                 rateable(t, shown);
                             }, false);
                         });
                     }, "ibiko-research").start();
                 });
+    }
+
+    /**
+     * An answer held up against social media: searched with a structured query (the year, the thing asked about, and
+     * the answer's own words: "2022 world cup argentina"), never the raw question, and weighed by
+     * {@link ai.ibiko.ibiko1.formulas.Corroborate}. Null when nothing could be read. At most about 20 seconds.
+     */
+    ai.ibiko.ibiko1.formulas.Corroborate.Verdict crossCheck(String question, ai.ibiko.ibiko1.formulas.Asking.Frame frame, String answer) {
+        java.util.Set<String> key = ai.ibiko.ibiko1.formulas.Corroborate.answerWords(question, answer);
+        if (key.isEmpty() || frame.about.isEmpty()) {
+            return null; // nothing to look for: a description isn't something posts confirm
+        }
+        StringBuilder q = new StringBuilder();
+        if (frame.year > 0) {
+            q.append(frame.year).append(' ');
+        }
+        q.append(frame.about);
+        int n = 0;
+        for (String k : key) {
+            if (n++ < 3) {
+                q.append(' ').append(k);
+            }
+        }
+        final String query = q.toString();
+        java.util.concurrent.ExecutorService one = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.List<ai.ibiko.ibiko1.formulas.Corroborate.Post> posts = one.submit(() -> Plug.social.apply(query))
+                    .get(20, java.util.concurrent.TimeUnit.SECONDS);
+            if (posts == null || posts.isEmpty()) {
+                return null;
+            }
+            return ai.ibiko.ibiko1.formulas.Corroborate.weigh(question, answer, posts);
+        } catch (Exception e) {
+            return null; // slow or unreachable: the answer stands on its sources
+        } finally {
+            one.shutdownNow();
+        }
+    }
+
+    /** The question with a name it nearly is put right ("world up" → "World Cup"), the change said in {@code steps}. */
+    String repaired(String question, List<String> steps) {
+        final Encyclopedia e = encyclopedia();
+        if (e == null) {
+            return question;
+        }
+        String[] r = ai.ibiko.ibiko1.formulas.Asking.repair(question, phrase -> {
+            Encyclopedia.Article a = e.find(phrase);
+            return a != null && a.title.equalsIgnoreCase(phrase);
+        });
+        if (r[1] != null) {
+            steps.add(r[1]);
+        }
+        return r[0];
+    }
+
+    /** "Who won the 2027 World Cup?" asked in 2026: it hasn't happened yet, said plainly, with what can be asked instead. */
+    static String notYet(ai.ibiko.ibiko1.formulas.Asking.Frame f, String asked, int thisYear) {
+        String thing = f.about.isEmpty() ? "that" : "the " + f.year + " " + titled(asked, f.about);
+        return "That hasn't happened yet: " + thing + " is still to come (it's " + thisYear + " now), so there's no "
+                + (f.winner ? "winner" : "result") + " to report. Ask me once it has taken place and I'll look it up; or ask what's"
+                + " planned for it.";
+    }
+
+    /** The words of {@code plain} as the question wrote them ("world cup" in "the 2027 World Cup" → "World Cup"). */
+    private static String titled(String question, String plain) {
+        Matcher m = Pattern.compile("(?i)" + Pattern.quote(plain).replace(" ", "\\E\\s+\\Q")).matcher(question);
+        return m.find() ? m.group() : plain;
     }
 
     /**
@@ -1645,6 +1746,16 @@ public final class Ibiko1 {
 
     /** The questions asked in this conversation (one brain per chat), for "as I mentioned a moment ago". */
     private final java.util.Map<String, Integer> askedHere = Phrasing.conversation();
+
+    /**
+     * Retry redoes the reply to {@code message} in its place: the old reply is gone, so the question isn't "asked
+     * again" ("As I mentioned a moment ago" would be wrong), and the last answer may be tried a different way.
+     */
+    public void retrying(String message) {
+        if (message != null) {
+            Phrasing.forget(askedHere, message.trim());
+        }
+    }
 
     /** What the conversation is about (per brain: one chat). */
     private final Context context = new Context();

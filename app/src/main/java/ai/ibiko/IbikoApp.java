@@ -80,6 +80,41 @@ public final class IbikoApp extends Application {
      * Ibiko v1 (the ibiko1 folder) is given what it needs from the app: the web, the workers board, what the pilot is
      * into, an icon. This and the screen's {@code main/Ibiko1Screen} are the only places it is plugged in.
      */
+    /** Posts for a search: public Reddit, then each network signed in here (each post a paragraph of what was read). */
+    static java.util.List<ai.ibiko.ibiko1.formulas.Corroborate.Post> socialPosts(android.content.Context app, String query) {
+        java.util.List<ai.ibiko.ibiko1.formulas.Corroborate.Post> out = new java.util.ArrayList<ai.ibiko.ibiko1.formulas.Corroborate.Post>();
+        try {
+            ai.ibiko.social.intel.RedditPublicProvider reddit = new ai.ibiko.social.intel.RedditPublicProvider(url -> {
+                ai.ibiko.net.WebGet.Page p = ai.ibiko.net.WebGet.page(url, 10_000, 400_000);
+                return p.status == 200 ? p.body : null;
+            });
+            for (ai.ibiko.social.intel.SocialPost p : reddit.search(query, 25)) {
+                out.add(new ai.ibiko.ibiko1.formulas.Corroborate.Post("Reddit", p.author, p.content));
+            }
+        } catch (java.io.IOException | RuntimeException ignored) {
+            // no Reddit: the signed-in networks may still answer
+        }
+        try {
+            if (!ai.ibiko.social.SocialWeb.accounts(app).ready().isEmpty()) {
+                String read = ai.ibiko.social.SocialWeb.search(app, null, query, 6000);
+                String platform = "";
+                for (String part : read.split("\\n\\s*\\n|\\n(?=\\S)")) {
+                    String t = part.trim();
+                    java.util.regex.Matcher head = java.util.regex.Pattern.compile("^(X|Facebook|Instagram|LinkedIn|Telegram)\\b").matcher(t);
+                    if (head.find()) {
+                        platform = head.group(1);
+                    }
+                    if (t.length() >= 20) {
+                        out.add(new ai.ibiko.ibiko1.formulas.Corroborate.Post(platform.isEmpty() ? "social" : platform, "", t));
+                    }
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // the networks couldn't be read now: Reddit's posts stand
+        }
+        return out;
+    }
+
     private void plugIbiko1() {
         final android.content.Context app = this;
         ai.ibiko.ibiko1.Plug.asset = path -> {
@@ -101,6 +136,10 @@ public final class IbikoApp extends Application {
                 return new ai.ibiko.connect.ConnectorStore(app).research(question, 2, 8000);
             }
         };
+        // social media as a cross-check: public Reddit (no account needed) and the networks signed in on this phone
+        if (!"robolectric".equals(android.os.Build.FINGERPRINT)) {
+            ai.ibiko.ibiko1.Plug.social = query -> socialPosts(app, query); // tests never reach the networks
+        }
         ai.ibiko.ibiko1.Plug.workers = new ai.ibiko.ibiko1.Plug.Workers() {
             @Override
             public String start(String role, String task, String brain) {
