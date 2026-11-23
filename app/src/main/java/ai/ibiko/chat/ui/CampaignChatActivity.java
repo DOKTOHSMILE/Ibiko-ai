@@ -65,6 +65,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.BG);
 
+        // the header as in a chat: back on the left, the campaign's name centred with where it stands, options on the right
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
         head.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 6));
@@ -72,18 +73,17 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         LinearLayout names = new LinearLayout(this);
         names.setOrientation(LinearLayout.VERTICAL);
+        names.setGravity(Gravity.CENTER_HORIZONTAL);
         title = Ui.text(this, "Campaign", 17, Ui.TEXT, true);
         title.setMaxLines(1);
+        title.setGravity(Gravity.CENTER);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subtitle = Ui.text(this, "", 12, Ui.SUB, false);
         subtitle.setMaxLines(1);
+        subtitle.setGravity(Gravity.CENTER);
         subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        names.addView(title);
-        names.addView(subtitle);
-        modelChip = Ui.text(this, "", 12, Ui.ACCENT, true);
-        modelChip.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
-        modelChip.setOnClickListener(v -> pickModel());
-        names.addView(modelChip);
+        names.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        names.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
         head.addView(names, new LinearLayout.LayoutParams(0, -2, 1f));
         head.addView(iconButton(ai.ibiko.R.drawable.ic_more_vert, "Campaign options", v -> menu()),
                 new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
@@ -115,7 +115,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
         composer.setBackgroundResource(ai.ibiko.R.drawable.bg_input_container);
         composer.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
         box = new EditText(this);
-        box.setHint("Tell the studio what to change…");
+        box.setHint("Message the studio…");
         box.setHintTextColor(Ui.SUB);
         box.setTextColor(Ui.TEXT);
         box.setTextSize(16);
@@ -128,20 +128,32 @@ public final class CampaignChatActivity extends AppCompatActivity {
         composer.addView(box, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout tools = new LinearLayout(this);
         tools.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView add = iconButton(ai.ibiko.R.drawable.ic_image, "Add your pictures", v -> pickPictures());
+        // the model the studio writes with, as the chat's level pill: tap to choose another
+        modelChip = Ui.text(this, "", 13, Ui.SUB, false);
+        modelChip.setBackgroundResource(ai.ibiko.R.drawable.bg_think);
+        modelChip.setCompoundDrawablesRelativeWithIntrinsicBounds(ai.ibiko.R.drawable.ic_set_models, 0, ai.ibiko.R.drawable.ic_chevron_down, 0);
+        modelChip.setCompoundDrawablePadding(Ui.dp(this, 4));
+        modelChip.setGravity(Gravity.CENTER);
+        modelChip.setMaxLines(1);
+        modelChip.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        modelChip.setMaxWidth(Ui.dp(this, 200));
+        modelChip.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 8), 0);
+        modelChip.setOnClickListener(v -> pickModel());
+        Ui.press(modelChip);
+        tools.addView(modelChip, new LinearLayout.LayoutParams(-2, Ui.dp(this, 32)));
+        tools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        ImageView add = iconButton(ai.ibiko.R.drawable.ic_attach, "Add your pictures", v -> pickPictures());
         add.setPadding(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
         tools.addView(add, new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40)));
-        TextView addLabel = Ui.text(this, "Pictures", 13, Ui.SUB, false);
-        addLabel.setOnClickListener(v -> pickPictures());
-        tools.addView(addLabel);
-        tools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         android.widget.ImageButton send = new android.widget.ImageButton(this);
         send.setImageResource(ai.ibiko.R.drawable.ic_send);
         send.setBackgroundResource(ai.ibiko.R.drawable.bg_send_button);
         send.setScaleType(ImageView.ScaleType.CENTER);
         send.setContentDescription("Send to the studio");
         send.setOnClickListener(v -> send(box.getText().toString()));
-        tools.addView(send, new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40)));
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40));
+        sl.setMarginStart(Ui.dp(this, 4));
+        tools.addView(send, sl);
         composer.addView(tools, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, -2);
         cl.setMargins(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 10));
@@ -194,7 +206,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
         subtitle.setText(state + (nets.isEmpty() ? "" : " · " + String.join(", ", nets)));
         banner(c, planning, planningLine, now);
         CampaignStudio.Choice model = CampaignStudio.chosen(this);
-        modelChip.setText((model == null ? "Choose a model" : "Model: " + model.shown()) + "  \u25BE");
+        modelChip.setText(model == null ? "Choose a model" : model.shown());
         modelChip.setContentDescription("The model the studio uses: " + (model == null ? "none" : model.shown()) + ". Tap to change.");
 
         List<CampaignChat.Entry> entries = CampaignStudio.chat(this, c.id).all();
@@ -299,59 +311,118 @@ public final class CampaignChatActivity extends AppCompatActivity {
         banner.addView(card);
     }
 
-    /** The chips: the common next steps for where the campaign stands. */
+    /**
+     * The row over the message box, as in the chat: the main next step for where the campaign stands, then the tools:
+     * Campaign (plan, review, pause, delete), Posts, Media, Results and Edit (quick changes), each a sheet or a screen.
+     */
     private void chips(final Campaign c, boolean planning) {
         chips.removeAllViews();
-        List<Object[]> list = new ArrayList<Object[]>();
+        // the one next step, lit
         if (planning) {
-            list.add(new Object[]{"Stop planning", (Runnable) () -> CampaignDraft.stop(c.id)});
+            chip("Stop planning", ai.ibiko.R.drawable.ic_stop, 0, true, () -> CampaignDraft.stop(c.id));
         } else if (c.status == Campaign.Status.DRAFT && c.items.isEmpty()) {
-            list.add(new Object[]{"Plan it", (Runnable) () -> send("Plan it")});
+            chip("Plan it", ai.ibiko.R.drawable.ic_mode_plan, 0, true, () -> send("Plan it"));
         } else if (c.status == Campaign.Status.DRAFT) {
-            list.add(new Object[]{"Review and approve", (Runnable) () -> CampaignReview.show(this, c, () -> fill(true))});
-            list.add(new Object[]{"Make the posts shorter", null});
-            list.add(new Object[]{"More about my products", null});
-            list.add(new Object[]{"Post in the evenings", null});
-            list.add(new Object[]{"Friendlier tone", null});
+            chip("Review and approve", ai.ibiko.R.drawable.ic_check, 0, true, () -> CampaignReview.show(this, c, () -> fill(true)));
         } else if (c.status == Campaign.Status.ACTIVE) {
-            list.add(new Object[]{"How is it doing?", null});
-            list.add(new Object[]{"Add 3 posts for this weekend", null});
-            list.add(new Object[]{"Pause", (Runnable) () -> {
-                CampaignRunner.setRunning(this, c.id, false);
-                fill(false);
-            }});
+            chip("How is it doing?", ai.ibiko.R.drawable.ic_usage, 0, true, () -> send("How is it doing?"));
         } else if (c.status == Campaign.Status.PAUSED) {
-            list.add(new Object[]{"Resume", (Runnable) () -> {
+            chip("Resume", ai.ibiko.R.drawable.ic_play, 0, true, () -> {
                 CampaignRunner.setRunning(this, c.id, true);
                 fill(false);
-            }});
-            list.add(new Object[]{"How did it do?", null});
-        } else {
-            list.add(new Object[]{"How did it do?", null});
-            list.add(new Object[]{"Plan a new campaign like this", (Runnable) () -> startActivity(new Intent(this, CampaignsActivity.class))});
-        }
-        list.add(new Object[]{"All posts", (Runnable) () -> startActivity(new Intent(this, CampaignActivity.class)
-                .putExtra(CampaignActivity.EXTRA_ID, c.id))});
-        for (Object[] o : list) {
-            final String label = (String) o[0];
-            final Runnable act = (Runnable) o[1];
-            TextView chip = Ui.text(this, label, 13, Ui.TEXT, false);
-            chip.setBackground(Ui.round(this, Ui.SURFACE, Ui.LINE, 18));
-            chip.setGravity(Gravity.CENTER);
-            chip.setMinHeight(Ui.dp(this, 36));
-            chip.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
-            chip.setOnClickListener(v -> {
-                if (act != null) {
-                    act.run();
-                } else {
-                    send(label);
-                }
             });
-            Ui.press(chip);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.setMarginEnd(Ui.dp(this, 8));
-            chips.addView(chip, lp);
         }
+        chip("Campaign", ai.ibiko.R.drawable.ic_tools_chip, ai.ibiko.R.drawable.ic_chevron_down, false, () -> campaignSheet(c, planning));
+        chip("Posts", ai.ibiko.R.drawable.ic_media, ai.ibiko.R.drawable.ic_chevron_right, false,
+                () -> startActivity(new Intent(this, CampaignActivity.class).putExtra(CampaignActivity.EXTRA_ID, c.id)));
+        chip("Media", ai.ibiko.R.drawable.ic_image, ai.ibiko.R.drawable.ic_chevron_right, false, this::pickPictures);
+        if (c.status != Campaign.Status.ACTIVE) {
+            chip("Results", ai.ibiko.R.drawable.ic_usage, ai.ibiko.R.drawable.ic_chevron_right, false, () -> send("How did it do?"));
+        }
+        chip("Edit", ai.ibiko.R.drawable.ic_edit, ai.ibiko.R.drawable.ic_chevron_down, false, () -> editSheet(c));
+    }
+
+    /** One chip in the row: an icon, the words, and a chevron (a sheet opens) or an arrow (a screen opens). */
+    private void chip(String label, int icon, int end, boolean lit, Runnable act) {
+        TextView chip = Ui.text(this, label, 13, lit ? Ui.ACCENT : Ui.TEXT, lit);
+        chip.setBackgroundResource(ai.ibiko.R.drawable.bg_chip);
+        chip.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, end, 0);
+        chip.setCompoundDrawablePadding(Ui.dp(this, 5));
+        chip.setGravity(Gravity.CENTER);
+        chip.setMinWidth(Ui.dp(this, 48));
+        chip.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, end == 0 ? 12 : 8), 0);
+        chip.setContentDescription(label);
+        chip.setOnClickListener(v -> act.run());
+        Ui.press(chip);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, Ui.dp(this, 34));
+        lp.setMarginEnd(Ui.dp(this, 6));
+        chips.addView(chip, lp);
+    }
+
+    /** Campaign ▾: what can be done with the campaign as a whole, for where it stands. */
+    private void campaignSheet(final Campaign c, boolean planning) {
+        final List<BottomSheet.Item> items = new ArrayList<BottomSheet.Item>();
+        final List<Runnable> acts = new ArrayList<Runnable>();
+        if (planning) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_stop, "Stop planning", "Keep what is planned so far"));
+            acts.add(() -> CampaignDraft.stop(c.id));
+        } else if (c.status == Campaign.Status.DRAFT) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_mode_plan, c.items.isEmpty() ? "Plan it" : "Plan it again",
+                    "The strategy, every post with its words and picture"));
+            acts.add(() -> send("Plan it"));
+            if (!c.items.isEmpty()) {
+                items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_check, "Review and approve", "Read, change and approve each post"));
+                acts.add(() -> CampaignReview.show(this, c, () -> fill(true)));
+            }
+        }
+        if (c.status == Campaign.Status.ACTIVE) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_pause, "Pause", "Nothing more goes out until you resume"));
+            acts.add(() -> {
+                CampaignRunner.setRunning(this, c.id, false);
+                fill(false);
+            });
+        }
+        if (c.status == Campaign.Status.PAUSED) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_play, "Resume", "Posting carries on where it stopped"));
+            acts.add(() -> {
+                CampaignRunner.setRunning(this, c.id, true);
+                fill(false);
+            });
+        }
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_set_models, "Model", "Which model plans and writes"));
+        acts.add(this::pickModel);
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_plus, "New campaign", "Start another from a brief"));
+        acts.add(() -> startActivity(new Intent(this, CampaignsActivity.class)));
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_delete, "Delete the campaign", "Posts already out stay on the networks"));
+        acts.add(() -> confirmDelete(c));
+        BottomSheet.show(this, "Campaign", items.toArray(new BottomSheet.Item[0]), which -> acts.get(which).run());
+    }
+
+    /** Edit ▾: quick changes, sent to the studio as if typed. */
+    private void editSheet(final Campaign c) {
+        final String[][] edits = {
+            {"Make the posts shorter", "Fewer words in every post"},
+            {"Friendlier tone", "Warmer, more personal words"},
+            {"More about my products", "Name and show what you sell"},
+            {"Post in the evenings", "Move the times to the evening"},
+            {"Add 3 posts for this weekend", "More posts on Saturday and Sunday"},
+            {"New pictures", "Draw the pictures again"}};
+        BottomSheet.Item[] items = new BottomSheet.Item[edits.length];
+        for (int i = 0; i < edits.length; i++) {
+            items[i] = new BottomSheet.Item(ai.ibiko.R.drawable.ic_edit, edits[i][0], edits[i][1]);
+        }
+        BottomSheet.show(this, "Edit the campaign", items, which -> send(edits[which][0]));
+    }
+
+    private void confirmDelete(final Campaign c) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setMessage("Delete “" + c.name + "” and its conversation? Posts already out stay on the networks.")
+                .setPositiveButton("Delete", (d2, w2) -> {
+                    CampaignRunner.delete(this, c);
+                    finish();
+                })
+                .setNegativeButton("Keep", null)
+                .show();
     }
 
     /** Several pictures from the phone at once (the system photo picker: no permission asked). */

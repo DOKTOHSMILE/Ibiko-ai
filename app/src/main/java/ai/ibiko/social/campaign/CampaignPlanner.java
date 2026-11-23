@@ -360,17 +360,20 @@ public final class CampaignPlanner {
     /** A batch's posts, checked: index in the batch to {text, headline, line}; a missing or empty post is left out. */
     static java.util.Map<Integer, String[]> posts(String reply, List<String[]> slots) {
         java.util.Map<Integer, String[]> out = new java.util.HashMap<Integer, String[]>();
-        Map<String, Object> m = json(reply);
-        if (m == null) {
-            return out;
-        }
-        for (Object o : MiniJson.list(m.get("posts"))) {
-            Map<String, Object> p = MiniJson.obj(o);
-            int n = (int) MiniJson.num(p.get("n"), -1);
+        List<Object> found = postObjects(reply);
+        for (int i = 0; i < found.size(); i++) {
+            Map<String, Object> p = MiniJson.obj(found.get(i));
+            // the post's number as a number or as words ("1"); none given: its place in the list
+            Object nv = p.get("n");
+            int n = nv instanceof Number ? ((Number) nv).intValue()
+                    : nv instanceof String && ((String) nv).trim().matches("\\d{1,3}") ? Integer.parseInt(((String) nv).trim()) : i + 1;
             if (n < 1 || n > slots.size() || out.containsKey(n - 1)) {
                 continue;
             }
             String text = MiniJson.str(p.get("text"), "").trim();
+            if (text.isEmpty()) {
+                text = MiniJson.str(p.get("post"), MiniJson.str(p.get("caption"), "")).trim();
+            }
             if (text.isEmpty()) {
                 continue;
             }
@@ -381,6 +384,85 @@ public final class CampaignPlanner {
             }
             out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90),
                     designOf(p)});
+        }
+        return out;
+    }
+
+    /**
+     * The post objects in a reply: the "posts" list (or the first list, or a bare list); and when the reply was cut off
+     * or isn't whole JSON, every complete {…} with a "text" in it, one by one, so the posts that did come back are kept.
+     */
+    static List<Object> postObjects(String reply) {
+        List<Object> out = new ArrayList<Object>();
+        if (reply == null) {
+            return out;
+        }
+        String r = reply.replaceAll("(?s)<think>.*?(</think>|$)", "");
+        Map<String, Object> m = json(r);
+        if (m != null) {
+            Object list = m.get("posts");
+            if (!(list instanceof List)) {
+                for (Object v : m.values()) {
+                    if (v instanceof List) {
+                        list = v;
+                        break;
+                    }
+                }
+            }
+            if (list instanceof List && !((List<?>) list).isEmpty()) {
+                out.addAll(MiniJson.list(list));
+                return out;
+            }
+        }
+        int a = r.indexOf('[');
+        if (a >= 0 && (r.indexOf('{') < 0 || a < r.indexOf('{'))) {
+            try {
+                Object o = MiniJson.parse(r.substring(a, r.lastIndexOf(']') + 1));
+                if (o instanceof List && !((List<?>) o).isEmpty()) {
+                    out.addAll(MiniJson.list(o));
+                    return out;
+                }
+            } catch (RuntimeException ignored) {
+                // not a whole list: the objects one by one below
+            }
+        }
+        // one by one: each balanced {…} (strings respected) that parses and has words in it
+        int depth = 0, start = -1;
+        boolean inString = false, escaped = false;
+        for (int i = 0; i < r.length(); i++) {
+            char ch = r.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (ch == '\\') {
+                    escaped = true;
+                } else if (ch == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch == '"') {
+                inString = true;
+            } else if (ch == '{') {
+                if (depth == 0 || r.substring(Math.max(0, start), i).matches("(?s).*\"posts\"\\s*:\\s*\\[\\s*$")) {
+                    start = i;
+                    depth = 0;
+                }
+                depth++;
+            } else if (ch == '}' && depth > 0) {
+                depth--;
+                if (depth == 0 && start >= 0) {
+                    try {
+                        Object o = MiniJson.parse(r.substring(start, i + 1));
+                        if (o instanceof Map && (MiniJson.obj(o).containsKey("text") || MiniJson.obj(o).containsKey("post"))) {
+                            out.add(o);
+                        }
+                    } catch (RuntimeException ignored) {
+                        // a broken one is left out
+                    }
+                    start = -1;
+                }
+            }
         }
         return out;
     }
@@ -586,6 +668,7 @@ public final class CampaignPlanner {
             network.put(s.id, s.network);
         }
         final String brand = clip(c.brief.business.replaceAll("[,.(].*$", ""), 40);
+        String lastWhy = ""; // why the last batch that came back empty did
         try {
             // every batch is asked at once (as many at a time as the brain takes) and handled as it comes back, not in
             // order: a slow batch never holds back the finished ones, and each one's posts are in the plan at once
@@ -614,6 +697,7 @@ public final class CampaignPlanner {
                     break;
                 }
                 if (f == null) {
+                    lastWhy = "the model took longer than " + POST_WAIT_MINUTES + " minutes to write the posts";
                     break; // nothing came back in the time a batch may take: what is left is counted as not written
                 }
                 pending--;
@@ -621,7 +705,11 @@ public final class CampaignPlanner {
                 try {
                     d = f.get();
                 } catch (Exception e) {
+                    lastWhy = "writing the posts failed: " + clip(String.valueOf(e.getMessage()), 160);
                     continue;
+                }
+                if (!d.why.isEmpty()) {
+                    lastWhy = d.why;
                 }
                 List<Integer> missing = new ArrayList<Integer>();
                 for (int k = 0; k < d.slots.size(); k++) {
@@ -688,7 +776,9 @@ public final class CampaignPlanner {
             pool.shutdownNow();
         }
         c.items.sort((a, b) -> Long.compare(a.at, b.at));
-        return c.items.isEmpty() ? "No post could be written. Try again." : null;
+        // when none came back, why: the error the model's service gave, an empty answer, or a reply that couldn't be read
+        return c.items.isEmpty() ? "No post could be written" + (lastWhy.isEmpty() ? "" : ": " + lastWhy) + ". Try again"
+                + (lastWhy.contains("service said") ? ", or choose another model" : "") + "." : null;
     }
 
     /** One batch's answer: which slots it was for, the posts that came back (by place in the batch), and if a retry. */
@@ -696,6 +786,9 @@ public final class CampaignPlanner {
         final List<Integer> slots;
         final java.util.Map<Integer, String[]> got;
         final boolean again;
+
+        /** Why nothing came back, when nothing did: the error, an empty reply, or one that couldn't be read. */
+        String why = "";
 
         Done(List<Integer> slots, java.util.Map<Integer, String[]> got, boolean again) {
             this.slots = slots;
@@ -715,12 +808,21 @@ public final class CampaignPlanner {
         }
         return () -> {
             java.util.Map<Integer, String[]> got;
+            String why = "";
             try {
-                got = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 2600), part);
+                String reply = brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 2600);
+                got = posts(reply, part);
+                if (got.isEmpty()) {
+                    why = reply == null || reply.trim().isEmpty() ? "the model sent back an empty answer"
+                            : "the model's answer had no posts in a form that could be read";
+                }
             } catch (RuntimeException e) {
                 got = new java.util.HashMap<Integer, String[]>();
+                why = "the model's service said: " + clip(String.valueOf(e.getMessage()), 160);
             }
-            return new Done(slots, got == null ? new java.util.HashMap<Integer, String[]>() : got, again);
+            Done d = new Done(slots, got == null ? new java.util.HashMap<Integer, String[]>() : got, again);
+            d.why = why;
+            return d;
         };
     }
 
