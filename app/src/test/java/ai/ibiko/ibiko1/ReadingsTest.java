@@ -22,11 +22,11 @@ import ai.ibiko.ibiko1.formulas.Sites;
 public class ReadingsTest {
     @Test
     public void tooCloseToCallIsAskedNotGuessed() {
-        List<Readings.Reading> r = Readings.weigh("Make a contact form", Arrays.asList(Kind.SITE, Kind.CODING), new Readings.Context());
+        List<Readings.Reading> r = Readings.weigh("Make one for me", Arrays.asList(Kind.SITE, Kind.CODING), new Readings.Context());
         assertTrue(Readings.unsure(r));
         assertEquals("Do you mean a website, or code to write? Say which, and I'll go on from there.", Readings.ask(r));
         // the conversation tips it: no question
-        List<Readings.Reading> after = Readings.weigh("Make a contact form", Arrays.asList(Kind.SITE, Kind.CODING),
+        List<Readings.Reading> after = Readings.weigh("Make one for me", Arrays.asList(Kind.SITE, Kind.CODING),
                 new Readings.Context().said("web"));
         assertFalse(Readings.unsure(after));
         assertEquals(Kind.SITE, after.get(0).kind);
