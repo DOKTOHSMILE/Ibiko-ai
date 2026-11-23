@@ -2293,7 +2293,22 @@ public final class Ibiko1 {
             }
         }
         readingContext.said(domain);
+        // a turn about code or websites makes computing the subject, as naming a computing word does: "what is a bug?"
+        // next means the programming one
+        String subject = domain == null ? null : SUBJECT_OF.get(domain);
+        if (subject != null) {
+            topic = subject;
+            topicAt = System.currentTimeMillis();
+        }
         turnDomain = null;
+    }
+
+    /** The word senses' subject that a reading's domain is. */
+    private static final java.util.Map<String, String> SUBJECT_OF = new java.util.HashMap<String, String>();
+
+    static {
+        SUBJECT_OF.put("code", "computing");
+        SUBJECT_OF.put("web", "computing");
     }
 
     /**

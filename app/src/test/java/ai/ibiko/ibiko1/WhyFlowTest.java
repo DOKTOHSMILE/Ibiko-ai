@@ -315,4 +315,32 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void aWordMeansWhatTheConversationIsAbout() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat alone = new Chat();
+            Ibiko1 fresh = new Ibiko1(alone, Files.createTempDirectory("ibiko1").toFile());
+            String plain = ask(fresh, alone, "What is a bug?");
+            assertTrue("no subject yet: not the computing one first: " + plain, !plain.startsWith("In computing"));
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String go = ask(brain, chat, "Reverse a string in Go");
+            assertTrue(go, go.startsWith("Here's how to reverse a string in Go:"));
+            String bug = ask(brain, chat, "What is a bug?");
+            assertTrue("after code: the programming meaning first: " + bug, bug.startsWith("In computing, “bug” means a fault or defect"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
