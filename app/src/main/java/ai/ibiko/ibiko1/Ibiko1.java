@@ -1890,7 +1890,10 @@ public final class Ibiko1 {
         }
         // a small web app asked to be made: "make a calculator", "I need a contact form"
         final ai.ibiko.ibiko1.formulas.Apps.App appAsk = snippet == null ? apps().asked(t) : null; // weighed with a site change
-        if (appAsk != null) {
+        // a change to the app just made ("add a question: …", "my WhatsApp number is …", "make it green")
+        final ai.ibiko.ibiko1.formulas.Apps.Made made = lastMade;
+        final boolean appChange = appAsk == null && snippet == null && ai.ibiko.ibiko1.formulas.Apps.asksChange(made, t);
+        if (appAsk != null || appChange) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.APP);
         }
         final String[] lastCode = lastRecipe;
@@ -1967,10 +1970,24 @@ public final class Ibiko1 {
                     break;
                 case APP:
                     turnDomain = "web";
-                    final String made = ai.ibiko.ibiko1.formulas.Apps.reply(appAsk);
+                    if (appChange) {
+                        final String changed = ai.ibiko.ibiko1.formulas.Apps.change(made, t);
+                        if (changed == null) {
+                            break;
+                        }
+                        final String again = "Done: " + changed + ".\n\n```html\n" + made.html + "```\n\nSave it over your "
+                                + made.app.id.replace('_', '-') + ".html.";
+                        how = How.MEMORY;
+                        think(Arrays.asList("Reading your request: a change to the " + made.app.name + " I made", "Making the change: " + changed,
+                                "Writing the page again"), () -> saysExact(who, again));
+                        return true;
+                    }
+                    lastMade = new ai.ibiko.ibiko1.formulas.Apps.Made(appAsk);
+                    lastDesign = null; // the thing just made is this app: "make it blue" changes it, not the site before
+                    final String handed = ai.ibiko.ibiko1.formulas.Apps.reply(appAsk);
                     how = How.MEMORY;
                     think(Arrays.asList("Reading your request: a " + appAsk.name, "Taking my " + appAsk.name + ", tested in a browser",
-                            "Saying what it does and how it works"), () -> saysExact(who, made));
+                            "Saying what it does and how it works"), () -> saysExact(who, handed));
                     return true;
                 case CODING:
                     if (codingTurn(who, t, coding)) {
@@ -2179,6 +2196,9 @@ public final class Ibiko1 {
 
     private ai.ibiko.ibiko1.formulas.Apps apps;
 
+    /** The app last handed over, for changes to it ("add a question: …", "my WhatsApp number is …"). */
+    private volatile ai.ibiko.ibiko1.formulas.Apps.Made lastMade;
+
     /** The small web apps (knowledge/web/apps.tsv: a newer one downloaded to the phone first). */
     public synchronized ai.ibiko.ibiko1.formulas.Apps apps() {
         if (apps == null) {
@@ -2252,6 +2272,7 @@ public final class Ibiko1 {
                 final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
                 final ai.ibiko.ibiko1.formulas.Sites.Design design = ai.ibiko.ibiko1.formulas.Sites.design(k, brief);
                 lastDesign = design; // kept, so "add a pricing section" or "make it blue" changes this site
+                lastMade = null;
                 final String html = ai.ibiko.ibiko1.formulas.Sites.build(design);
                 List<String> heads = new ArrayList<String>();
                 for (String[] sec : k.sections) {

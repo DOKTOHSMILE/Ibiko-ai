@@ -313,6 +313,12 @@ public class WhyFlowTest {
             assertTrue("a small app asked for: " + calc, calc.startsWith("Here's a calculator: one HTML file.") && calc.contains("Tested in a browser"));
             String form = ask(brain, chat, "I need a contact form");
             assertTrue(form, form.startsWith("Here's a contact form: one HTML file."));
+            String mine = ask(brain, chat, "My WhatsApp number is +234 803 123 4567");
+            assertTrue("a change to the app just made: " + mine, mine.startsWith("Done: messages go to WhatsApp 2348031234567.")
+                    && mine.contains("const WHATSAPP = \"2348031234567\""));
+            String green = ask(brain, chat, "Make it green");
+            assertTrue("the app, not the site made before it: " + green, green.startsWith("Done: made its colour green.")
+                    && green.contains("Save it over your contact-form.html."));
             String data = ask(brain, chat, "Sort these numbers: 5 3 1");
             assertTrue("data in it: a thing to do, not code: " + data, !data.contains("```"));
         } finally {
