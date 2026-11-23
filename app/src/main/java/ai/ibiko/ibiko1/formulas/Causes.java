@@ -326,6 +326,98 @@ public final class Causes {
         return best;
     }
 
+    private static final Pattern AHEAD = Pattern.compile("(?i)^\\s*(?:so,?\\s+)?(?:what (?:happens|would happen|will happen|could happen|happened)"
+            + "\\s+(?:if|when|after)\\s+(.+?)|what (?:are|were|is|was) the (?:effects?|results?|consequences?|outcomes?|impacts?) of\\s+(.+?)|"
+            + "what (?:does|did|do|can|could|would|will)\\s+(.+?)\\s+(?:cause|lead to|result in|bring about|trigger)|"
+            + "what (?:comes|came) (?:of|from)\\s+(.+?))\\s*[?.!]*\\s*$");
+
+    /** K8: what a question asks the outcome of ("what happens if the rains fail?" → "the rains fail"); null when it doesn't. */
+    public static String ahead(String question) {
+        Matcher m = AHEAD.matcher(question == null ? "" : question.trim());
+        if (!m.matches()) {
+            return null;
+        }
+        for (int i = 1; i <= m.groupCount(); i++) {
+            if (m.group(i) != null) {
+                return m.group(i).trim();
+            }
+        }
+        return null;
+    }
+
+    /** K8–K9: an outcome and the one it leads to in turn. */
+    public static final class Then {
+        public final Link link;
+        /** What that leads to in turn, or null. */
+        public final Link next;
+
+        Then(Link link, Link next) {
+            this.link = link;
+            this.next = next;
+        }
+
+        /** "The harvest is poor, and that leads to food prices rising." */
+        public String said() {
+            String first = Character.toUpperCase(link.effect.charAt(0)) + link.effect.substring(1);
+            if (next == null) {
+                return first + ".";
+            }
+            // "the harvest was poor" is a clause: "and as a result …"; "rising food prices" is a thing: "which leads to …"
+            boolean said = next.effect.matches("(?i).*\\b(is|are|was|were|has|have|had|will|would|can|could|\\w+ed)\\b.*");
+            return first + (said ? ", and as a result " : ", which leads to ") + lowerFirst(next.effect) + ".";
+        }
+    }
+
+    /**
+     * K8: forward from a cause: the link whose cause the question names (enough of its words), what it leads to; K9:
+     * one step further, what that leads to. Purposes ("so that") aren't outcomes and aren't used. Null when no link
+     * read starts from what is asked: it isn't guessed.
+     */
+    public static Then then(String question, List<Link> links) {
+        String from = ahead(question);
+        if (from == null) {
+            return null;
+        }
+        Set<String> asked = words(from);
+        Link first = forward(asked, links, null);
+        if (first == null) {
+            return null;
+        }
+        Link next = forward(words(first.effect), links, first);
+        if (next != null && words(next.effect).equals(asked)) {
+            next = null; // back where it started: a loop is no step further
+        }
+        return new Then(first, next);
+    }
+
+    private static Link forward(Set<String> asked, List<Link> links, Link not) {
+        if (asked.isEmpty()) {
+            return null;
+        }
+        Link best = null;
+        double bestScore = 0;
+        for (Link l : links) {
+            if (l == not || l.purpose() || not != null && l.effect.equalsIgnoreCase(not.effect) && l.cause.equalsIgnoreCase(not.cause)) {
+                continue;
+            }
+            Set<String> c = words(l.cause);
+            int shared = 0;
+            for (String w : asked) {
+                shared += c.contains(w) ? 1 : 0;
+            }
+            int need = asked.size() <= 2 ? asked.size() : Math.max(2, (int) Math.ceil(asked.size() * 0.6));
+            if (shared < need) {
+                continue;
+            }
+            double score = shared - 0.01 * c.size();
+            if (best == null || score > bestScore) {
+                best = l;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
     /**
      * A why-question and the reason someone gave, put as one sentence to keep ("Why is the sky blue?" + "scattering
      * of light" → "The sky is blue because of scattering of light"); null when the question isn't a plain why.

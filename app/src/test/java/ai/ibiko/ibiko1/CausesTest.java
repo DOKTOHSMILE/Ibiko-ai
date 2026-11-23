@@ -97,4 +97,29 @@ public class CausesTest {
         assertEquals("Nigeria is called the giant of Africa because of its size.",
                 Causes.form("Why is Nigeria called the giant of Africa?", "because of its size"));
     }
+
+    @Test
+    public void readsWhatAQuestionAsksTheOutcomeOf() {
+        assertEquals("the rains fail", Causes.ahead("What happens if the rains fail?"));
+        assertEquals("deforestation", Causes.ahead("What are the effects of deforestation?"));
+        assertEquals("smoking", Causes.ahead("What does smoking lead to?"));
+        assertEquals("the river floods", Causes.ahead("What would happen when the river floods?"));
+        assertNull(Causes.ahead("Why did the river flood?"));
+        assertNull(Causes.ahead("What is a river?"));
+    }
+
+    @Test
+    public void followsCausesForwardOneStepFurther() {
+        List<Causes.Link> links = new ArrayList<Causes.Link>();
+        links.addAll(Causes.read("The harvest was poor because the rains failed.", null));
+        links.addAll(Causes.read("A poor harvest leads to rising food prices.", null));
+        links.addAll(Causes.read("Smoking causes lung cancer.", null));
+        links.addAll(Causes.read("A leaf is thin so that sunlight can reach the chloroplasts.", null));
+        Causes.Then t = Causes.then("What happens if the rains fail?", links);
+        assertNotNull(t);
+        assertEquals("The harvest was poor, which leads to rising food prices.", t.said());
+        assertEquals("Lung cancer.", Causes.then("What does smoking lead to?", links).said());
+        assertNull("nothing read starts from it: no outcome is guessed", Causes.then("What happens if the sun goes out?", links));
+        assertNull("a purpose is not an outcome", Causes.then("What happens if a leaf is thin?", links));
+    }
 }

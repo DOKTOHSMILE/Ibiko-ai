@@ -852,7 +852,7 @@ public final class Ibiko1 {
             return;
         }
         final String mentioned = knowledge().mention(t);
-        if (mentioned != null && !knowledge().rejected(t, mentioned)) {
+        if (mentioned != null && !mentioned.trim().endsWith("?") && !knowledge().rejected(t, mentioned)) { // a question is no answer
             how = How.MEMORY;
             think(Arrays.asList("Reading your question", "Taking the words in it", "Finding a sentence that mentions the same details"),
                     () -> saysPlain(who, mentioned));
@@ -928,6 +928,10 @@ public final class Ibiko1 {
                     return;
                 }
             }
+        }
+        // what something leads to ("what happens if the rains fail?"): forward along the causes it has read and been told
+        if (ai.ibiko.ibiko1.formulas.Causes.ahead(t) != null && answerThen(who, t)) {
+            return;
         }
         // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
@@ -1912,6 +1916,52 @@ public final class Ibiko1 {
                 saysSure(who, found.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
                         "Source: Simple English Wikipedia, \u201c" + source + "\u201d");
             }
+            rateable(question, found.said());
+        });
+        return true;
+    }
+
+    /**
+     * K8–K9: what something leads to, from the causes in memory, then from the encyclopedia's article on it (read and
+     * kept). False when nothing read starts from it: no outcome is guessed.
+     */
+    private boolean answerThen(String who, String question) {
+        String from = ai.ibiko.ibiko1.formulas.Causes.ahead(question);
+        List<ai.ibiko.ibiko1.formulas.Causes.Link> known = facts().causes();
+        ai.ibiko.ibiko1.formulas.Causes.Then then = ai.ibiko.ibiko1.formulas.Causes.then(question, known);
+        String title = null;
+        if (then == null) {
+            for (Encyclopedia.Article a : whyArticles("why " + from)) {
+                List<ai.ibiko.ibiko1.formulas.Causes.Link> read = new ArrayList<ai.ibiko.ibiko1.formulas.Causes.Link>(
+                        ai.ibiko.ibiko1.formulas.Causes.read(a.text, a.title));
+                if (read.isEmpty()) {
+                    continue;
+                }
+                read.addAll(known);
+                then = ai.ibiko.ibiko1.formulas.Causes.then(question, read);
+                if (then != null) {
+                    title = a.title;
+                    facts().learn(a.text, a.title, 2, System.currentTimeMillis()); // what it read is kept
+                    break;
+                }
+            }
+        }
+        if (then == null || knowledge().rejected(question, then.said())) {
+            return false;
+        }
+        final ai.ibiko.ibiko1.formulas.Causes.Then found = then;
+        final String source = title;
+        how = How.MEMORY;
+        List<String> steps = new ArrayList<String>();
+        steps.add("Reading your question: it asks what " + Causes0.plain(from) + " leads to");
+        steps.add(source == null ? "Following the causes I've read and been told, forward" : "Reading my encyclopedia's article on " + source + " for what follows");
+        steps.add("Found it: " + Causes0.plain(found.link.sentence.trim()));
+        if (found.next != null) {
+            steps.add("One step further: " + Causes0.plain(found.next.effect));
+        }
+        think(steps, () -> {
+            saysSure(who, found.said(), source == null ? ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED : ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                    source == null ? "From what I've read and been told" : "Source: Simple English Wikipedia, \u201c" + source + "\u201d");
             rateable(question, found.said());
         });
         return true;
