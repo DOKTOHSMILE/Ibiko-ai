@@ -1,6 +1,8 @@
 package ai.ibiko.chat.ui;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import android.view.View;
 import android.view.ViewGroup;
@@ -64,8 +66,53 @@ public class CampaignStudioScreenTest {
             assertNotNull(tool, byText(root, tool));
         }
         assertNotNull("the model, chosen in the message box", byText(root, "Choose a model"));
+        // no control twice: the Campaign chip is the only way to its sheet, the Media chip the only way to add files
+        assertNull("no ⋮ that opens the same sheet as the Campaign chip", byDescription(root, "Campaign options"));
+        assertNull("no attach button beside the Media chip", byDescription(root, "Add your pictures"));
+        java.util.List<String> labels = new java.util.ArrayList<String>();
+        chipLabels(root, labels);
+        assertEquals("each control once: " + labels, new java.util.HashSet<String>(labels).size(), labels.size());
         a.pause().stop().destroy();
         CampaignRunner.delete(app, c);
+    }
+
+    private static View byDescription(View v, String what) {
+        if (what.contentEquals(String.valueOf(v.getContentDescription()))) {
+            return v;
+        }
+        if (v instanceof ViewGroup) {
+            for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) {
+                View hit = byDescription(((ViewGroup) v).getChildAt(i), what);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The labels of every chip in the row over the message box (TextViews inside horizontal scrollers). */
+    private static void chipLabels(View v, java.util.List<String> out) {
+        if (v instanceof android.widget.HorizontalScrollView) {
+            collect(v, out);
+            return;
+        }
+        if (v instanceof ViewGroup) {
+            for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) {
+                chipLabels(((ViewGroup) v).getChildAt(i), out);
+            }
+        }
+    }
+
+    private static void collect(View v, java.util.List<String> out) {
+        if (v instanceof TextView && ((TextView) v).getText().length() > 0) {
+            out.add(((TextView) v).getText().toString());
+        }
+        if (v instanceof ViewGroup) {
+            for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) {
+                collect(((ViewGroup) v).getChildAt(i), out);
+            }
+        }
     }
 
     private static TextView byText(View v, String text) {

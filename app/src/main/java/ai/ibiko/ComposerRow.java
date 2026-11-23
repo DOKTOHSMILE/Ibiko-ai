@@ -123,19 +123,14 @@ final class ComposerRow {
                     }));
         }
         if (more != null) {
+            // only what isn't on the screen already: chats are the ☰ button, the workload is the ring in the header
             more.setOnClickListener(v -> ai.ibiko.chat.ui.BottomSheet.show(a, "More", new ai.ibiko.chat.ui.BottomSheet.Item[] {
                     new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_settings, "Settings", "Voice, chat, models, learning"),
-                    new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_history, "Chats", "Earlier conversations"),
-                    new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_deep, "What Ibiko remembers", "See or forget what was learned"),
-                    new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_people, "Workload and workers", "Memory in use and the agents at work") }, which -> {
+                    new ai.ibiko.chat.ui.BottomSheet.Item(R.drawable.ic_deep, "What Ibiko remembers", "See or forget what was learned") }, which -> {
                         if (which == 0) {
                             a.startActivity(new android.content.Intent(a, ai.ibiko.chat.ui.SettingsActivity.class));
-                        } else if (which == 1) {
-                            a.openDrawer();
-                        } else if (which == 2) {
+                        } else {
                             a.startActivity(new android.content.Intent(a, ai.ibiko.chat.ui.MemoryActivity.class));
-                        } else if (a.model != null) {
-                            ai.ibiko.chat.ui.WorkloadSheet.show(a, a.model, a.brainLabel(), a.ibikoOwn());
                         }
                     }));
         }
