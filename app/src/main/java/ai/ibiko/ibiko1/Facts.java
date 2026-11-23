@@ -178,6 +178,15 @@ public final class Facts {
             changed |= see(t, sightings, now);
             added += all.size() > was ? 1 : 0;
         }
+        // why things are as they are ("Plants are green because of chlorophyll"): kept as a link, effect ← cause,
+        // (plants are green | because of | chlorophyll), for why-questions and the reason behind the reason
+        for (ai.ibiko.ibiko1.formulas.Causes.Link l : ai.ibiko.ibiko1.formulas.Causes.read(text, topic)) {
+            Grammar.Triple t = new Grammar.Triple(l.effect, l.joiner, l.cause,
+                    l.sentence.length() > 300 ? l.sentence.substring(0, 300) : l.sentence);
+            int was = all.size();
+            changed |= see(t, sightings, now);
+            added += all.size() > was ? 1 : 0;
+        }
         while (all.size() > MOST) {
             changes++;
             all.remove(weakest());
@@ -203,6 +212,18 @@ public final class Facts {
             if (w != null) {
                 out.add(new ai.ibiko.ibiko1.formulas.Happenings.Happening(t.subject, t.relation.replaceFirst(" (on|in)$", ""), w,
                         t.surface == null ? "" : t.surface));
+            }
+        }
+        return out;
+    }
+
+    /** The reasons it has read and been told (effect ← cause), sure ones only: strength 2 or more. */
+    public synchronized List<ai.ibiko.ibiko1.formulas.Causes.Link> causes() {
+        List<ai.ibiko.ibiko1.formulas.Causes.Link> out = new ArrayList<ai.ibiko.ibiko1.formulas.Causes.Link>();
+        for (Row r : all) {
+            Grammar.Triple t = r.fact;
+            if (r.n >= 2 && t.relation.matches("because|because of|so that|in order to")) {
+                out.add(new ai.ibiko.ibiko1.formulas.Causes.Link(t.subject, t.object, t.relation, t.surface));
             }
         }
         return out;
@@ -253,6 +274,9 @@ public final class Facts {
             return false;
         }
         String r = a.relation;
+        if (r.matches("because|because of|so that|in order to")) {
+            return false; // a thing can have more than one reason: a second one adds, it doesn't contradict
+        }
         return r.startsWith("born ") || r.endsWith(" in") && a.object.matches(".*\\d{3,4}.*") && b.object.matches(".*\\d{3,4}.*")
                 || r.endsWith(" by") || r.endsWith(" of") && !r.equals("part of") && !r.equals("one of");
     }

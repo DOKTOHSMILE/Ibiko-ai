@@ -151,6 +151,13 @@ final class Curiosity {
      */
     static String form(String question, String answer) {
         String q = question.trim().replaceAll("[?.!\\s]+$", "").replaceAll("\\s+", " ");
+        if (q.matches("(?i)^why\\b.*") && !answer.trim().matches("(?is).+\\s(because|due to)\\s.+")) {
+            // "Why is the sky blue?" + "scattering of light": the reason joined to what it explains, kept as a cause
+            String why = ai.ibiko.ibiko1.formulas.Causes.form(q, answer.trim());
+            if (why != null) {
+                return why;
+            }
+        }
         String a = names(q, answer.trim());
         String body = null;
         Matcher m;

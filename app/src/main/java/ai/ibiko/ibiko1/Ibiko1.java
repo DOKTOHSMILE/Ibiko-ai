@@ -792,6 +792,14 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "Nothing is running right now, so there's nothing to stop."));
             return;
         }
+        // "why?" after a reason: the reason behind it, one step further back along what it has read
+        final ai.ibiko.ibiko1.formulas.Causes.Link reasonBefore = lastReason;
+        lastReason = null; // anything else moves on from it
+        if (reasonBefore != null && t.trim().matches("(?i)(but |and |so |ok,? )?(why|why is that|why's that|why so|how come|but why|and why|"
+                + "what caused that|what caused it|why did that happen)[?!. ]*")) {
+            whyFurther(who, reasonBefore);
+            return;
+        }
         if (parse.intent == Grammar.Intent.THANKS) {
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "You're welcome."));
             return;
@@ -841,6 +849,10 @@ public final class Ibiko1 {
                         () -> saysPlain(who, ai.ibiko.ibiko1.formulas.Analyst.report(data)));
                 return;
             }
+        }
+        // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
+        if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
+            return;
         }
         // facts put together into an answer no single fact holds: an age at an event, who is older, the years between,
         // two mountains or rivers compared, the longest in a place, "the inventor of …" read as the person
@@ -1612,6 +1624,147 @@ public final class Ibiko1 {
         });
     }
 
+    /** The last reason given, for "why?" to go on from; null when the talk has moved on. */
+    private volatile ai.ibiko.ibiko1.formulas.Causes.Link lastReason;
+
+    /**
+     * A why-question answered from cause and effect: first the reasons in its memory (read before, or told), then the
+     * encyclopedia's article on what is asked about, read for its reasons (and kept). False when neither has a
+     * reason for what is asked: the rest of Ibiko takes the question.
+     */
+    private boolean answerWhy(String who, String question) {
+        List<ai.ibiko.ibiko1.formulas.Causes.Link> known = facts().causes();
+        ai.ibiko.ibiko1.formulas.Causes.Why why = ai.ibiko.ibiko1.formulas.Causes.why(question, known);
+        String title = null;
+        if (why == null) {
+            for (Encyclopedia.Article a : whyArticles(question)) {
+                List<ai.ibiko.ibiko1.formulas.Causes.Link> read = new ArrayList<ai.ibiko.ibiko1.formulas.Causes.Link>(
+                        ai.ibiko.ibiko1.formulas.Causes.read(a.text, a.title));
+                if (read.isEmpty()) {
+                    continue;
+                }
+                read.addAll(known);
+                why = ai.ibiko.ibiko1.formulas.Causes.why(question, read);
+                if (why != null) {
+                    title = a.title;
+                    facts().learn(a.text, a.title, 2, System.currentTimeMillis()); // what it read is kept
+                    break;
+                }
+            }
+        }
+        if (why == null || knowledge().rejected(question, why.said())) {
+            return false;
+        }
+        final ai.ibiko.ibiko1.formulas.Causes.Why found = why;
+        final String source = title;
+        how = How.MEMORY;
+        List<String> steps = new ArrayList<String>();
+        steps.add("Reading your question: it asks for a reason");
+        steps.add(source == null ? "Looking through the reasons I've read and been told" : "Reading my encyclopedia's article on " + source + " for causes");
+        steps.add("Found what it explains: " + found.link.effect);
+        if (found.behind != null) {
+            steps.add("Going one step further back: why " + Causes0.plain(found.link.cause));
+        }
+        think(steps, () -> {
+            lastReason = found.last();
+            if (source == null) {
+                saysSure(who, found.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
+                        "From what I've read and been told: " + found.link.sentence.trim());
+            } else {
+                saysSure(who, found.said(), ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                        "Source: Simple English Wikipedia, \u201c" + source + "\u201d");
+            }
+            rateable(question, found.said());
+        });
+        return true;
+    }
+
+    /** Small helpers for saying a reason in a step. */
+    private static final class Causes0 {
+        static String plain(String s) {
+            return s.length() > 80 ? s.substring(0, 77) + "…" : s;
+        }
+    }
+
+    /** The articles a why-question may be about: the whole thing asked, then shorter, then its single longer words. */
+    private List<Encyclopedia.Article> whyArticles(String question) {
+        List<Encyclopedia.Article> out = new ArrayList<Encyclopedia.Article>();
+        Encyclopedia e = encyclopedia();
+        String about = ai.ibiko.ibiko1.formulas.Asking.of(question).about;
+        if (e == null || about.isEmpty()) {
+            return out;
+        }
+        List<String> tries = new ArrayList<String>();
+        String[] w = about.split("\\s+");
+        for (int n = w.length; n >= 1; n--) {
+            for (int i = 0; i + n <= w.length; i++) {
+                String phrase = String.join(" ", Arrays.copyOfRange(w, i, i + n));
+                if ((n > 1 || phrase.length() > 3) && !tries.contains(phrase)) {
+                    tries.add(phrase);
+                }
+            }
+        }
+        java.util.Set<String> seen = new java.util.HashSet<String>();
+        for (String phrase : tries) {
+            Encyclopedia.Article a;
+            try {
+                a = e.find(phrase);
+            } catch (RuntimeException ex) {
+                a = null;
+            }
+            if (a != null && seen.add(a.title)) {
+                out.add(a);
+                if (out.size() >= 3) {
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * "why?" after a reason: the reason behind it, from memory or the article the reason came from. Where what it has
+     * read ends, it says so and asks: the answer it gets is kept as a reason, for next time.
+     */
+    private void whyFurther(String who, ai.ibiko.ibiko1.formulas.Causes.Link from) {
+        times = 0; // "why?" again is about the new reason, not the same question asked twice
+        List<ai.ibiko.ibiko1.formulas.Causes.Link> links = new ArrayList<ai.ibiko.ibiko1.formulas.Causes.Link>(facts().causes());
+        ai.ibiko.ibiko1.formulas.Causes.Link behind = ai.ibiko.ibiko1.formulas.Causes.behind(from, links);
+        if (behind == null) {
+            for (Encyclopedia.Article a : whyArticles("why " + from.cause)) {
+                links.addAll(ai.ibiko.ibiko1.formulas.Causes.read(a.text, a.title));
+                behind = ai.ibiko.ibiko1.formulas.Causes.behind(from, links);
+                if (behind != null) {
+                    facts().learn(a.text, a.title, 2, System.currentTimeMillis());
+                    break;
+                }
+            }
+        }
+        if (behind != null) {
+            final ai.ibiko.ibiko1.formulas.Causes.Link b = behind;
+            final String said = Character.toUpperCase(from.cause.charAt(0)) + from.cause.substring(1) + " " + b.because() + ".";
+            think(Arrays.asList("Reading your question: why, one step further back", "Looking for what caused " + Causes0.plain(from.cause),
+                    "Found it"), () -> {
+                        lastReason = b;
+                        saysSure(who, said, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED, "From: " + b.sentence.trim());
+                    });
+            return;
+        }
+        // the end of what it has read: it says so, and asks (the answer is kept as the reason behind it)
+        String q = from.noun() ? "What caused " + lowerStart(from.cause) + "?" : "Why " + lowerStart(from.cause) + "?";
+        gap = Curiosity.open(q, System.currentTimeMillis());
+        final String end = "That's as far back as what I've read goes: I don't know what's behind " + lowerStart(from.cause)
+                + " yet. Do you know? Tell me, and I'll keep it as the reason, so next time I can go a step further.";
+        think(Arrays.asList("Reading your question: why, one step further back", "Looking for what caused " + Causes0.plain(from.cause),
+                "Nothing I've read explains it"), () -> saysPlain(who, end));
+    }
+
+    private static String lowerStart(String s) {
+        String f = s.split("\\s+")[0];
+        return f.matches("(?i)the|a|an|it|this|that|these|those|its|their|his|her|there|many|most|some|people|they")
+                ? Character.toLowerCase(s.charAt(0)) + s.substring(1) : s;
+    }
+
     /** A filled gap kept everywhere a confirmed answer goes: memory, the fact store, and the language it learns from. */
     private void keepFilled(String question, String statement) {
         long now = System.currentTimeMillis();
@@ -1928,6 +2081,16 @@ public final class Ibiko1 {
                 got.add(h.clause() + " " + h.when.on());
             }
             return "Noted: " + String.join("; ", got) + ". I'll use it when I work things out.";
+        }
+        // a reason ("Plants are green because of chlorophyll"): understood as cause and effect and kept, for why-questions
+        List<ai.ibiko.ibiko1.formulas.Causes.Link> reasons = ai.ibiko.ibiko1.formulas.Causes.read(said, null);
+        if (!reasons.isEmpty() && !said.matches("(?i)^(today|tomorrow|yesterday|i|we|my|our|you)\\b.*")) {
+            facts().learn(said, null, 2, System.currentTimeMillis()); // the pilot's own words: as good as a source
+            List<String> got = new ArrayList<String>();
+            for (ai.ibiko.ibiko1.formulas.Causes.Link l : reasons) {
+                got.add(l.effect + " " + l.because());
+            }
+            return "Noted: " + String.join("; ", got) + ". I'll use it when I'm asked why.";
         }
         Matcher m = Pattern.compile("(?i)^(?:(the|a|an) )?(.{2,60}?) (is|are|was|were) (.{2,300}?)[.!]*$").matcher(said);
         if (m.matches() && m.group(2).matches("(?i)(today|tomorrow|yesterday|tonight|now|it|this|that|he|she|they|there|here)\\b.*")) {
