@@ -59,7 +59,7 @@ public final class Kinds {
     }
 
     /** Q2–Q3: the steps from the thing up to the kind asked, or null when what it reads doesn't get there. */
-    public static List<Step> chain(String thing, String kind, Function<String, Contrast.Kind> whatIs) {
+    public static List<Step> chain(String thing, String kind, Function<String, List<Contrast.Kind>> whatIs) {
         String goal = Causes.stem(last(kind));
         Map<String, Step> cameFrom = new HashMap<String, Step>();
         Set<String> seen = new HashSet<String>();
@@ -72,32 +72,37 @@ public final class Kinds {
             if (depth >= 4) {
                 continue;
             }
-            Contrast.Kind k;
+            List<Contrast.Kind> ks;
             try {
-                k = whatIs.apply(at[0]);
+                ks = whatIs.apply(at[0]);
             } catch (RuntimeException e) {
-                k = null;
+                ks = null;
             }
-            if (k == null) {
+            if (ks == null) {
                 continue;
             }
-            Step step = new Step(at[0], k.said, k.head);
-            String head = Causes.stem(last(k.head));
-            if (head.equals(goal) || saysKind(k.said, kind)) {
-                List<Step> out = new ArrayList<Step>();
-                out.add(0, step);
-                String back = at[0];
-                while (cameFrom.containsKey(back)) {
-                    Step before = cameFrom.get(back);
-                    out.add(0, before);
-                    back = before.thing;
+            for (Contrast.Kind k : ks) {
+                Step step = new Step(at[0], k.said, k.head);
+                String head = Causes.stem(last(k.head));
+                if (head.equals(goal) || saysKind(k.said, kind)) {
+                    List<Step> out = new ArrayList<Step>();
+                    out.add(0, step);
+                    String back = at[0];
+                    while (cameFrom.containsKey(back)) {
+                        Step before = cameFrom.get(back);
+                        out.add(0, before);
+                        back = before.thing;
+                    }
+                    return out;
                 }
-                return out;
             }
-            if (seen.add(head)) {
-                String next = singular(k.head);
-                cameFrom.put(next, step);
-                queue.add(new String[] {next, String.valueOf(depth + 1)});
+            for (Contrast.Kind k : ks) {
+                String head = Causes.stem(last(k.head));
+                if (seen.add(head)) {
+                    String next = singular(k.head);
+                    cameFrom.put(next, new Step(at[0], k.said, k.head));
+                    queue.add(new String[] {next, String.valueOf(depth + 1)});
+                }
             }
         }
         return null;

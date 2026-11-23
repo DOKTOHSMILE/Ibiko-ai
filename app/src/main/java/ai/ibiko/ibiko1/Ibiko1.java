@@ -890,7 +890,7 @@ public final class Ibiko1 {
         if (kindAsked != null && encyclopedia() != null) {
             final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
                 Encyclopedia.Article a = encyclopedia().find(name);
-                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kind(a.text);
+                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
             });
             if (chain != null) {
                 final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);

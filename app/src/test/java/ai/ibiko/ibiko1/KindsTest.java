@@ -27,9 +27,10 @@ public class KindsTest {
         READ.put("seabird", "Seabirds are birds that live at sea.");
     }
 
-    private static Contrast.Kind whatIs(String name) {
-        String t = READ.get(name.toLowerCase().replaceFirst("s$", ""));
-        return t == null ? null : Contrast.kind(t);
+    private static List<Contrast.Kind> whatIs(String name) {
+        String key = name.toLowerCase().replaceFirst("s$", "");
+        String t = READ.get(key);
+        return t == null ? null : Contrast.kinds(t, key);
     }
 
     @Test
@@ -49,6 +50,18 @@ public class KindsTest {
         assertEquals("Yes. A frog is an amphibian; amphibians are vertebrates; a vertebrate is an animal.", Kinds.said(chain));
         assertEquals("Yes. Penguins are seabirds; seabirds are birds.", Kinds.said(Kinds.chain("penguin", "bird", KindsTest::whatIs)));
         assertEquals("one step", 1, Kinds.chain("frog", "amphibian", KindsTest::whatIs).size());
+    }
+
+    @Test
+    public void everyKindTheOpeningGivesIsUsed() {
+        READ.put("mammal", "Mammals are in the class Mammalia. They are a group of vertebrate animals. They have fur.");
+        READ.put("dog", "Dogs are mammals, usually to be kept as pets.");
+        READ.put("toad", "Toads are amphibians and vertebrates of the order Anura.");
+        READ.put("gold", "Gold is a soft, dense, bright yellow metal. It is a chemical element.");
+        assertEquals("Yes. Dogs are mammals; mammals are a group of vertebrate animals.", Kinds.said(Kinds.chain("dog", "animal", KindsTest::whatIs)));
+        assertEquals("Yes. Toads are vertebrates.", Kinds.said(Kinds.chain("toad", "vertebrate", KindsTest::whatIs)));
+        assertEquals("Yes. Gold is a soft, dense, bright yellow metal.", Kinds.said(Kinds.chain("gold", "metal", KindsTest::whatIs)));
+        assertEquals("Yes. Gold is a chemical element.", Kinds.said(Kinds.chain("gold", "element", KindsTest::whatIs)));
     }
 
     @Test
