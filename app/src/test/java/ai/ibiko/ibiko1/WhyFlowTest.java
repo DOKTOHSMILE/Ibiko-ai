@@ -240,6 +240,10 @@ public class WhyFlowTest {
             assertTrue("the chat's language goes on: " + any, any.startsWith("Here's how to work out a factorial in Rust:"));
             String site = ask(brain, chat, "Build me a website for my bakery called Sweet Crumbs in Lagos, WhatsApp 0803 123 4567");
             assertTrue(site, site.startsWith("Here's a restaurant or food website for Sweet Crumbs in Lagos:") && site.contains("```html\n<!doctype html>"));
+            String priced = ask(brain, chat, "Add a pricing section");
+            assertTrue("a change to the site just made: " + priced, priced.startsWith("Done: added Prices.") && priced.contains("Sweet Crumbs"));
+            String blue = ask(brain, chat, "Make it blue");
+            assertTrue(blue, blue.startsWith("Done: made its colour blue.") && blue.contains("#2563eb") && blue.contains("Prices"));
             String need = ask(brain, chat, "What does a restaurant website need?");
             assertTrue(need, need.startsWith("A restaurant or food website shows the food"));
             String made = ask(brain, chat, "What is a website made of?");
@@ -248,6 +252,34 @@ public class WhyFlowTest {
             assertTrue(read, read.startsWith("This is Python code.") && read.contains("Line by line:"));
             String kotlin = ask(brain, chat, "How do I sort a list in Kotlin?");
             assertTrue("offline, not in its recipes: said plainly: " + kotlin, kotlin.startsWith("I don't have that in Kotlin yet"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
+
+    @Test(timeout = 180000)
+    public void questionsAboutCodeJustRead() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String code = "def factorial(n):\n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result\n\nprint(factorial(5))";
+            String read = ask(brain, chat, "Explain this:\n```python\n" + code + "\n```");
+            assertTrue(read, read.startsWith("This is Python code. It's the usual way to work out a factorial."));
+            String go = ask(brain, chat, "Convert it to Go");
+            assertTrue(go, go.startsWith("It does the same as my recipe to work out a factorial, so here it is in Go:") && go.contains("```go"));
+            String line = ask(brain, chat, "What does line 4 do?");
+            assertTrue(line, line.startsWith("Line 4: result *= i") && line.contains("Multiplies result by i."));
+            String ok = ask(brain, chat, "Are there any mistakes?");
+            assertTrue(ok, ok.startsWith("I can't see a mistake in it"));
         } finally {
             Plug.asset = was;
         }

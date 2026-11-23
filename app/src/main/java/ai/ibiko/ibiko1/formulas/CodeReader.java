@@ -1,6 +1,7 @@
 package ai.ibiko.ibiko1.formulas;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -581,5 +582,81 @@ public final class CodeReader {
             return "in Python, a line that starts a block (if, for, def…) ends with a colon (:).";
         }
         return null;
+    }
+
+    // ------------------------------------------------------------------------------------------------- C5: follow-ups
+
+    /** A question about code just read: convert it, one line of it, or whether it has a mistake. */
+    public static final class Follow {
+        public enum Is { CONVERT, LINE, CHECK }
+
+        public final Is is;
+        public final String lang;
+        public final int line;
+
+        Follow(Is is, String lang, int line) {
+            this.is = is;
+            this.lang = lang;
+            this.line = line;
+        }
+    }
+
+    private static final Pattern CONVERT = Pattern.compile("(?i)^\\s*(?:can you |please |now )?(?:convert|translate|rewrite|port|turn|write|show)\\s+"
+            + "(?:it|this|that|the code|the same|this code|it all)?\\s*(?:in|into|to|as|for|using)\\s+(.{1,20}?)\\s*[?.!]*$|^\\s*(?:and |what about |how about )?in (.{1,20}?)\\s*[?.!]*$");
+    private static final Pattern LINE = Pattern.compile("(?i)\\bline\\s+(\\d{1,3})\\b|\\b(first|second|third|fourth|fifth|last) line\\b");
+    private static final Pattern CHECK = Pattern.compile("(?i)\\b(?:any|a|the) (?:mistakes?|bugs?|errors?|problems?)\\b|\\bis (?:it|this|that) (?:right|correct|ok|okay|wrong)\\b|"
+            + "\\bwill (?:it|this) (?:work|run)\\b|\\bwhat'?s wrong\\b|\\bwhy (?:doesn'?t|won'?t) (?:it|this) (?:work|run)\\b");
+
+    /** C5: a follow-up about the code just read, or null. */
+    public static Follow follow(String message) {
+        if (message == null) {
+            return null;
+        }
+        String m = message.trim();
+        Matcher c = CONVERT.matcher(m);
+        if (c.matches()) {
+            String lang = Recipes.language("in " + (c.group(1) != null ? c.group(1) : c.group(2)));
+            if (lang != null) {
+                return new Follow(Follow.Is.CONVERT, lang, 0);
+            }
+        }
+        Matcher l = LINE.matcher(m);
+        if (l.find()) {
+            int n = l.group(1) != null ? Integer.parseInt(l.group(1))
+                    : Arrays.asList("first", "second", "third", "fourth", "fifth").indexOf(l.group(2).toLowerCase(Locale.ROOT)) + 1;
+            return new Follow(Follow.Is.LINE, null, l.group(2) != null && l.group(2).equalsIgnoreCase("last") ? -1 : n);
+        }
+        if (CHECK.matcher(m).find()) {
+            return new Follow(Follow.Is.CHECK, null, 0);
+        }
+        return null;
+    }
+
+    /** C5: one line of the code (1 is the first; -1 the last) in plain words; null when there's no such line. */
+    public static String line(Snippet s, int n) {
+        List<String> lines = new ArrayList<String>();
+        for (String l : s.code.split("\n")) {
+            if (!l.trim().isEmpty()) {
+                lines.add(l);
+            }
+        }
+        if (lines.isEmpty()) {
+            return null;
+        }
+        int at = n < 0 ? lines.size() : n;
+        if (at < 1 || at > lines.size()) {
+            return "It has " + lines.size() + (lines.size() == 1 ? " line" : " lines") + " (blank ones aside), so there's no line " + n + ".";
+        }
+        String l = lines.get(at - 1).trim();
+        String said = line(l, s.lang);
+        return "Line " + at + ": " + l + "\n\n" + (said == null ? "It's part of the structure around it (it opens or closes a block, or carries on the line before)."
+                : Character.toUpperCase(said.charAt(0)) + said.substring(1) + ".");
+    }
+
+    /** C5: whether the code has a mistake it can see, in words. */
+    public static String checked(Snippet s) {
+        String c = check(s.code, s.lang);
+        return c == null ? "I can't see a mistake in it: the brackets pair up and the lines are formed right. That doesn't prove it does what you want: "
+                + "run it to be sure (say \"run this\" with the code)." : "Yes, one thing: " + c;
     }
 }

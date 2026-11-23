@@ -112,4 +112,33 @@ public class SitesTest {
         }
         assertTrue("left open: " + open, open.isEmpty());
     }
+
+    @Test
+    public void theSiteJustMadeChangesAsAsked() {
+        Sites.Kind k = sites().kind("my bakery");
+        Sites.Design d = Sites.design(k, Sites.brief("Build a website for my bakery called Sweet Crumbs in Lagos"));
+        assertTrue(Sites.asksChange("Add a FAQ section"));
+        assertTrue(Sites.asksChange("make it dark"));
+        assertTrue(Sites.asksChange("Call it Mama's Kitchen"));
+        assertTrue(!Sites.asksChange("Add more salt to the soup"));
+        assertTrue(!Sites.asksChange("no problem"));
+        assertTrue(!Sites.asksChange("use python"));
+
+        assertEquals("added Questions", Sites.change(d, "Add a FAQ section"));
+        String html = Sites.build(d);
+        assertTrue(html.contains("id=\"faq\""));
+        String lastBlock = d.sections.get(d.sections.size() - 1)[0];
+        assertTrue("the page still ends with its form: " + lastBlock, lastBlock.matches("contact|booking|rsvp|cta"));
+        assertEquals("it already has Questions", Sites.change(d, "add a faq"));
+        assertEquals("made it dark", Sites.change(d, "make it dark"));
+        assertTrue(Sites.build(d).contains("#0f172a"));
+        assertEquals("named it Mama's Kitchen", Sites.change(d, "Call it Mama's Kitchen"));
+        assertTrue(Sites.build(d).contains("Mama's Kitchen") || Sites.build(d).contains("Mama&#39;s Kitchen") || Sites.build(d).contains("Mama&apos;s Kitchen"));
+        assertEquals("put in 08031234567 (calls and WhatsApp; the forms send to it)", Sites.change(d, "my whatsapp number is 0803 123 4567"));
+        assertTrue(Sites.build(d).contains("2348031234567") || Sites.build(d).contains("08031234567"));
+        String removed = Sites.change(d, "remove the faq section");
+        assertEquals("took out Questions", removed);
+        assertNull(Sites.change(d, "remove the hero"));
+        assertNull(Sites.change(d, "what time is it"));
+    }
 }

@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -257,10 +258,39 @@ public final class Sites {
 
     // ------------------------------------------------------------------------------------------------- W4: building
 
+    /** A site as it is being made: its kind, what the person told about the business, its sections and colours (both can change). */
+    public static final class Design {
+        public final Kind kind;
+        public final Brief brief;
+        public final List<String[]> sections = new ArrayList<String[]>();
+        public String[] colours;
+
+        Design(Kind kind, Brief brief) {
+            this.kind = kind;
+            this.brief = brief;
+            for (String[] sec : kind.sections) {
+                sections.add(sec.clone());
+            }
+            colours = kind.colours.clone();
+        }
+    }
+
+    /** A design for a kind and a brief, as the kind lays it out. */
+    public static Design design(Kind k, Brief b) {
+        return new Design(k, b);
+    }
+
     /** W4: the whole site, one HTML file. */
     public static String build(Kind k, Brief b) {
+        return build(new Design(k, b));
+    }
+
+    /** W4: the whole site of a design, one HTML file. */
+    public static String build(Design d) {
+        Kind k = d.kind;
+        Brief b = d.brief;
         String name = b.name.isEmpty() ? (b.trade.isEmpty() ? "Your business" : cap(b.trade)) : b.name;
-        String[] c = k.colours;
+        String[] c = d.colours;
         StringBuilder h = new StringBuilder();
         h.append("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
                 .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
@@ -270,13 +300,13 @@ public final class Sites {
         // header: the name, the sections as links, a menu button on phones
         h.append("<header class=\"top\">\n  <a class=\"brand\" href=\"#top\">").append(esc(name)).append("</a>\n")
                 .append("  <button class=\"menu\" aria-expanded=\"false\" aria-controls=\"nav\">Menu</button>\n  <nav id=\"nav\">\n");
-        for (String[] s : k.sections) {
+        for (String[] s : d.sections) {
             if (!s[0].equals("hero")) {
                 h.append("    <a href=\"#").append(s[0]).append("\">").append(esc(short_(s[1]))).append("</a>\n");
             }
         }
         h.append("  </nav>\n</header>\n<main id=\"top\">\n");
-        for (String[] s : k.sections) {
+        for (String[] s : d.sections) {
             h.append(block(s[0], s[1], k, b, name));
         }
         h.append("</main>\n<footer>\n  <p>&copy; <span id=\"year\"></span> ").append(esc(name))
@@ -506,5 +536,136 @@ public final class Sites {
 
     private static String cap(String s) {
         return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    // ------------------------------------------------------------------------------------------------- W5: changes
+
+    /** The sections that can be added, by the words people use for them: block, heading. */
+    private static final String[][] ADDABLE = {
+        {"pricing|prices|plans|packages", "pricing", "Prices"}, {"faq|questions|frequently asked", "faq", "Questions"},
+        {"gallery|photos|pictures|portfolio", "gallery", "Gallery"}, {"testimonials?|reviews?", "testimonials", "What people say"},
+        {"team|staff|people", "team", "Our team"}, {"menu", "menu", "Our menu"}, {"contact(?: form)?", "contact", "Contact us"},
+        {"newsletter|mailing list|subscribe", "newsletter", "Stay in touch"}, {"booking|appointments?|reservations?", "booking", "Book now"},
+        {"hours|opening hours|opening times", "hours", "Opening hours"}, {"services", "services", "What we do"},
+        {"products|shop|store", "products", "Products"}, {"blog|posts|articles|news", "posts", "Latest posts"},
+        {"stats|numbers|figures", "stats", "In numbers"}, {"countdown", "countdown", "Counting down"}, {"about(?: us)?", "about", "About us"},
+        {"how it works|steps|process", "how", "How it works"}, {"donate|donations|give", "donate", "Give"}, {"features", "features", "Features"}};
+    private static final Map<String, String> COLOURS = new java.util.LinkedHashMap<String, String>();
+
+    static {
+        String[][] c = {{"blue", "#2563eb"}, {"navy", "#1e3a8a"}, {"red", "#dc2626"}, {"green", "#16a34a"}, {"purple", "#7c3aed"},
+            {"orange", "#ea580c"}, {"pink", "#db2777"}, {"gold", "#ca8a04"}, {"yellow", "#eab308"}, {"teal", "#0d9488"},
+            {"brown", "#92400e"}, {"black", "#111111"}, {"grey", "#6b7280"}, {"gray", "#6b7280"}};
+        for (String[] x : c) {
+            COLOURS.put(x[0], x[1]);
+        }
+    }
+
+    private static final Pattern ADD = Pattern.compile("(?i)\\b(?:add|include|put in|i (?:want|need)|give (?:it|me))\\s+(?:a |an |some |the |my )?(.{2,30}?)(?:\\s+(?:section|part|page|block))?(?:\\s+(?:to it|too|as well))?\\s*[.!?]*$");
+    private static final Pattern REMOVE = Pattern.compile("(?i)\\b(?:remove|delete|take out|drop|get rid of|no)\\s+(?:the |a |my )?(.{2,30}?)(?:\\s+(?:section|part|page|block))?\\s*[.!?]*$");
+    private static final Pattern MOVE = Pattern.compile("(?i)\\b(?:move|put)\\s+(?:the )?(.{2,30}?)(?:\\s+section)?\\s+(?:to the |at the )?(top|first|bottom|end|last)\\b");
+    private static final Pattern COLOUR = Pattern.compile("(?i)\\b(?:make it|make the (?:site|page|website)|change (?:the )?colou?rs? to|colou?r it|use)\\s+(dark|light|[a-z]+)\\b");
+    private static final Pattern RENAME = Pattern.compile("(?i)\\b(?:call it|name it|rename it(?: to)?|change the name to|the name is)\\s+[\"“']?(.{2,40}?)[\"”']?\\s*[.!]*$");
+    private static final Pattern NUMBER = Pattern.compile("(?i)\\b(?:my (?:whatsapp|number|phone)(?: number)? is|add my (?:whatsapp|number|phone)(?: number)?|whatsapp|phone)\\s*:?\\s*(\\+?\\d[\\d\\s-]{7,16}\\d)");
+
+    /** W5: whether a message asks to change the site just made. */
+    public static boolean asksChange(String message) {
+        String m = message == null ? "" : message.trim();
+        Matcher x;
+        if (RENAME.matcher(m).find() || NUMBER.matcher(m).find()) {
+            return true;
+        }
+        if ((x = COLOUR.matcher(m)).find() && colourOf(x.group(1)) != null) {
+            return true;
+        }
+        if ((x = MOVE.matcher(m)).find() && blockFor(x.group(1)) != null) {
+            return true;
+        }
+        if ((x = REMOVE.matcher(m)).find() && blockFor(x.group(1)) != null) {
+            return true;
+        }
+        return (x = ADD.matcher(m)).find() && blockFor(x.group(1)) != null;
+    }
+
+    private static String[] blockFor(String words) {
+        String w = words == null ? "" : words.trim().toLowerCase(Locale.ROOT).replaceFirst("^(?:a|an|the|some|my)\\s+", "");
+        for (String[] a : ADDABLE) {
+            if (w.matches("(?:" + a[0] + ")(?:\\s+(?:section|part|page|block))?")) {
+                return a;
+            }
+        }
+        return null;
+    }
+
+    private static String colourOf(String word) {
+        String w = word.toLowerCase(Locale.ROOT);
+        return w.equals("dark") || w.equals("light") ? w : COLOURS.get(w);
+    }
+
+    /** W5: the change asked for, made to the design; what changed in words, or null when nothing could be done. */
+    public static String change(Design d, String message) {
+        String m = message.trim();
+        List<String> done = new ArrayList<String>();
+        Matcher x;
+        if ((x = RENAME.matcher(m)).find()) {
+            d.brief.name = x.group(1).trim();
+            done.add("named it " + d.brief.name);
+        }
+        if ((x = NUMBER.matcher(m)).find()) {
+            d.brief.phone = x.group(1).replaceAll("[\\s-]", "");
+            done.add("put in " + d.brief.phone + " (calls and WhatsApp; the forms send to it)");
+        }
+        if ((x = COLOUR.matcher(m)).find()) {
+            String c = colourOf(x.group(1));
+            if ("dark".equals(c)) {
+                d.colours = new String[]{"#0f172a", "#1e293b", d.colours[2], "#f8fafc"};
+                done.add("made it dark");
+            } else if ("light".equals(c)) {
+                d.colours = new String[]{"#ffffff", "#f1f5f9", d.colours[2], "#0f172a"};
+                done.add("made it light");
+            } else if (c != null) {
+                d.colours = new String[]{d.colours[0], d.colours[1], c, d.colours[3]};
+                done.add("made its colour " + x.group(1).toLowerCase(Locale.ROOT));
+            }
+        }
+        if ((x = MOVE.matcher(m)).find()) {
+            String[] a = blockFor(x.group(1));
+            int at = a == null ? -1 : indexOf(d, a[1]);
+            if (at >= 0) {
+                String[] sec = d.sections.remove(at);
+                boolean top = x.group(2).toLowerCase(Locale.ROOT).matches("top|first");
+                d.sections.add(top ? Math.min(1, d.sections.size()) : d.sections.size(), sec);
+                done.add("moved " + sec[1] + (top ? " to the top" : " to the end"));
+            }
+        } else if ((x = REMOVE.matcher(m)).find()) {
+            String[] a = blockFor(x.group(1));
+            int at = a == null ? -1 : indexOf(d, a[1]);
+            if (at > 0) { // the opening (hero) stays
+                done.add("took out " + d.sections.remove(at)[1]);
+            }
+        } else if ((x = ADD.matcher(m)).find()) {
+            String[] a = blockFor(x.group(1));
+            if (a != null && indexOf(d, a[1]) < 0) {
+                int end = d.sections.size(); // before the form that ends the page (contact, booking, RSVP)
+                while (end > 1 && d.sections.get(end - 1)[0].matches("contact|booking|rsvp|cta")) {
+                    end--;
+                }
+                String[] sec = {a[1], a[2]};
+                d.sections.add(end, sec);
+                done.add("added " + a[2]);
+            } else if (a != null) {
+                done.add("it already has " + d.sections.get(indexOf(d, a[1]))[1]);
+            }
+        }
+        return done.isEmpty() ? null : String.join("; ", done);
+    }
+
+    private static int indexOf(Design d, String block) {
+        for (int i = 0; i < d.sections.size(); i++) {
+            if (d.sections.get(i)[0].equals(block)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

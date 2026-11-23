@@ -917,63 +917,9 @@ public final class Ibiko1 {
                 return;
             }
         }
-        // two things told apart ("difference between a frog and a toad"): each read for what kind of thing it is and
-        // what is said of it, then compared: the same kind or not, and what sets each apart
-        final String[] pair = ai.ibiko.ibiko1.formulas.Contrast.pair(t);
-        if (pair != null && encyclopedia() != null) {
-            final Encyclopedia.Article a = encyclopedia().find(pair[0]), b = encyclopedia().find(pair[1]);
-            final String told = a == null || b == null || a.title.equals(b.title) ? null
-                    : ai.ibiko.ibiko1.formulas.Contrast.tell(pair[0], a.text, pair[1], b.text);
-            if (told != null && !knowledge().rejected(t, told)) {
-                how = How.MEMORY;
-                long now = System.currentTimeMillis();
-                facts().learn(a.text, a.title, 2, now); // what it read is kept
-                facts().learn(b.text, b.title, 2, now);
-                think(Arrays.asList("Reading your question: two things to tell apart", "Reading my encyclopedia on " + a.title + " and on " + b.title,
-                        "Finding what kind of thing each is", "Finding what each says that the other doesn't"), () -> {
-                            saysSure(who, told, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
-                                    "Source: Simple English Wikipedia, \u201c" + a.title + "\u201d and \u201c" + b.title + "\u201d");
-                            rateable(t, told);
-                        });
-                return;
-            }
-        }
-        // how something is made, formed or done, or how it works: the way read out of what it knows and reads
-        if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW && answerHow(who, t)) {
-            return;
-        }
-        // "is a frog an animal?": worked out by going up what each thing is (a frog is an amphibian, an amphibian is …)
-        final String[] kindAsked = ai.ibiko.ibiko1.formulas.Kinds.asked(t);
-        if (kindAsked != null && encyclopedia() != null) {
-            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
-                Encyclopedia.Article a = encyclopedia().find(name);
-                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
-            });
-            if (chain != null) {
-                final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);
-                if (!knowledge().rejected(t, yes)) {
-                    how = How.MEMORY;
-                    List<String> steps = new ArrayList<String>();
-                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
-                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : chain) {
-                        steps.add("Reading what " + st.thing + " is: " + st.said);
-                    }
-                    steps.add("Reached " + kindAsked[1] + ": yes");
-                    think(steps, () -> {
-                        saysSure(who, yes, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
-                                "Worked out from Simple English Wikipedia, step by step");
-                        rateable(t, yes);
-                    });
-                    return;
-                }
-            }
-        }
-        // what something leads to ("what happens if the rains fail?"): forward along the causes it has read and been told
-        if (ai.ibiko.ibiko1.formulas.Causes.ahead(t) != null && answerThen(who, t)) {
-            return;
-        }
-        // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
-        if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
+        // reasoning (tell two things apart, how, is X a Y, what follows, why): every reading this message allows,
+        // weighed with its words and the conversation, the best tried first
+        if (reasoned(who, t)) {
             return;
         }
         // facts put together into an answer no single fact holds: an age at an event, who is older, the years between,
@@ -1896,8 +1842,17 @@ public final class Ibiko1 {
         if (snippet != null && !runIt) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
         }
+        // a follow-up about the code just read: convert it, one line of it, a mistake in it
+        final ai.ibiko.ibiko1.formulas.CodeReader.Snippet before = lastSnippet;
+        final ai.ibiko.ibiko1.formulas.CodeReader.Follow follow = snippet == null && before != null
+                ? ai.ibiko.ibiko1.formulas.CodeReader.follow(t) : null;
+        if (follow != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
+        }
         final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
-        if (siteAsk != null) {
+        // a change to the site just made ("add a pricing section", "make it blue"): a website reading too
+        final boolean siteChange = siteAsk == null && snippet == null && lastDesign != null && ai.ibiko.ibiko1.formulas.Sites.asksChange(t);
+        if (siteAsk != null || siteChange) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
         }
         final String[] lastCode = lastRecipe;
@@ -1924,9 +1879,21 @@ public final class Ibiko1 {
             switch (r.kind) {
                 case CODE:
                     turnDomain = "code";
-                    codeTurn(who, snippet);
+                    if (snippet == null) {
+                        codeFollow(who, before, follow);
+                    } else {
+                        lastSnippet = snippet;
+                        codeTurn(who, snippet);
+                    }
                     return true;
                 case SITE:
+                    if (siteChange) {
+                        if (siteChangeTurn(who, t)) {
+                            turnDomain = "web";
+                            return true;
+                        }
+                        break;
+                    }
                     if (siteTurn(who, t, siteAsk)) {
                         turnDomain = "web";
                         return true;
@@ -1948,6 +1915,150 @@ public final class Ibiko1 {
         return false;
     }
 
+    /**
+     * The second weighing: the reasoning readings a question allows (two things told apart, how something is done,
+     * whether one thing is a kind of another, what something leads to, a reason), ranked by the message's own words
+     * and the conversation, tried best first; the ones that don't answer fall through to the next. False: none did.
+     */
+    private boolean reasoned(final String who, final String t) {
+        List<ai.ibiko.ibiko1.formulas.Readings.Kind> offered = new ArrayList<ai.ibiko.ibiko1.formulas.Readings.Kind>();
+        ai.ibiko.ibiko1.formulas.Asking.Wants wants = ai.ibiko.ibiko1.formulas.Asking.of(t).wants;
+        if (ai.ibiko.ibiko1.formulas.Contrast.pair(t) != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CONTRAST);
+        }
+        if (wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.HOW);
+        }
+        if (ai.ibiko.ibiko1.formulas.Kinds.asked(t) != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.KINDQ);
+        }
+        if (ai.ibiko.ibiko1.formulas.Causes.ahead(t) != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.AHEAD);
+        }
+        if (wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.WHY);
+        }
+        if (offered.isEmpty()) {
+            return false;
+        }
+        List<ai.ibiko.ibiko1.formulas.Readings.Reading> order = ai.ibiko.ibiko1.formulas.Readings.weigh(t, offered, readingContext);
+        if (order.size() > 1) {
+            String weighed = ai.ibiko.ibiko1.formulas.Readings.said(order);
+            contextStep = contextStep == null ? weighed : contextStep + "; " + weighed;
+        }
+        for (ai.ibiko.ibiko1.formulas.Readings.Reading r : order) {
+            boolean done;
+            switch (r.kind) {
+                case CONTRAST: done = contrastTurn(who, t); break;
+                case HOW: done = answerHow(who, t); break;
+                case KINDQ: done = kindTurn(who, t); break;
+                case AHEAD: done = answerThen(who, t); break;
+                case WHY: done = answerWhy(who, t); break;
+                default: done = false;
+            }
+            if (done) {
+                turnDomain = r.kind.domain;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean contrastTurn(final String who, final String t) {
+        final String[] pair = ai.ibiko.ibiko1.formulas.Contrast.pair(t);
+        if (pair != null && encyclopedia() != null) {
+            final Encyclopedia.Article a = encyclopedia().find(pair[0]), b = encyclopedia().find(pair[1]);
+            final String told = a == null || b == null || a.title.equals(b.title) ? null
+                    : ai.ibiko.ibiko1.formulas.Contrast.tell(pair[0], a.text, pair[1], b.text);
+            if (told != null && !knowledge().rejected(t, told)) {
+                how = How.MEMORY;
+                long now = System.currentTimeMillis();
+                facts().learn(a.text, a.title, 2, now); // what it read is kept
+                facts().learn(b.text, b.title, 2, now);
+                think(Arrays.asList("Reading your question: two things to tell apart", "Reading my encyclopedia on " + a.title + " and on " + b.title,
+                        "Finding what kind of thing each is", "Finding what each says that the other doesn't"), () -> {
+                            saysSure(who, told, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                                    "Source: Simple English Wikipedia, \u201c" + a.title + "\u201d and \u201c" + b.title + "\u201d");
+                            rateable(t, told);
+                        });
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean kindTurn(final String who, final String t) {
+        final String[] kindAsked = ai.ibiko.ibiko1.formulas.Kinds.asked(t);
+        if (kindAsked != null && encyclopedia() != null) {
+            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
+                Encyclopedia.Article a = encyclopedia().find(name);
+                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
+            });
+            if (chain != null) {
+                final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);
+                if (!knowledge().rejected(t, yes)) {
+                    how = How.MEMORY;
+                    List<String> steps = new ArrayList<String>();
+                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
+                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : chain) {
+                        steps.add("Reading what " + st.thing + " is: " + st.said);
+                    }
+                    steps.add("Reached " + kindAsked[1] + ": yes");
+                    think(steps, () -> {
+                        saysSure(who, yes, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
+                                "Worked out from Simple English Wikipedia, step by step");
+                        rateable(t, yes);
+                    });
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The code last pasted and read, for questions about it ("convert it to Go", "what does line 3 do?"). */
+    private volatile ai.ibiko.ibiko1.formulas.CodeReader.Snippet lastSnippet;
+
+    /**
+     * C5: a question about the code just read. Converted: when the code is one of its tested recipes, the same recipe in
+     * the language asked (tested too); otherwise said plainly that it can't convert it exactly. One line: in plain words.
+     * A mistake: what it can see.
+     */
+    private void codeFollow(final String who, ai.ibiko.ibiko1.formulas.CodeReader.Snippet s, ai.ibiko.ibiko1.formulas.CodeReader.Follow f) {
+        final String said;
+        List<String> steps = new ArrayList<String>(Arrays.asList("Reading your question about the code you pasted"));
+        switch (f.is) {
+            case CONVERT: {
+                String task = recipes().matchTask(s.code, s.lang);
+                ai.ibiko.ibiko1.formulas.Recipes.Recipe r = task == null ? null : recipes().get(task, f.lang);
+                if (r != null) {
+                    lastRecipe = new String[]{task, f.lang};
+                    codingLang = f.lang;
+                    said = "It does the same as my recipe to " + ai.ibiko.ibiko1.formulas.Recipes.titleOf(task) + ", so here it is in "
+                            + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang) + ":\n\n" + r.said().replaceFirst("^Here's how to [^:]*:\\n\\n", "");
+                    steps.add("It matches my tested recipe to " + ai.ibiko.ibiko1.formulas.Recipes.titleOf(task));
+                    steps.add("Taking the same recipe in " + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang));
+                } else {
+                    said = "I can't convert that one to " + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang) + " exactly on my own yet: it isn't one of my "
+                            + "tested recipes, and I won't guess at code. Choose a model from the menu at the top and the coding agent will convert it;"
+                            + " or ask me for a task (\"how do I sort a list in " + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang) + "?\").";
+                    steps.add("It isn't one of my tested recipes");
+                }
+                break;
+            }
+            case LINE:
+                said = ai.ibiko.ibiko1.formulas.CodeReader.line(s, f.line);
+                steps.add("Finding that line and putting it in plain words");
+                break;
+            default:
+                said = ai.ibiko.ibiko1.formulas.CodeReader.checked(s);
+                steps.add("Checking the brackets, the strings and how each line is formed");
+                break;
+        }
+        how = How.MEMORY;
+        think(steps, () -> saysExact(who, said));
+    }
+
     /** C1–C4: pasted code explained in plain words. */
     private void codeTurn(final String who, ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet) {
         final String said = ai.ibiko.ibiko1.formulas.CodeReader.explain(snippet, recipes());
@@ -1955,6 +2066,25 @@ public final class Ibiko1 {
         think(Arrays.asList("Reading what you pasted: it's code", "Working out the language from how it's written: "
                         + ai.ibiko.ibiko1.formulas.CodeReader.name(snippet.lang), "Finding its parts: what it defines, brings in, and does",
                 "Going through it line by line", "Putting it in plain words"), () -> saysExact(who, said));
+    }
+
+    /** The site last built, for changes to it ("add a pricing section", "make it blue", "call it Mama's Kitchen"). */
+    private volatile ai.ibiko.ibiko1.formulas.Sites.Design lastDesign;
+
+    /** W5: the site just made, changed as asked, and given whole again with what changed. */
+    private boolean siteChangeTurn(final String who, final String t) {
+        final ai.ibiko.ibiko1.formulas.Sites.Design d = lastDesign;
+        final String changed = d == null ? null : ai.ibiko.ibiko1.formulas.Sites.change(d, t);
+        if (changed == null) {
+            return false;
+        }
+        final String html = ai.ibiko.ibiko1.formulas.Sites.build(d);
+        final String said = "Done: " + changed + ".\n\n```html\n" + html + "```\n\nSave it over your index.html. Ask for any other change: a section added or "
+                + "taken out, a colour, the name, your number.";
+        how = How.MEMORY;
+        think(Arrays.asList("Reading your request: a change to the site I made", "Making the change: " + changed, "Writing the page again"),
+                () -> saysExact(who, said));
+        return true;
     }
 
     private ai.ibiko.ibiko1.formulas.Sites sites;
@@ -2016,7 +2146,9 @@ public final class Ibiko1 {
                     return false;
                 }
                 final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
-                final String html = ai.ibiko.ibiko1.formulas.Sites.build(k, brief);
+                final ai.ibiko.ibiko1.formulas.Sites.Design design = ai.ibiko.ibiko1.formulas.Sites.design(k, brief);
+                lastDesign = design; // kept, so "add a pricing section" or "make it blue" changes this site
+                final String html = ai.ibiko.ibiko1.formulas.Sites.build(design);
                 List<String> heads = new ArrayList<String>();
                 for (String[] sec : k.sections) {
                     heads.add(sec[1]);

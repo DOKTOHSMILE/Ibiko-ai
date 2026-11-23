@@ -32,7 +32,9 @@ public final class Readings {
     /** What a message can be. */
     public enum Kind {
         CODE("code to explain", "code"), CODING("code to write", "code"), SITE("a website", "web"), CLAIM("a claim to check", "facts"),
-        WORD("a word's meaning", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk");
+        WORD("a word's meaning", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
+        CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
+        KINDQ("whether one thing is a kind of another", "kinds"), AHEAD("what something leads to", "reasons"), WHY("a reason", "reasons");
 
         public final String said, domain;
 
@@ -94,6 +96,13 @@ public final class Readings {
                 "spoken", "located", "where", "when", "who", "married", "tallest", "largest", "king", "queen", "leader", "history"));
         VOCAB.put("language", set("mean", "means", "meaning", "word", "words", "definition", "define", "synonym", "opposite", "spell",
                 "grammar", "noun", "verb", "adjective", "plural", "sentence"));
+        VOCAB.put("reasons", set("why", "because", "cause", "caused", "causes", "reason", "reasons", "happens", "happen", "effect", "effects",
+                "lead", "leads", "result", "results", "consequence", "consequences", "if"));
+        VOCAB.put("ways", set("how", "made", "make", "work", "works", "formed", "form", "steps", "process", "done", "produced", "built",
+                "grow", "cook"));
+        VOCAB.put("compare", set("difference", "differences", "compare", "versus", "vs", "between", "unlike", "same", "different", "or"));
+        VOCAB.put("kinds", set("kind", "type", "sort", "animal", "mammal", "mammals", "bird", "birds", "fish", "plant", "insect", "reptile",
+                "member", "example", "metal", "element", "star", "planet", "fruit", "vegetable"));
         VOCAB.put("talk", set("said", "say", "talked", "talking", "asked", "earlier", "before", "conversation", "chat", "recap", "summarize",
                 "back"));
     }
@@ -111,6 +120,11 @@ public final class Readings {
             case SITE: return 0.7;
             case CODING: return 0.7;
             case FACT: return 0.55;
+            case CONTRAST: return 0.7;
+            case KINDQ: return 0.65;
+            case AHEAD: return 0.65;
+            case WHY:
+            case HOW: return 0.6;
             default: return 0.5;
         }
     }
@@ -163,6 +177,10 @@ public final class Readings {
             case "facts": return "facts";
             case "language": return "words and meanings";
             case "talk": return "our conversation";
+            case "reasons": return "causes and reasons";
+            case "ways": return "how things are done";
+            case "compare": return "comparing";
+            case "kinds": return "kinds of things";
             default: return domain;
         }
     }
