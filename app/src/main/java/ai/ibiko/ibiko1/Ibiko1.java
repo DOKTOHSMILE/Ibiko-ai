@@ -1850,7 +1850,9 @@ public final class Ibiko1 {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
         }
         final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
-        if (siteAsk != null) {
+        // a change to the site just made ("add a pricing section", "make it blue"): a website reading too
+        final boolean siteChange = siteAsk == null && snippet == null && lastDesign != null && ai.ibiko.ibiko1.formulas.Sites.asksChange(t);
+        if (siteAsk != null || siteChange) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
         }
         final String[] lastCode = lastRecipe;
@@ -1885,6 +1887,13 @@ public final class Ibiko1 {
                     }
                     return true;
                 case SITE:
+                    if (siteChange) {
+                        if (siteChangeTurn(who, t)) {
+                            turnDomain = "web";
+                            return true;
+                        }
+                        break;
+                    }
                     if (siteTurn(who, t, siteAsk)) {
                         turnDomain = "web";
                         return true;
@@ -2059,6 +2068,25 @@ public final class Ibiko1 {
                 "Going through it line by line", "Putting it in plain words"), () -> saysExact(who, said));
     }
 
+    /** The site last built, for changes to it ("add a pricing section", "make it blue", "call it Mama's Kitchen"). */
+    private volatile ai.ibiko.ibiko1.formulas.Sites.Design lastDesign;
+
+    /** W5: the site just made, changed as asked, and given whole again with what changed. */
+    private boolean siteChangeTurn(final String who, final String t) {
+        final ai.ibiko.ibiko1.formulas.Sites.Design d = lastDesign;
+        final String changed = d == null ? null : ai.ibiko.ibiko1.formulas.Sites.change(d, t);
+        if (changed == null) {
+            return false;
+        }
+        final String html = ai.ibiko.ibiko1.formulas.Sites.build(d);
+        final String said = "Done: " + changed + ".\n\n```html\n" + html + "```\n\nSave it over your index.html. Ask for any other change: a section added or "
+                + "taken out, a colour, the name, your number.";
+        how = How.MEMORY;
+        think(Arrays.asList("Reading your request: a change to the site I made", "Making the change: " + changed, "Writing the page again"),
+                () -> saysExact(who, said));
+        return true;
+    }
+
     private ai.ibiko.ibiko1.formulas.Sites sites;
 
     /** What it knows about kinds of websites (shipped coded: knowledge/web/sites.tsv.ibk). */
@@ -2118,7 +2146,9 @@ public final class Ibiko1 {
                     return false;
                 }
                 final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
-                final String html = ai.ibiko.ibiko1.formulas.Sites.build(k, brief);
+                final ai.ibiko.ibiko1.formulas.Sites.Design design = ai.ibiko.ibiko1.formulas.Sites.design(k, brief);
+                lastDesign = design; // kept, so "add a pricing section" or "make it blue" changes this site
+                final String html = ai.ibiko.ibiko1.formulas.Sites.build(design);
                 List<String> heads = new ArrayList<String>();
                 for (String[] sec : k.sections) {
                     heads.add(sec[1]);

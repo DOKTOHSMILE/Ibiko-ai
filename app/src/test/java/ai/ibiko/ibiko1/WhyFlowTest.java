@@ -240,6 +240,10 @@ public class WhyFlowTest {
             assertTrue("the chat's language goes on: " + any, any.startsWith("Here's how to work out a factorial in Rust:"));
             String site = ask(brain, chat, "Build me a website for my bakery called Sweet Crumbs in Lagos, WhatsApp 0803 123 4567");
             assertTrue(site, site.startsWith("Here's a restaurant or food website for Sweet Crumbs in Lagos:") && site.contains("```html\n<!doctype html>"));
+            String priced = ask(brain, chat, "Add a pricing section");
+            assertTrue("a change to the site just made: " + priced, priced.startsWith("Done: added Prices.") && priced.contains("Sweet Crumbs"));
+            String blue = ask(brain, chat, "Make it blue");
+            assertTrue(blue, blue.startsWith("Done: made its colour blue.") && blue.contains("#2563eb") && blue.contains("Prices"));
             String need = ask(brain, chat, "What does a restaurant website need?");
             assertTrue(need, need.startsWith("A restaurant or food website shows the food"));
             String made = ask(brain, chat, "What is a website made of?");
