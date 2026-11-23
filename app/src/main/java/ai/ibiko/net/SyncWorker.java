@@ -101,6 +101,7 @@ public final class SyncWorker {
                         again = false;
                     }
                     have = Math.max(have, refreshPack(have));
+                    refreshFiles();
                     int sent = uploadLearning();
                     if (sent > 0 && uploads != null) {
                         uploads.onUploaded(sent);
@@ -150,6 +151,65 @@ public final class SyncWorker {
             // try again next time we come online
         }
         return have;
+    }
+
+    /** Where newer knowledge files go on the phone (the encyclopedia, fact tables, lexicon…); null: none are fetched. */
+    private KnowledgeFiles files;
+
+    public void setKnowledgeFiles(KnowledgeFiles files) {
+        this.files = files;
+    }
+
+    /**
+     * Newer knowledge files: the manifest's "files" list, each {path, version, sha256, url}. A file newer than the one
+     * on the phone is downloaded, checked against its SHA-256 and put over the old one; it is read from the next start.
+     * How many were installed.
+     */
+    int refreshFiles() {
+        KnowledgeFiles into = files;
+        if (into == null) {
+            return 0;
+        }
+        String base = base();
+        int installed = 0;
+        try {
+            Map<String, Object> manifest = MiniJson.obj(MiniJson.parse(get(base + "/api/v1/knowledge/manifest", null)));
+            for (Object o : MiniJson.list(manifest.get("files"))) {
+                Map<String, Object> f = MiniJson.obj(o);
+                String path = MiniJson.str(f.get("path"), "");
+                int version = (int) MiniJson.num(f.get("version"), 0);
+                String sha = MiniJson.str(f.get("sha256"), "");
+                String url = MiniJson.str(f.get("url"), "");
+                if (!KnowledgeFiles.allowed(path) || version <= into.version(path) || sha.length() != 64 || !url.startsWith("/")) {
+                    continue;
+                }
+                try {
+                    installed += into.install(path, version, sha, getBytes(base + url)) ? 1 : 0;
+                } catch (IOException one) {
+                    // this file next time; the others still come
+                }
+            }
+        } catch (IOException | IllegalArgumentException ignored) {
+            // try again next time we come online
+        }
+        return installed;
+    }
+
+    private static byte[] getBytes(String url) throws IOException {
+        HttpURLConnection c = open(url, null);
+        c.setReadTimeout(60000);
+        c.setRequestProperty("Accept", "application/octet-stream");
+        try {
+            int code = c.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new IOException("http " + code);
+            }
+            try (InputStream in = c.getInputStream()) {
+                return KnowledgeFiles.readAll(in, KnowledgeFiles.MOST);
+            }
+        } finally {
+            c.disconnect();
+        }
     }
 
     /** Uploads pending learning; returns how many entries the server accepted. */

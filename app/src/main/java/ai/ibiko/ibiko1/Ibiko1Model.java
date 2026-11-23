@@ -64,13 +64,13 @@ public final class Ibiko1Model {
         if (context != null && isDefault()) {
             final android.content.res.AssetManager assets = context.getApplicationContext() == null ? context.getAssets()
                     : context.getApplicationContext().getAssets();
-            Plug.asset = path -> {
+            Plug.asset = ai.ibiko.net.KnowledgeFiles.over(context.getFilesDir(), path -> {
                 try {
                     return assets.open(path);
                 } catch (java.io.IOException e) {
                     return null;
                 }
-            };
+            });
         }
         host = new Headless(context);
         model = new Ibiko1(host, dataDir);

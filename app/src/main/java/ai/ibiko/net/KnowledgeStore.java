@@ -34,13 +34,13 @@ public final class KnowledgeStore {
 
     /** A bundled file's plain bytes: shipped in the Ibiko v1 text code (ai.ibiko.ibiko1.TextCode) and decoded here. */
     private java.io.InputStream asset(String path) {
-        return ai.ibiko.ibiko1.TextCode.open(p -> {
+        return ai.ibiko.ibiko1.TextCode.open(KnowledgeFiles.over(context.getFilesDir(), p -> {
             try {
                 return context.getAssets().open(p);
             } catch (IOException e) {
                 return null;
             }
-        }, path);
+        }), path);
     }
 
     /** The core pack alone: small and fast, safe to load on the main thread. */
