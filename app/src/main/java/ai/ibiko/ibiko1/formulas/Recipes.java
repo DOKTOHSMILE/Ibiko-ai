@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -153,6 +154,51 @@ public final class Recipes {
             return null;
         }
         return new Ask(task, lang);
+    }
+
+    /** The words that may stand around a task named on its own ("sort a list in Go please") without making it something else. */
+    private static final java.util.Set<String> FILLER = new java.util.HashSet<String>(Arrays.asList("a", "an", "the", "me", "please", "for",
+            "from", "of", "in", "into", "with", "using", "to", "code", "function", "program", "method", "script", "snippet", "how", "i", "do",
+            "can", "you", "show", "write", "give", "make", "some", "example", "and", "list", "array", "string", "numbers", "number", "parse", "find",
+            "check", "get", "read", "convert", "print", "handle", "catch", "use", "create", "generate", "build", "implement", "if", "is", "it"));
+
+    /**
+     * A looser reading, when a message carries a task's words but not the usual way of asking for code ("Sort a list",
+     * "Reverse a string in Go"): the task named on its own, with nothing around it but filler and a language. Data in the
+     * message ("Sort these: 5 3 1", "Reverse the word hello") makes it a thing to do, not code to write: null.
+     */
+    private static final List<String> DOING = Arrays.asList("sort", "reverse", "sum", "add", "find", "remove", "check", "make", "convert",
+            "turn", "parse", "split", "count", "read", "write", "use", "get", "fetch", "print", "handle", "catch", "loop", "iterate",
+            "generate", "create", "build", "implement", "show", "how", "code", "program", "dedupe", "deduplicate", "open", "save", "call");
+
+    public static Ask loose(String message) {
+        if (message == null || message.matches("(?s).*(?:[:\"“”]|\\d.*\\d).*")) {
+            return null;
+        }
+        String m = message.trim().replaceAll("[?.!]+$", "");
+        if (!m.matches("(?i)^(?:please\\s+)?(?:" + String.join("|", DOING) + ")\\b.*")) {
+            return null; // asked for, not mentioned: "Sort a list", not "The prime number"
+        }
+        String lang = language(m);
+        for (Task t : TASKS) {
+            Matcher x = t.asks.matcher(m);
+            if (!x.find()) {
+                continue;
+            }
+            String rest = (m.substring(0, x.start()) + " " + m.substring(x.end())).toLowerCase(Locale.ROOT);
+            if (lang != null) {
+                rest = rest.replaceAll(LANGS.get(lang)[0], " ");
+            }
+            boolean bare = true;
+            for (String w : rest.split("[^\\p{L}+#']+")) {
+                if (!w.isEmpty() && !FILLER.contains(w)) {
+                    bare = false;
+                    break;
+                }
+            }
+            return bare ? new Ask(t.id, lang) : null;
+        }
+        return null;
     }
 
     /** The language a message names, or null. */

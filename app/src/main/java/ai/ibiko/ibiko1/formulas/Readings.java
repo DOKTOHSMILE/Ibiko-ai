@@ -23,6 +23,8 @@ import java.util.Set;
  * P2  words    the share of the message that is its subject's own vocabulary (programming, the web, facts, talk…)
  * P3  context  the same subject as the last turns (+), a short follow-up of it (+), the subject in focus named (+)
  * P4  ranks    best first; ties go to the more specific reading; the reasoning, in words
+ * P5  unsure   two readings too close to tell apart, and nothing in the conversation for either: ask which, don't guess;
+ *              the answer ("the first", "the website", "code") picks the reading, and the first message is read that way
  * </pre>
  */
 public final class Readings {
@@ -32,7 +34,7 @@ public final class Readings {
     /** What a message can be. */
     public enum Kind {
         CODE("code to explain", "code"), CODING("code to write", "code"), SITE("a website", "web"), CLAIM("a claim to check", "facts"),
-        WORD("a word's meaning", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
+        WORD("a word's meaning", "language"), SYNTAX("a sentence's structure", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
         CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
         KINDQ("whether one thing is a kind of another", "kinds"), AHEAD("what something leads to", "reasons"), WHY("a reason", "reasons");
 
@@ -95,7 +97,7 @@ public final class Readings {
         VOCAB.put("facts", set("capital", "president", "born", "population", "country", "city", "founded", "founder", "currency", "language",
                 "spoken", "located", "where", "when", "who", "married", "tallest", "largest", "king", "queen", "leader", "history"));
         VOCAB.put("language", set("mean", "means", "meaning", "word", "words", "definition", "define", "synonym", "opposite", "spell",
-                "grammar", "noun", "verb", "adjective", "plural", "sentence"));
+                "grammar", "noun", "verb", "adjective", "plural", "sentence", "parse", "tree", "phrase", "clause", "subject"));
         VOCAB.put("reasons", set("why", "because", "cause", "caused", "causes", "reason", "reasons", "happens", "happen", "effect", "effects",
                 "lead", "leads", "result", "results", "consequence", "consequences", "if"));
         VOCAB.put("ways", set("how", "made", "make", "work", "works", "formed", "form", "steps", "process", "done", "produced", "built",
@@ -131,6 +133,14 @@ public final class Readings {
 
     /** P1–P4: the readings offered, weighed and ranked, best first. */
     public static List<Reading> weigh(String message, List<Kind> offered, Context ctx) {
+        return weigh(message, offered, ctx, new HashSet<Kind>());
+    }
+
+    /**
+     * P1–P4, with readings some readers offered only loosely: from the message's words, not its usual phrasing. Those
+     * start lower (a reader sure of the phrasing outranks one going by the words alone), and say so.
+     */
+    public static List<Reading> weigh(String message, List<Kind> offered, Context ctx, Set<Kind> loose) {
         List<Reading> out = new ArrayList<Reading>();
         String[] words = message.toLowerCase(Locale.ROOT).replaceAll("```.*?```", " ").split("[^\\p{L}0-9+#-]+");
         int n = 0;
@@ -141,6 +151,10 @@ public final class Readings {
         for (Kind k : offered) {
             double score = base(k);
             List<String> why = new ArrayList<String>();
+            if (loose.contains(k)) {
+                score -= 0.1;
+                why.add("from its words, not the usual way of asking");
+            }
             Set<String> own = VOCAB.getOrDefault(k.domain, new HashSet<String>());
             int hits = 0;
             for (String w : words) {
@@ -203,5 +217,68 @@ public final class Readings {
             b.append("; also possible: ").append(String.join(", ", others));
         }
         return b.toString();
+    }
+
+    /** P5: how close two readings may be before the message can't be told apart by them. */
+    static final double TIE = 0.05;
+
+    /** P5: whether the two best readings are too close to choose between, with nothing from the conversation for either. */
+    public static boolean unsure(List<Reading> ranked) {
+        if (ranked.size() < 2) {
+            return false;
+        }
+        Reading a = ranked.get(0), b = ranked.get(1);
+        if (a.kind.domain.equals(b.kind.domain) || a.kind == Kind.CODE || b.kind == Kind.CODE) {
+            return false; // the same subject either way, or code in the message: nothing to ask
+        }
+        return a.score - b.score < TIE && !fromContext(a) && !fromContext(b);
+    }
+
+    private static boolean fromContext(Reading r) {
+        return r.why.contains("we were on") || r.why.contains("came up a moment ago");
+    }
+
+    /** P5: the question: "Do you mean a website, or code to write?" */
+    public static String ask(List<Reading> ranked) {
+        return "Do you mean " + ranked.get(0).kind.said + ", or " + ranked.get(1).kind.said + "? Say which, and I'll go on from there.";
+    }
+
+    private static final String[][] ORDINALS = {{"first", "1", "one", "former", "the first one", "1st"}, {"second", "2", "two", "latter",
+        "the second one", "2nd"}};
+
+    /** P5: the reading an answer to the question picks, or null when it doesn't pick one (then it's a new message). */
+    public static Kind choose(String answer, List<Kind> asked) {
+        String a = answer == null ? "" : answer.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}0-9 ']", " ").trim().replaceAll("\\s+", " ");
+        if (a.isEmpty() || a.split(" ").length > 8) {
+            return null;
+        }
+        String bare = a.replaceFirst("^(?:i mean|i meant|i want|mean|meant|yes|no|the|it's|its|it is)\\s+", "").replaceFirst("^(?:the|a|an)\\s+", "")
+                .replaceFirst("\\s+(?:one|please|thanks)$", "");
+        for (int i = 0; i < ORDINALS.length && i < asked.size(); i++) {
+            for (String o : ORDINALS[i]) {
+                if (bare.equals(o) || bare.equals(o + " one")) {
+                    return asked.get(i);
+                }
+            }
+        }
+        Kind picked = null;
+        int best = 0;
+        String[] words = a.split(" ");
+        for (Kind k : asked) {
+            int hits = 0;
+            Set<String> own = VOCAB.getOrDefault(k.domain, new HashSet<String>());
+            Set<String> said = new HashSet<String>(Arrays.asList(k.said.split(" ")));
+            said.removeAll(Arrays.asList("a", "an", "the", "to", "of", "about", "our", "whether", "one", "another", "something", "is", "how"));
+            for (String w : words) {
+                hits += own.contains(w) || said.contains(w) ? 1 : 0;
+            }
+            if (hits > best) {
+                best = hits;
+                picked = k;
+            } else if (hits == best && hits > 0) {
+                picked = null; // both named: still not told apart
+            }
+        }
+        return picked;
     }
 }

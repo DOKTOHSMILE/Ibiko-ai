@@ -284,4 +284,35 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void readByItsWordsNotOnlyItsPhrasing() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String tree = ask(brain, chat, "Parse: the engineer deployed the node on the server");
+            assertTrue("a sentence to parse is still a sentence: " + tree, tree.contains("Reading A"));
+            String sort = ask(brain, chat, "Sort a list in Python");
+            assertTrue("a task named on its own is code to write: " + sort, sort.startsWith("Here's how to sort a list in Python:"));
+            String json = ask(brain, chat, "Parse JSON");
+            assertTrue("the chat's language goes on: " + json, json.startsWith("Here's how to parse JSON in Python:"));
+            String html = ask(brain, chat, "Write html for a bakery website called Sweet Crumbs");
+            assertTrue("a website by its words: " + html, html.contains("Sweet Crumbs") && html.contains("```html\n<!doctype html>"));
+            String what = ask(brain, chat, "What is a website?");
+            assertTrue(what, what.startsWith("Every website is made of the same layers"));
+            String data = ask(brain, chat, "Sort these numbers: 5 3 1");
+            assertTrue("data in it: a thing to do, not code: " + data, !data.contains("```"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }

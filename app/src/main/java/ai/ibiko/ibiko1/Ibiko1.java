@@ -697,13 +697,7 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
             return;
         }
-        // a sentence's structure: its syntax tree, its constituents, why it is ambiguous
-        final String structure = SyntaxTalk.reply(message);
-        if (structure != null) {
-            think(Arrays.asList("Reading the sentence", "Tagging each word's part of speech", "Grouping the words into phrases, bottom up",
-                    "Checking every way the rules allow"), () -> saysPlain(who, structure));
-            return;
-        }
+        // a sentence's structure (its syntax tree) is one of the readings weighed below: "Parse JSON" while coding is code
         // words, meanings and grammar: what a word means (here), the word for a meaning, synonyms, a sentence explained,
         // whether two say the same, a word's morphemes, whether a sentence is grammatical
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
@@ -1836,7 +1830,39 @@ public final class Ibiko1 {
      * conversation's last subjects, a short follow-up) and tried best first. True when one answered; false leaves the
      * message to the rest of Ibiko (a word's meaning chosen first goes on to the word reader there).
      */
+    /** A message too close to call between two readings, asked about: the message and the two readings, until answered. */
+    private static final class Unsure {
+        final String message, t;
+        final List<ai.ibiko.ibiko1.formulas.Readings.Kind> kinds;
+
+        Unsure(String message, String t, List<ai.ibiko.ibiko1.formulas.Readings.Kind> kinds) {
+            this.message = message;
+            this.t = t;
+            this.kinds = kinds;
+        }
+    }
+
+    private volatile Unsure unsure;
+
+    /** The reading the person picked when asked which they meant, for the message read again; null otherwise. */
+    private ai.ibiko.ibiko1.formulas.Readings.Kind picked;
+
     private boolean ranked(final String who, String message, final String t, final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet) {
+        // the answer to "Do you mean a website, or code to write?": the first message, read the way picked
+        final Unsure asked = unsure;
+        unsure = null;
+        if (asked != null && snippet == null && picked == null) {
+            ai.ibiko.ibiko1.formulas.Readings.Kind k = ai.ibiko.ibiko1.formulas.Readings.choose(message, asked.kinds);
+            if (k != null) {
+                picked = k;
+                try {
+                    contextStep = "You picked " + k.said + " for \"" + asked.message + "\"";
+                    return ranked(who, asked.message, asked.t, null);
+                } finally {
+                    picked = null;
+                }
+            }
+        }
         List<ai.ibiko.ibiko1.formulas.Readings.Kind> offered = new ArrayList<ai.ibiko.ibiko1.formulas.Readings.Kind>();
         boolean runIt = snippet != null && message.replace(snippet.code, " ").matches("(?is).*\\b(?:run|execute|exec)\\b.*");
         if (snippet != null && !runIt) {
@@ -1849,29 +1875,64 @@ public final class Ibiko1 {
         if (follow != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
         }
-        final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
+        // readings offered only from the message's words, not its usual phrasing ("Write html for a bakery website", "Sort a list")
+        final java.util.Set<ai.ibiko.ibiko1.formulas.Readings.Kind> loose = new java.util.HashSet<ai.ibiko.ibiko1.formulas.Readings.Kind>();
+        final ai.ibiko.ibiko1.formulas.Sites.Ask sureSite = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
         // a change to the site just made ("add a pricing section", "make it blue"): a website reading too
-        final boolean siteChange = siteAsk == null && snippet == null && lastDesign != null && ai.ibiko.ibiko1.formulas.Sites.asksChange(t);
+        final boolean siteChange = sureSite == null && snippet == null && lastDesign != null && ai.ibiko.ibiko1.formulas.Sites.asksChange(t);
+        final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = sureSite != null || siteChange || snippet != null ? sureSite
+                : ai.ibiko.ibiko1.formulas.Sites.loose(t);
+        if (siteAsk != null && sureSite == null) {
+            loose.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
+        }
         if (siteAsk != null || siteChange) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
         }
         final String[] lastCode = lastRecipe;
         final String followLang = lastCode == null ? null : ai.ibiko.ibiko1.formulas.Recipes.followUp(t);
-        final ai.ibiko.ibiko1.formulas.Recipes.Ask coding = snippet != null ? null : followLang != null && !lastCode[0].startsWith("q:")
+        final ai.ibiko.ibiko1.formulas.Recipes.Ask sureCoding = snippet != null ? null : followLang != null && !lastCode[0].startsWith("q:")
                 ? ai.ibiko.ibiko1.formulas.Recipes.ask(lastCode[0], followLang) : ai.ibiko.ibiko1.formulas.Recipes.read(t);
+        final ai.ibiko.ibiko1.formulas.Recipes.Ask coding = sureCoding != null || snippet != null ? sureCoding
+                : ai.ibiko.ibiko1.formulas.Recipes.loose(t);
+        if (coding != null && sureCoding == null) {
+            loose.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODING);
+        }
         if (coding != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODING);
         }
         if (snippet == null && WordTalk.asks(message)) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.WORD);
         }
+        // a sentence's structure: its syntax tree, its constituents, why it is ambiguous
+        final String structure = snippet == null ? SyntaxTalk.reply(message) : null;
+        if (structure != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SYNTAX);
+        }
         if (offered.isEmpty()) {
             return false;
         }
         Context.Focus f = context.focus(System.currentTimeMillis());
         readingContext.focus = f == null ? null : f.name;
-        List<ai.ibiko.ibiko1.formulas.Readings.Reading> order = ai.ibiko.ibiko1.formulas.Readings.weigh(t, offered, readingContext);
-        if (order.size() > 1) {
+        List<ai.ibiko.ibiko1.formulas.Readings.Reading> order = ai.ibiko.ibiko1.formulas.Readings.weigh(t, offered, readingContext, loose);
+        final ai.ibiko.ibiko1.formulas.Readings.Kind chosen = picked;
+        if (chosen != null) {
+            // the person said which they meant: that reading first, whatever the weighing
+            for (int i = 0; i < order.size(); i++) {
+                if (order.get(i).kind == chosen) {
+                    order.add(0, order.remove(i));
+                    break;
+                }
+            }
+        } else if (ai.ibiko.ibiko1.formulas.Readings.unsure(order)) {
+            // too close to call, and nothing said before tips it: ask, don't guess
+            final List<ai.ibiko.ibiko1.formulas.Readings.Kind> two = Arrays.asList(order.get(0).kind, order.get(1).kind);
+            unsure = new Unsure(message, t, two);
+            final String question = ai.ibiko.ibiko1.formulas.Readings.ask(order);
+            how = How.MEMORY;
+            think(Arrays.asList("Weighing what you meant: " + two.get(0).said + " or " + two.get(1).said + ", equally likely",
+                    "Nothing we said before tips it one way"), () -> saysExact(who, question));
+            return true;
+        } else if (order.size() > 1 || !loose.isEmpty()) {
             String weighed = ai.ibiko.ibiko1.formulas.Readings.said(order);
             contextStep = contextStep == null ? weighed : contextStep + "; " + weighed;
         }
@@ -1905,8 +1966,23 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case SYNTAX:
+                    turnDomain = "language";
+                    think(Arrays.asList("Reading the sentence", "Tagging each word's part of speech", "Grouping the words into phrases, bottom up",
+                            "Checking every way the rules allow"), () -> saysPlain(who, structure));
+                    return true;
                 case WORD:
                     turnDomain = "language";
+                    if (chosen == ai.ibiko.ibiko1.formulas.Readings.Kind.WORD) {
+                        // picked after being asked: the word reader answers the first message here, not the answer ("the second")
+                        final WordTalk words = wordTalk();
+                        final String said = words == null ? null : words.reply(message);
+                        if (said != null) {
+                            think(Arrays.asList("Reading your question", "Looking up each word's meanings, both ways",
+                                    "Putting it into plain words"), () -> saysPlain(who, said));
+                            return true;
+                        }
+                    }
                     return false; // the word reader, further on, answers it
                 default:
                     break;
