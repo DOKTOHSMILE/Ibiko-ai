@@ -74,8 +74,8 @@ public final class Calculus {
 
     // ------------------------------------------------------------------ asking
 
-    private static final Pattern SECOND = Pattern.compile("(?is).*\\b(second derivative|d\\s*²\\s*y\\s*/\\s*d\\s*x\\s*²|d\\^?2y/dx\\^?2|f''\\s*\\(\\s*[a-z]\\s*\\))\\b?.*");
-    private static final Pattern DIFF = Pattern.compile("(?is).*\\b(differentiate|derivative of|derive|d\\s*/\\s*d[a-z]|dy\\s*/\\s*dx|f'\\s*\\(\\s*[a-z]\\s*\\)|gradient function|rate of change of)\\b?.*");
+    private static final Pattern SECOND = Pattern.compile("(?is).*\\b(second derivative|d\\s*²\\s*y\\s*/\\s*d\\s*x\\s*²|d\\^?2y/dx\\^?2|f''\\s*\\(\\s*[a-z]\\s*\\)).*");
+    private static final Pattern DIFF = Pattern.compile("(?is).*\\b(differentiate|derivative of|derive|d\\s*/\\s*d[a-z]|dy\\s*/\\s*dx|f'\\s*\\(\\s*[a-z]\\s*\\)|gradient function|rate of change of).*");
     private static final Pattern INTEG = Pattern.compile("(?is).*(\\bintegrate\\b|\\bintegral of\\b|\\bantiderivative\\b|\\banti-derivative\\b|∫|\\barea under\\b|\\barea between\\b).*");
     private static final Pattern STAT = Pattern.compile("(?is).*\\b(stationary points?|turning points?|critical points?|maximum and minimum|max(?:imum)? (?:and|or) min(?:imum)?|local (?:max|min)\\w*|maxima|minima)\\b.*");
     private static final Pattern TANGENT = Pattern.compile("(?is).*\\btangent(?: line)?\\b.*\\bat\\b.*");
