@@ -100,4 +100,28 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 120000)
+    public void whatGoesAgainstWhatItHoldsIsAskedAboutNotTakenQuietly() throws Exception {
+        Store.reset();
+        Chat chat = new Chat();
+        Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+        String told = ask(brain, chat, "Ghana became independent on 6 March 1957.");
+        assertTrue(told, told.startsWith("Noted:"));
+        String against = ask(brain, chat, "Ghana became independent on 6 March 1958.");
+        assertTrue(against, against.startsWith("That's not what I have. I read that Ghana became independent on 6 March 1957, "
+                + "but you say Ghana became independent on 6 March 1958. Should I change it"));
+        String kept = ask(brain, chat, "No, you're right");
+        assertTrue(kept, kept.startsWith("Okay, I'll keep what I had: Ghana became independent on 6 March 1957."));
+        String again = ask(brain, chat, "Ghana became independent on 6 March 1958.");
+        assertTrue(again, again.startsWith("That's not what I have. I have read more than once"));
+        String changed = ask(brain, chat, "Yes, change it");
+        assertTrue(changed, changed.startsWith("Updated: Ghana became independent on 6 March 1958. I've dropped 6 March 1957."));
+        // a measure far off the one held is asked about too; one close to it isn't a contradiction
+        ask(brain, chat, "Lagos has about 15 million people.");
+        String more = ask(brain, chat, "Lagos has about 21 million people.");
+        assertTrue(more, more.startsWith("That's not what I have. I read that the population of Lagos is 15,000,000"));
+        String not = ask(brain, chat, "What is the capital of France?");
+        assertTrue("a new question is answered, not taken as yes or no: " + not, !not.startsWith("Updated") && !not.startsWith("Okay, I'll keep"));
+    }
 }
