@@ -79,6 +79,7 @@ public final class CampaignsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        CampaignRunner.seen(this); // what needed the person is in front of them now
         fill();
     }
 

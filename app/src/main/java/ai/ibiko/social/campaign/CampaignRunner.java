@@ -331,6 +331,32 @@ public final class CampaignRunner extends BroadcastReceiver {
         fail(c, camp, it, r.said);
     }
 
+    private static final String SEEN = "campaigns_seen_at";
+
+    /**
+     * How many posts need the person since they last looked at their campaigns: ones that didn't go out (not the ones
+     * skipped as repeats), and ones Ibiko pressed Post on but couldn't find on the profile. Shown as the count on the
+     * Campaigns row and a dot on the menu button.
+     */
+    public static int needsYou(Context c) {
+        long seen = c.getSharedPreferences("campaigns", Context.MODE_PRIVATE).getLong(SEEN, 0);
+        int n = 0;
+        for (Campaign camp : store(c).all()) {
+            for (Campaign.Item it : camp.items) {
+                boolean failed = it.state == Campaign.State.FAILED || it.checked == -1;
+                if (failed && it.at > seen) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    /** The person looked at their campaigns: what needed them so far is counted as seen. */
+    public static void seen(Context c) {
+        c.getSharedPreferences("campaigns", Context.MODE_PRIVATE).edit().putLong(SEEN, System.currentTimeMillis()).apply();
+    }
+
     /** How a post made on the posting screen went. */
     public static final class OnScreen {
         public final boolean posted;

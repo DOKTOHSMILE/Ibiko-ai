@@ -22,14 +22,31 @@
             android:paddingStart="4dp"
             android:paddingEnd="4dp">
 
-            <ImageButton
-                android:id="@+id/btnMenu"
+            <FrameLayout
                 android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Chats"
-                android:scaleType="center"
-                android:src="@drawable/ic_menu" />
+                android:layout_height="48dp">
+
+                <ImageButton
+                    android:id="@+id/btnMenu"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Chats"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_menu" />
+
+                <!-- something in the menu needs the person (a post that didn't go out, ...) -->
+                <View
+                    android:id="@+id/menuDot"
+                    android:layout_width="11dp"
+                    android:layout_height="11dp"
+                    android:layout_gravity="top|end"
+                    android:layout_marginTop="9dp"
+                    android:layout_marginEnd="9dp"
+                    android:background="@drawable/bg_dot"
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
+            </FrameLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -296,18 +313,60 @@
             android:textColor="@color/text_primary"
             android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/btnDrawerSocial"
+        <!-- Campaigns: the row opens the dashboard; its count says what needs the person; the arrow opens the list here -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:background="@drawable/bg_drawer_row"
-            android:drawableStart="@drawable/ic_calendar"
-            android:drawablePadding="12dp"
             android:gravity="center_vertical"
-            android:paddingStart="10dp"
-            android:text="Campaigns"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btnDrawerSocial"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_drawer_row"
+                android:drawableStart="@drawable/ic_calendar"
+                android:drawablePadding="12dp"
+                android:gravity="center_vertical"
+                android:paddingStart="10dp"
+                android:text="Campaigns"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/campaignBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="20dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_badge"
+                android:gravity="center"
+                android:minWidth="20dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/btnCampaignsMore"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Show campaigns"
+                android:scaleType="center"
+                android:src="@drawable/ic_chevron_down"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/drawerCampaignList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="22dp"
+            android:visibility="gone" />
 
         <View
             android:layout_width="match_parent"
@@ -334,56 +393,67 @@
             android:layout_marginBottom="8dp"
             android:background="@color/border_subtle" />
 
-        <TextView
-            android:id="@+id/btnProviders"
+        <!-- the settings in one row of four, so the chats get the room -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@drawable/bg_drawer_row"
-            android:drawableStart="@drawable/ic_key"
-            android:drawablePadding="12dp"
-            android:gravity="center_vertical"
-            android:paddingStart="10dp"
-            android:text="AI providers"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/btnConnectors"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@drawable/bg_drawer_row"
-            android:drawableStart="@drawable/ic_plug"
-            android:drawablePadding="12dp"
-            android:gravity="center_vertical"
-            android:paddingStart="10dp"
-            android:text="Connectors"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/btnProviders"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_drawer_row"
+                android:drawableTop="@drawable/ic_key"
+                android:drawablePadding="4dp"
+                android:gravity="center"
+                android:paddingTop="8dp"
+                android:text="AI providers"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
 
-        <TextView
-            android:id="@+id/btnTheme"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@drawable/bg_drawer_row"
-            android:drawableStart="@drawable/ic_settings"
-            android:drawablePadding="12dp"
-            android:gravity="center_vertical"
-            android:paddingStart="10dp"
-            android:text="Settings"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/btnConnectors"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_drawer_row"
+                android:drawableTop="@drawable/ic_plug"
+                android:drawablePadding="4dp"
+                android:gravity="center"
+                android:paddingTop="8dp"
+                android:text="Connectors"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
 
-        <TextView
-            android:id="@+id/btnUsage"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@drawable/bg_drawer_row"
-            android:drawableStart="@drawable/ic_usage"
-            android:drawablePadding="12dp"
-            android:gravity="center_vertical"
-            android:paddingStart="10dp"
-            android:text="Usage"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/btnTheme"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_drawer_row"
+                android:drawableTop="@drawable/ic_settings"
+                android:drawablePadding="4dp"
+                android:gravity="center"
+                android:paddingTop="8dp"
+                android:text="Settings"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/btnUsage"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_drawer_row"
+                android:drawableTop="@drawable/ic_usage"
+                android:drawablePadding="4dp"
+                android:gravity="center"
+                android:paddingTop="8dp"
+                android:text="Usage"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

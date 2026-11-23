@@ -1820,19 +1820,9 @@ public final class ChatPane extends LinearLayout {
         }
         LinearLayout list = (LinearLayout) found;
         list.removeAllViews();
-        campaigns(list);
-        // as in Claude: Projects, then Pinned, then Recents; each newest first, oldest last
-        List<String> projects = book.projectsNewestFirst();
-        if (!projects.isEmpty()) {
-            list.addView(drawerHeader("Projects"));
-            for (final String p : projects) {
-                int n = conversationsIn(p);
-                TextView row = drawerRow(p, R.drawable.ic_project, false);
-                row.setContentDescription("Project " + p + ", " + n + " chat" + (n == 1 ? "" : "s"));
-                row.setOnClickListener(v -> openProject(p));
-                list.addView(row);
-            }
-        }
+        // the campaigns fold into the Campaigns row and the projects open from the Projects row: the list below is
+        // the chats only (Pinned, then Recents), so it doesn't run long
+        drawerTop();
         List<ChatBook.Section> all = book.groups();
         boolean pinned = false, recents = false;
         for (ChatBook.Section s : all) {
@@ -1848,9 +1838,53 @@ public final class ChatPane extends LinearLayout {
         }
     }
 
+    /** The campaign list under the Campaigns row is open. */
+    private boolean campaignsOpen;
+
     /**
-     * The campaigns, first in the drawer: the running and upcoming ones (then the latest finished), each opening its
-     * studio; and All campaigns, the dashboard.
+     * The top of the drawer kept short: the Campaigns row shows how many posts need the person (a count), its arrow
+     * folds the campaigns open under it, and the menu button carries a dot while anything needs the person.
+     */
+    public void drawerTop() {
+        Activity act = (Activity) getContext();
+        int needs = ai.ibiko.social.campaign.CampaignRunner.needsYou(act);
+        TextView badge = act.findViewById(R.id.campaignBadge);
+        if (badge != null) {
+            badge.setText(needs > 99 ? "99+" : String.valueOf(needs));
+            badge.setVisibility(needs > 0 ? VISIBLE : GONE);
+            badge.setContentDescription(needs + (needs == 1 ? " post needs you" : " posts need you"));
+        }
+        View dot = act.findViewById(R.id.menuDot);
+        if (dot != null) {
+            dot.setVisibility(needs > 0 ? VISIBLE : GONE);
+        }
+        View menu = act.findViewById(R.id.btnMenu);
+        if (menu != null) {
+            menu.setContentDescription(needs > 0 ? "Chats; " + needs + " campaign post" + (needs == 1 ? " needs" : "s need") + " you" : "Chats");
+        }
+        final LinearLayout fold = act.findViewById(R.id.drawerCampaignList);
+        final android.widget.ImageButton arrow = act.findViewById(R.id.btnCampaignsMore);
+        if (fold == null || arrow == null) {
+            return;
+        }
+        boolean any = !ai.ibiko.social.campaign.CampaignRunner.store(act).all().isEmpty();
+        arrow.setVisibility(any ? VISIBLE : GONE);
+        arrow.setRotation(campaignsOpen ? 180f : 0f);
+        arrow.setContentDescription(campaignsOpen ? "Hide campaigns" : "Show campaigns");
+        arrow.setOnClickListener(v -> {
+            campaignsOpen = !campaignsOpen;
+            drawerTop();
+        });
+        fold.removeAllViews();
+        if (any && campaignsOpen) {
+            campaigns(fold);
+        }
+        fold.setVisibility(any && campaignsOpen ? VISIBLE : GONE);
+    }
+
+    /**
+     * The campaigns, folded out under the Campaigns row: the running and upcoming ones (then the latest finished),
+     * each opening its studio, with what needs the person marked; and All campaigns, the dashboard.
      */
     private void campaigns(LinearLayout list) {
         final android.content.Context c = getContext();
@@ -1873,7 +1907,6 @@ public final class ChatPane extends LinearLayout {
                 }
             }
         }
-        list.addView(drawerHeader("Campaigns"));
         for (final ai.ibiko.social.campaign.Campaign x : shown) {
             String state = ai.ibiko.social.campaign.CampaignBoard.state(x, planning.contains(x.id), now);
             TextView row = drawerRow((x.name.isEmpty() ? "Campaign" : x.name) + "  \u00B7  " + state, R.drawable.ic_calendar, false);

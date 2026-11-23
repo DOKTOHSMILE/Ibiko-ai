@@ -3290,6 +3290,10 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         handler.postDelayed(this::takeShared, 400); // something shared to Ibiko from another app
         socialCampaigns.startWork(); // campaigns' comments answered and leads found, while Ibiko runs
         inFront = true;
+        if (chatPane != null) {
+            final ai.ibiko.stage.ChatPane pane = chatPane;
+            handler.post(pane::drawerTop); // the menu's dot and the Campaigns count: what needs the person since they looked
+        }
         showPersonaBar(); // Settings may have turned the group chat on or off
         connectivity.start();
         ai.ibiko.llm.ReplyNotice.clear(this);
