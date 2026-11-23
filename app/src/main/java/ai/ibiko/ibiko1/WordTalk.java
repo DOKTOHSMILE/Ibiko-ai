@@ -53,6 +53,8 @@ public final class WordTalk {
     private static final Pattern TAGS = Pattern.compile("(?is)^(?:(?:sense|context)[- ]?tag|tag(?: the words (?:of|in))?|"
             + "(?:show|give) me the (?:context |sense )?(?:tags|code) (?:of|for))\\s+(?:this|the)?\\s*(?:sentence|text)?\\s*[:\\-]\\s*" + "(.+?)"
             + "\\s*$");
+    private static final Pattern NUMBERS = Pattern.compile("(?is)^(?:read|explain|what are|what kind of numbers are)\\s+(?:the\\s+)?numbers?"
+            + "\\s+(?:in|of)\\s*(?:this|these|the)?\\s*(?:sentence|text|message)?\\s*[:\\-]\\s*(.+?)\\s*$");
     private static final Pattern WHAT_IS = Pattern.compile("(?is)^(?:what(?:'s| is| are)|define|meaning of|what does)\\s+(?:an?\\s+|the\\s+)?" + W
             + "(?:\\s+mean)?(?:\\s+(?:in|for|when talking about)\\s+([\\p{L} ]+?))?" + END);
     private static final Pattern IN_CONTEXT = Pattern.compile("(?is)^(?:what does|what is the meaning of|what's the meaning of|meaning of)\\s+" + W
@@ -118,7 +120,7 @@ public final class WordTalk {
             return false;
         }
         String m = message.trim();
-        for (Pattern p : new Pattern[]{TAGS, IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
+        for (Pattern p : new Pattern[]{NUMBERS, TAGS, IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
             if (p.matcher(m).matches()) {
                 return true;
             }
@@ -129,6 +131,12 @@ public final class WordTalk {
 
     /** The reply to a question about words, meanings or grammar; null when it isn't one. */
     public String reply(String message) {
+        Matcher num = message == null ? null : NUMBERS.matcher(message.trim());
+        if (num != null && num.matches()) {
+            // no dictionary needed: each number read for what it is (a year, a phone number, a price, a PIN…)
+            String read = ai.ibiko.ibiko1.formulas.NumberSense.explain(num.group(1));
+            return read.isEmpty() ? "I don't see a number in that." : "What each number is, from its shape and the words around it:\n" + read;
+        }
         if (message == null || meanings == null) {
             return null;
         }
