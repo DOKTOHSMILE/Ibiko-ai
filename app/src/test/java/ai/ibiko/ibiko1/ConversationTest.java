@@ -1,47 +1,86 @@
 package ai.ibiko.ibiko1;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import org.junit.Test;
+import java.io.File;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-/** The conversation kept turn by turn, and talked about: recap, recall, going back, the first question. */
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
+
+/** A conversation through Ibiko v1: each question leans on the one before, and how it was read is in the steps. */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 35)
 public class ConversationTest {
-    @Test
-    public void readsQuestionsAboutTheConversation() {
-        assertEquals(Conversation.Ask.Kind.RECAP, Conversation.read("What have we talked about so far?").kind);
-        assertEquals(Conversation.Ask.Kind.RECAP, Conversation.read("Summarize our conversation").kind);
-        assertEquals(Conversation.Ask.Kind.RECAP, Conversation.read("recap").kind);
-        Conversation.Ask r = Conversation.read("What did you say about Nigeria earlier?");
-        assertEquals(Conversation.Ask.Kind.RECALL, r.kind);
-        assertEquals("Nigeria", r.subject);
-        Conversation.Ask back = Conversation.read("Ok, let's go back to the Ghana");
-        assertEquals(Conversation.Ask.Kind.RETURN, back.kind);
-        assertEquals("Ghana", back.subject);
-        assertEquals(Conversation.Ask.Kind.FIRST, Conversation.read("What was the first thing I asked?").kind);
-        assertNull(Conversation.read("What is the capital of Nigeria?"));
-        assertNull("going to bed is not a subject", Conversation.read("back to bed"));
+    private static final class Chat implements Ibiko1.Host {
+        final List<String> said = Collections.synchronizedList(new ArrayList<String>());
+        final List<String> steps = Collections.synchronizedList(new ArrayList<String>());
+        @Override public String persona() { return "obi"; }
+        @Override public void step(String step) { steps.add(step); }
+        @Override public void stepsDone() { }
+        @Override public void say(String persona, String text) { said.add(text); }
+        @Override public void askRating(String question, String answer) { }
+        @Override public void noRating(String text) { }
+        @Override public boolean ratingWaiting() { return false; }
+        @Override public void clearRating() { }
+        @Override public boolean online() { return false; }
+        @Override public String sum(String message) { return null; }
+        @Override public String recallTalk(String question) { return null; }
+        @Override public void learnTalk(String question, String answer) { }
+        @Override public void forgetTalk(String question) { }
+        @Override public int talkSize() { return 0; }
+        @Override public int shapes() { return 0; }
+        @Override public List<String> aboutPilot() { return new ArrayList<String>(); }
+        @Override public void answered(Ibiko1.How how) { }
+        @Override public void note(String text) { }
+        @Override public void later(Runnable r, long ms) { r.run(); }
+        @Override public void onScreen(Runnable r) { r.run(); }
+        @Override public android.content.Context context() { return RuntimeEnvironment.getApplication(); }
     }
 
-    @Test
-    public void recapsRecallsAndGoesBack() {
-        Conversation c = new Conversation();
-        assertNull(c.recap());
-        c.add("Tell me about Nigeria", "Nigeria", "Nigeria is a country in West Africa.");
-        c.add("What is the capital of Nigeria?", "Nigeria", "The capital of Nigeria is Abuja.");
-        c.add("Who was Nelson Mandela?", "Nelson Mandela", "Nelson Mandela was a South African leader.");
-        c.add("What have we talked about?", "Nelson Mandela", "So far …");
-        String recap = c.recap();
-        assertTrue(recap, recap.contains("• Nigeria (2 questions, last: “What is the capital of Nigeria?”)"));
-        assertTrue(recap, recap.contains("• Nelson Mandela (1 question: “Who was Nelson Mandela?”)"));
-        assertTrue("a question about the talk isn't a subject of it: " + recap, !recap.contains("What have we talked about"));
-        String said = c.recall("nigeria");
-        assertTrue(said, said.startsWith("You asked “What is the capital of Nigeria?”, and I said: The capital of Nigeria is Abuja."));
-        assertTrue(said, said.contains("Before that, about “Tell me about Nigeria”"));
-        assertNull(c.recall("Ghana"));
-        assertEquals("Nigeria", c.named("nigeria"));
-        assertEquals("Tell me about Nigeria", c.question(true));
-        assertEquals("Who was Nelson Mandela?", c.question(false));
+    private static String ask(Ibiko1 brain, Chat chat, String q) throws InterruptedException {
+        int n = chat.said.size();
+        chat.steps.clear();
+        brain.answer(q);
+        for (int i = 0; i < 400 && chat.said.size() == n; i++) {
+            Thread.sleep(25);
+        }
+        return chat.said.size() > n ? chat.said.get(n) : null;
+    }
+
+    @Test(timeout = 120000)
+    public void eachQuestionLeansOnTheOneBefore() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            ask(brain, chat, "Who was Nelson Mandela?");
+            assertEquals("Nelson Mandela was born on 18 July 1918.", ask(brain, chat, "When was he born?"));
+            assertTrue(chat.steps.toString(), chat.steps.toString().contains("“he” is Nelson Mandela"));
+            assertTrue(ask(brain, chat, "And his wife?").contains("Winnie"));
+            assertEquals("The capital of Nigeria is Abuja.", ask(brain, chat, "What is the capital of Nigeria?"));
+            assertEquals("The capital of Ghana is Accra.", ask(brain, chat, "What about Ghana?"));
+            assertEquals("The Mona Lisa was painted by Leonardo da Vinci.", ask(brain, chat, "Who painted the Mona Lisa?"));
+            assertTrue("its roles are in the steps: " + chat.steps, chat.steps.toString().contains("action “paint”"));
+            String more = ask(brain, chat, "Tell me more");
+            assertTrue(more, more != null && !more.contains("painted by Leonardo da Vinci."));
+        } finally {
+            Plug.asset = was;
+        }
     }
 }
