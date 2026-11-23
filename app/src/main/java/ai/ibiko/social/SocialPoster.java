@@ -291,7 +291,9 @@ public final class SocialPoster {
         final WebView[] holder = new WebView[1];
         main.post(() -> {
             try {
-                WebView w = new WebView(app);
+                android.view.ViewGroup onScreen = PostWindow.frame();
+                // on the posting screen when it is open (the page drawn and run as the person would see it), else hidden
+                WebView w = new WebView(onScreen != null ? onScreen.getContext() : app);
                 holder[0] = w;
                 WebSettings s = w.getSettings();
                 s.setJavaScriptEnabled(true);
@@ -300,9 +302,15 @@ public final class SocialPoster {
                 s.setAllowContentAccess(false);
                 s.setUserAgentString(SocialWeb.userAgent(app));
                 CookieManager.getInstance().setAcceptCookie(true);
-                w.measure(android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY),
-                        android.view.View.MeasureSpec.makeMeasureSpec(2400, android.view.View.MeasureSpec.EXACTLY));
-                w.layout(0, 0, 1080, 2400);
+                if (onScreen != null) {
+                    onScreen.removeAllViews();
+                    onScreen.addView(w, new android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+                } else {
+                    w.measure(android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY),
+                            android.view.View.MeasureSpec.makeMeasureSpec(2400, android.view.View.MeasureSpec.EXACTLY));
+                    w.layout(0, 0, 1080, 2400);
+                }
                 w.setWebViewClient(new WebViewClient() {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -353,6 +361,9 @@ public final class SocialPoster {
         main.post(() -> {
             if (holder[0] != null) {
                 holder[0].stopLoading();
+                if (holder[0].getParent() instanceof android.view.ViewGroup) {
+                    ((android.view.ViewGroup) holder[0].getParent()).removeView(holder[0]);
+                }
                 holder[0].destroy();
             }
         });

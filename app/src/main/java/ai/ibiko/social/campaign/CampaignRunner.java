@@ -323,10 +323,54 @@ public final class CampaignRunner extends BroadcastReceiver {
             // handed to the person, ready in the app, rather than lost
             it.state = Campaign.State.FAILED;
             it.result = "Handed to you to post (" + r.said + ")";
-            ai.ibiko.chat.ui.PostShareActivity.offerFailed(c, camp, it, r.said);
+            if (!ai.ibiko.social.PostWindow.open()) {
+                ai.ibiko.chat.ui.PostShareActivity.offerFailed(c, camp, it, r.said); // on screen, the screen offers it
+            }
             return;
         }
         fail(c, camp, it, r.said);
+    }
+
+    /** How a post made on the posting screen went. */
+    public static final class OnScreen {
+        public final boolean posted;
+        public final String said;
+        /** The network the post is for ("x", "facebook"), to hand it over by share when it didn't go out. */
+        public final String network;
+
+        OnScreen(boolean posted, String said, String network) {
+            this.posted = posted;
+            this.said = said;
+            this.network = network;
+        }
+    }
+
+    /**
+     * One post put out on the posting screen ({@code PostingActivity}, which lends its frame to the page): the same
+     * checks and the same steps as a timed post, the page shown while it runs. A post that had failed is tried again;
+     * one already out is not (it would be doubled). Off the main thread.
+     */
+    public static OnScreen postOnScreen(Context c, String campaignId, String itemId, java.util.function.Consumer<String> step) {
+        Campaign camp = campaignId == null ? null : store(c).get(campaignId);
+        Campaign.Item it = camp == null ? null : item(camp, itemId);
+        if (it == null) {
+            return new OnScreen(false, "That post is no longer in the campaign.", null);
+        }
+        if (it.state == Campaign.State.POSTED) {
+            return new OnScreen(false, "That post already went out: " + it.result, null);
+        }
+        String net = shown(it.network);
+        step.accept("Drawing the picture and opening " + net + "…");
+        Campaign.State before = it.state;
+        it.state = Campaign.State.PLANNED;
+        postOne(c, camp, it, System.currentTimeMillis());
+        if (it.state == Campaign.State.PLANNED && it.result != null && it.result.startsWith("waiting")) {
+            it.state = before == Campaign.State.FAILED ? Campaign.State.FAILED : Campaign.State.PLANNED;
+        }
+        keep(c, camp.id, it);
+        boolean ok = it.state == Campaign.State.POSTED;
+        return new OnScreen(ok, ok ? "Posted on " + net + ". " + (it.result == null ? "" : it.result)
+                : "It didn't go out: " + (it.result == null ? "the page didn't take it." : it.result), it.network);
     }
 
     private static PostedLog posted;

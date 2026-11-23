@@ -53,8 +53,10 @@ final class Retries {
      * carried), instead of being read as a new request.
      */
     void retryLast() {
+        if (inPlace()) {
+            return;
+        }
         if (a.lastAsked != null && !a.lastAsked.trim().isEmpty() && !isRetry(a.lastAsked)) {
-            String shown = ai.ibiko.chat.Attachments.withoutImages(a.lastAsked).replaceAll("(?s)<attachment.*?</attachment>", "").trim();
             a.askTheBrain(a.lastAsked); // the whole question, with the file it carried
             return;
         }
@@ -72,6 +74,47 @@ final class Retries {
             return;
         }
         a.play(LocalTurn.speakAs(a.stage.agent(), "There's nothing earlier in this chat to ask again."), null);
+    }
+
+    /**
+     * Retry as a redo, not a new request: the message the reply answered is found (a typed "retry" passed over), the
+     * old reply and everything after it are taken out of the chat (and out of the model's memory of it), and that same
+     * message is asked again, so the new reply takes the old one's place. False when the chat has no such message.
+     */
+    boolean inPlace() {
+        if (a.chats == null) {
+            return false;
+        }
+        ai.ibiko.chat.ChatBook.Section here = a.chats.current();
+        java.util.List<ai.ibiko.chat.ChatBook.Message> msgs = here.messages;
+        int at = -1;
+        for (int i = msgs.size() - 1; i >= 0; i--) {
+            ai.ibiko.chat.ChatBook.Message m = msgs.get(i);
+            if ("user".equals(m.role) && "text".equals(m.kind) && m.body != null && !m.body.trim().isEmpty()
+                    && !isRetry(m.body) && ai.ibiko.turn.Meaning.Command.RETRY != a.meanings().get(m.body)) {
+                at = i;
+                break;
+            }
+        }
+        if (at < 0) {
+            return false;
+        }
+        String asked = msgs.get(at).body;
+        if (!a.chats.cutFrom(here.id, at)) {
+            return false;
+        }
+        if (a.chatPane != null) {
+            a.chatPane.show();
+        }
+        if (a.model != null && a.hub != null) {
+            // the model forgets the old exchange too, on its own worker (a reply still being written is stopped first)
+            final ai.ibiko.llm.LocalModel m = a.model;
+            a.hub.worker.execute(() -> m.rewindTo(asked));
+        }
+        a.lastAsked = null;
+        a.voiceTurn = false;
+        a.answer(asked); // the same message, sent again in its place: its new reply replaces the old one
+        return true;
     }
 
     /** Clears Ibiko's workspace (clones, sandbox, files) and its kept work, after a yes: it can't be undone. */

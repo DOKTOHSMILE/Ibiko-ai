@@ -196,7 +196,10 @@ final class BrainGate {
                         return false;
                     }
                     if (a.chatPane != null) {
+                        // no model runs, so nothing else would close this step: it is folded into the chat at once
+                        // ("Worked for 1s · 1 step" above the reply), never left as a live line after it
                         a.chatPane.activityStep("Done from what Ibiko learned (no model needed)");
+                        a.chatPane.activityEnd();
                     }
                     a.actedFromBox = t;
                     a.carryOut(a.stage.agent(), t, order);

@@ -19,6 +19,9 @@ final class Layout {
     /** How long the page is given to draw again after a change. */
     static final long REDRAW_MS = 350;
 
+    /** How soft the decoration is made (px of blur), and more so under the words (where it is also faded to half). */
+    static final int BLUR = 6, BLUR_UNDER = 14;
+
     /** Large text (a headline) needs 3:1 against what is behind it (WCAG AA for large text). */
     static final double LEAST = 3.0;
 
@@ -39,8 +42,14 @@ final class Layout {
             + "while(p&&p!==document.body){if(t.indexOf(p)>=0)return false;p=p.parentElement;}return true;});"
             + "window.__ibkT=t;"
             // shapes: whatever holds no words and isn't a whole-picture backdrop goes behind the words
-            + "all.forEach(function(e){if(skip[e.tagName]||e.textContent.trim().length)return;var r=e.getBoundingClientRect();"
-            + "if(r.width*r.height>W*H*0.9)return;var s=getComputedStyle(e);if(s.position=='static')return;e.style.zIndex='0';});"
+            // and is blurred, so it reads as background; one under the words is also faded to half, so it can't clash
+            + "var tr=t.map(function(e){return e.getBoundingClientRect();});"
+            + "function under(r){for(var i=0;i<tr.length;i++){var q=tr[i];if(r.left<q.right&&r.right>q.left&&r.top<q.bottom&&r.bottom>q.top)return true;}return false;}"
+            + "all.forEach(function(e){if(skip[e.tagName]||e.tagName=='IMG'||e.textContent.trim().length)return;var r=e.getBoundingClientRect();"
+            + "if(r.width*r.height>W*H*0.9||r.width<2||r.height<2)return;var s=getComputedStyle(e);if(s.position=='static')return;e.style.zIndex='0';"
+            + "if(e.parentElement&&e.parentElement.style.filter)return;"
+            + "e.style.filter='blur('+(under(r)?" + BLUR_UNDER + ":" + BLUR + ")+'px)';"
+            + "if(under(r)){var o=parseFloat(s.opacity||'1');e.style.opacity=String(Math.min(o,0.5));}});"
             + "t.forEach(function(e){var s=getComputedStyle(e);if(s.position=='static'){e.style.position='relative';}e.style.zIndex='5';"
             + "var p=e.parentElement;while(p&&p!==document.body){var ps=getComputedStyle(p);if(ps.position!='static'&&(ps.zIndex=='auto'||parseInt(ps.zIndex)<5))p.style.zIndex='5';p=p.parentElement;}"
             + "e.style.overflowWrap='break-word';});"

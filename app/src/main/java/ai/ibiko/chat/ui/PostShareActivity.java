@@ -207,13 +207,18 @@ public final class PostShareActivity extends Activity {
         }
         notify(c, CHANNEL_DUE, "Posts to share", "A campaign post that is due on a network you post on yourself",
                 ("due-" + it.id).hashCode(), "Tap to post on " + net + " (" + camp.name + ")",
-                "I couldn't post it on " + net + "'s page myself (" + why.replaceAll("^I couldn't post on \\S+ myself: ", "").replaceAll("\\.$", "")
-                        + "). Tap: " + net + " opens with the picture and the words ready, and you press Post. The picture is"
-                        + " also saved to your gallery (Pictures › Ibiko).\n\n" + it.text,
-                intent(c, camp.id, it.id, it.network));
+                "It didn't go out in the background (" + why.replaceAll("^I couldn't post on \\S+ myself: ", "").replaceAll("\\.$", "")
+                        + "). Tap and Ibiko posts it on screen, where " + net + "'s page works as it does for you; or share it"
+                        + " yourself. The picture is also in your gallery (Pictures › Ibiko).\n\n" + it.text,
+                PostingActivity.intent(c, camp.id, it.id), "Share it myself", intent(c, camp.id, it.id, it.network));
     }
 
     private static void notify(Context c, String channel, String channelName, String about, int id, String title, String text, Intent open) {
+        notify(c, channel, channelName, about, id, title, text, open, null, null);
+    }
+
+    private static void notify(Context c, String channel, String channelName, String about, int id, String title, String text, Intent open,
+            String otherLabel, Intent other) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm == null) {
             return;
@@ -225,14 +230,19 @@ public final class PostShareActivity extends Activity {
         }
         PendingIntent tap = PendingIntent.getActivity(c, id, open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        Notification n = new Notification.Builder(c, channel)
+        Notification.Builder nb = new Notification.Builder(c, channel)
                 .setSmallIcon(ai.ibiko.R.drawable.ic_send)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setContentIntent(tap)
-                .setAutoCancel(true)
-                .build();
+                .setAutoCancel(true);
+        if (other != null) {
+            PendingIntent second = PendingIntent.getActivity(c, id + 1, other.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            nb.addAction(new Notification.Action.Builder(null, otherLabel, second).build());
+        }
+        Notification n = nb.build();
         try {
             nm.notify(id, n);
         } catch (SecurityException noPermission) {

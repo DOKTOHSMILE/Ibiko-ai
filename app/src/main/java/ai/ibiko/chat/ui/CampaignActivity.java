@@ -199,6 +199,14 @@ public final class CampaignActivity extends AppCompatActivity {
             TextView why = Ui.text(this, it.result.replaceFirst("^waiting:\\s*", ""), 13, Ui.SUB, false);
             why.setMaxLines(3);
             row.addView(why, Ui.wide(this, 6));
+            if (it.state == Campaign.State.FAILED && !it.handoff) {
+                // tried again on screen, where the network's page works as it does for the person
+                TextView again = Ui.text(this, "Post it on screen", 14, Ui.ACCENT, true);
+                again.setMinHeight(Ui.dp(this, 40));
+                again.setGravity(Gravity.CENTER_VERTICAL);
+                again.setOnClickListener(v -> startActivity(PostingActivity.intent(this, c.id, it.id)));
+                row.addView(again);
+            }
         }
         if (!it.url.isEmpty()) {
             TextView link = Ui.text(this, "Open the post", 14, Ui.ACCENT, true);
