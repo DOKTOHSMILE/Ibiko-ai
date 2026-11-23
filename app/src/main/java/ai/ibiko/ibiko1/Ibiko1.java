@@ -540,7 +540,9 @@ public final class Ibiko1 {
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
         // questions inside the question ("the capital of the country where Kilimanjaro is"): the inner ones answered
         // from the facts first, so what is left is one question
-        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || inquiry != null ? null
+        // (not a yes-or-no claim: "is Lagos the capital of Nigeria?" is checked as said, not made "is Lagos Abuja?")
+        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || inquiry != null
+                || ai.ibiko.ibiko1.formulas.Verify.check(withContext.text, this::fact) != null ? null
                 : ai.ibiko.ibiko1.formulas.Hops.resolve(withContext.text, this::fact);
         final String t = hops == null ? withContext.text : hops.text;
         if (leadIn == null) {
@@ -816,6 +818,18 @@ public final class Ibiko1 {
         // the conversation itself: "what have we talked about?", "what did you say about Nigeria?", "go back to Ghana"
         final Conversation.Ask aboutTalk = Conversation.read(t);
         if (aboutTalk != null && talkTurn(who, aboutTalk, heardAt)) {
+            return;
+        }
+        // a yes-or-no claim ("is Lagos the capital of Nigeria?"): checked against the facts, yes or no first
+        final ai.ibiko.ibiko1.formulas.Verify.Said checked = ai.ibiko.ibiko1.formulas.Verify.check(t, this::fact);
+        if (checked != null && !knowledge().rejected(t, checked.text)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question: a yes or no", "Looking up " + checked.thing + "'s facts",
+                    "Checking what you said against them: " + (checked.yes ? "it holds" : "it doesn't")), () -> {
+                        saysSure(who, checked.text, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                                "Source: Simple English Wikipedia, \u201c" + checked.thing + "\u201d (its information box)");
+                        rateable(t, checked.text);
+                    });
             return;
         }
         // the answer to "should I change it?" after the person said something against what it holds

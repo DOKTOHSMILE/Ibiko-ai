@@ -204,6 +204,12 @@ public class WhyFlowTest {
             String capital = ask(brain, chat, "What is the capital of the country where Mount Kilimanjaro is?");
             assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("Working out the country Mount Kilimanjaro is in: Tanzania"));
             assertTrue(capital, capital.contains("Dodoma"));
+            String no = ask(brain, chat, "Is Lagos the capital of Nigeria?");
+            assertTrue(no, no.startsWith("No. The capital of Nigeria is Abuja, not Lagos."));
+            String kenya = ask(brain, chat, "Was Barack Obama born in Kenya?");
+            assertTrue(kenya, kenya.startsWith("No. Barack Obama was born in Honolulu"));
+            String yes = ask(brain, chat, "Is Swahili spoken in Tanzania?");
+            assertTrue(yes, yes.startsWith("Yes."));
             String born = ask(brain, chat, "When was the founder of Microsoft born?");
             assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("the founder of Microsoft: Bill Gates"));
             assertTrue(born, born.contains("1955"));
