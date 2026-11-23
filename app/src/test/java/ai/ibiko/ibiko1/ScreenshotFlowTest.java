@@ -103,6 +103,9 @@ public class ScreenshotFlowTest {
             Store.reset();
             Chat chat = new Chat();
             Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String age = ask(brain, chat, "How old was Chinua Achebe when Nigeria became independent?");
+            assertTrue(age, age.contains("Chinua Achebe was 29 when Nigeria became independent"));
+            assertTrue("the working is shown: " + chat.steps, String.join("|", chat.steps).contains("putting facts together"));
             ask(brain, chat, "My Linux server won't let me install the app");
             String root = ask(brain, chat, "What is root?");
             assertTrue(root, root.startsWith("In computing, “root” means the administrator account"));

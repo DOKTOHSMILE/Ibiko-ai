@@ -229,6 +229,20 @@ public final class Ibiko1 {
         return builtIn;
     }
 
+    private static Composer composer;
+
+    /** Facts put together (ages at events, comparisons, the most in a place), over the built-in facts and what it reads. */
+    static synchronized Composer composer() {
+        if (composer == null) {
+            // dates of events are read, not listed: the encyclopedia's articles, read by the events formula when asked
+            composer = new Composer(builtIn(), title -> {
+                Encyclopedia e = encyclopedia();
+                return e == null ? null : e.find(title);
+            });
+        }
+        return composer;
+    }
+
     private static Encyclopedia encyclopedia;
 
     /** The encyclopedia that ships with the app: every Simple English Wikipedia article's opening, offline. */
@@ -806,6 +820,21 @@ public final class Ibiko1 {
                         () -> saysPlain(who, ai.ibiko.ibiko1.formulas.Analyst.report(data)));
                 return;
             }
+        }
+        // facts put together into an answer no single fact holds: an age at an event, who is older, the years between,
+        // two mountains or rivers compared, the longest in a place, "the inventor of …" read as the person
+        final Reasoner.Result composed = composer().answer(t);
+        if (composed != null && !knowledge().rejected(t, composed.text)) {
+            how = How.MEMORY;
+            List<String> steps = new ArrayList<String>();
+            steps.add("Reading your question");
+            steps.add("No one fact answers it: putting facts together");
+            steps.addAll(composed.steps);
+            think(steps, () -> {
+                saysSure(who, composed.text, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED);
+                rateable(t, composed.text);
+            });
+            return;
         }
         // a question that needs facts put together (compare, rank, count, list, chain, add up): reasoned step by step on
         // what it knows, each value said, so the answer can be checked
