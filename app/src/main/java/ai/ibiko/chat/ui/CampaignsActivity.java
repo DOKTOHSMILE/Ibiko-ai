@@ -146,6 +146,20 @@ public final class CampaignsActivity extends AppCompatActivity {
         tiles.addView(tile(String.valueOf(weekResponses), "Responses this week"), weighted(8));
         body.addView(tiles, Ui.wide(this, 4));
 
+        // every campaign's response put together, and which kinds of post do best (what the next plan learns from)
+        LinearLayout perf = new LinearLayout(this);
+        perf.setOrientation(LinearLayout.VERTICAL);
+        perf.setBackground(Ui.round(this, Ui.SURFACE, 0, 18));
+        int pp = Ui.dp(this, 14);
+        perf.setPadding(pp, pp, pp, pp);
+        perf.addView(Ui.text(this, "Performance", 13, Ui.SUB, true));
+        TextView perfText = Ui.text(this, results.insights(all, java.util.TimeZone.getDefault()), 14, Ui.TEXT, false);
+        perfText.setTextIsSelectable(true);
+        perf.addView(perfText, Ui.wide(this, 6));
+        perf.addView(Ui.text(this, "Counted from your accounts' notifications (reactions, comments, replies, shares). The next"
+                + " plan is written with what works.", 12, Ui.SUB, false), Ui.wide(this, 8));
+        body.addView(perf, Ui.wide(this, 12));
+
         LinearLayout quick = new LinearLayout(this);
         quick.addView(chip("New campaign", true, v -> newCampaign()), new LinearLayout.LayoutParams(-2, -2));
         quick.addView(chip("Products", false, v -> startActivity(new Intent(this, CatalogActivity.class))), marginStart(8));

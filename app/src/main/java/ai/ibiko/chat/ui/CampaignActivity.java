@@ -127,22 +127,17 @@ public final class CampaignActivity extends AppCompatActivity {
         body.addView(card("Made from", CampaignBoard.brief(c, SocialWeb.accounts(this)).replaceFirst("^New social media campaign\\s*", "")),
                 Ui.wide(this, 12));
 
-        // every post, by day
-        body.addView(Ui.text(this, "Posts", 16, Ui.TEXT, true), Ui.wide(this, 20));
-        SocialAccounts accounts = SocialWeb.accounts(this);
-        DateFormat dayHead = new java.text.SimpleDateFormat("EEEE, d MMMM", java.util.Locale.getDefault());
-        DateFormat time = DateFormat.getTimeInstance(DateFormat.SHORT);
-        String lastDay = "";
-        Calendar cal = Calendar.getInstance();
-        for (final Campaign.Item it : c.items) {
-            cal.setTimeInMillis(it.at);
-            String d = dayHead.format(cal.getTime());
-            if (!d.equals(lastDay)) {
-                lastDay = d;
-                body.addView(Ui.text(this, d, 13, Ui.SUB, true), Ui.wide(this, 14));
-            }
-            body.addView(postRow(c, it, accounts, results, time), Ui.wide(this, 6));
+        // every post, as a grid of their pictures (many at a glance); a tap opens one full size
+        int out = 0, failed = 0;
+        for (Campaign.Item it : c.items) {
+            out += it.state == Campaign.State.POSTED ? 1 : 0;
+            failed += it.state == Campaign.State.FAILED ? 1 : 0;
         }
+        body.addView(Ui.text(this, "Posts · " + c.items.size() + (out > 0 ? " · " + out + " out" : "")
+                + (failed > 0 ? " · " + failed + " didn't go out" : ""), 16, Ui.TEXT, true), Ui.wide(this, 20));
+        java.util.List<Campaign.Item> inOrder = new java.util.ArrayList<Campaign.Item>(c.items);
+        inOrder.sort((x, y) -> Long.compare(x.at, y.at));
+        PostGrid.add(this, c, inOrder, results, body, this::fill);
     }
 
     private LinearLayout.LayoutParams grow(int startDp) {
@@ -168,64 +163,5 @@ public final class CampaignActivity extends AppCompatActivity {
         card.addView(Ui.text(this, head, 13, Ui.SUB, true));
         card.addView(Ui.text(this, text, 14, Ui.TEXT, false), Ui.wide(this, 6));
         return card;
-    }
-
-    /** One post: time, account and state; its words; its responses and link; a tap for what can be done with it. */
-    private View postRow(final Campaign c, final Campaign.Item it, SocialAccounts accounts, Results results, DateFormat time) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setBackground(Ui.round(this, Ui.SURFACE, 0, 16));
-        int p = Ui.dp(this, 14);
-        row.setPadding(p, Ui.dp(this, 12), p, Ui.dp(this, 12));
-        SocialAccounts.Account a = accounts.get(it.account);
-        String from = it.handoff || a == null ? CampaignRunner.shown(it.network) : a.label + " (" + a.platform.shown + ")";
-        String state = it.state == Campaign.State.POSTED ? (it.handoff ? "Handed to you" : it.checked == 1 ? "Posted ✓" : "Posted")
-                : it.state == Campaign.State.FAILED ? "Didn't go out"
-                : it.result.startsWith("waiting") ? "Waiting" : "Planned";
-        int stateColor = it.state == Campaign.State.POSTED ? Ui.GREEN : it.state == Campaign.State.FAILED ? Ui.AMBER : Ui.SUB;
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(Ui.text(this, time.format(new java.util.Date(it.at)) + " · " + from, 13, Ui.SUB, false), new LinearLayout.LayoutParams(0, -2, 1f));
-        top.addView(Ui.text(this, state, 13, stateColor, true));
-        row.addView(top);
-        TextView words = Ui.text(this, it.text, 14, Ui.TEXT, false);
-        words.setMaxLines(4);
-        words.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        row.addView(words, Ui.wide(this, 6));
-        if (it.state == Campaign.State.POSTED && !it.handoff) {
-            Results.Count n = results.of(it.id);
-            row.addView(Ui.text(this, n.reactions + (n.reactions == 1 ? " reaction" : " reactions") + " · " + n.talk
-                    + (n.talk == 1 ? " comment or share" : " comments or shares"), 13, Ui.SUB, false), Ui.wide(this, 6));
-        } else if (it.state == Campaign.State.FAILED || it.result.startsWith("waiting")) {
-            TextView why = Ui.text(this, it.result.replaceFirst("^waiting:\\s*", ""), 13, Ui.SUB, false);
-            why.setMaxLines(3);
-            row.addView(why, Ui.wide(this, 6));
-            if (it.state == Campaign.State.FAILED && !it.handoff) {
-                // tried again on screen, where the network's page works as it does for the person
-                TextView again = Ui.text(this, "Post it on screen", 14, Ui.ACCENT, true);
-                again.setMinHeight(Ui.dp(this, 40));
-                again.setGravity(Gravity.CENTER_VERTICAL);
-                again.setOnClickListener(v -> startActivity(PostingActivity.intent(this, c.id, it.id)));
-                row.addView(again);
-            }
-        }
-        if (!it.url.isEmpty()) {
-            TextView link = Ui.text(this, "Open the post", 14, Ui.ACCENT, true);
-            link.setMinHeight(Ui.dp(this, 40));
-            link.setGravity(Gravity.CENTER_VERTICAL);
-            link.setContentDescription("Open the post on " + CampaignRunner.shown(it.network));
-            link.setOnClickListener(v -> {
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(it.url)));
-                } catch (RuntimeException ignored) {
-                    // no browser
-                }
-            });
-            row.addView(link);
-        }
-        row.setContentDescription(time.format(new java.util.Date(it.at)) + ", " + from + ", " + state + ". " + it.text);
-        Ui.press(row);
-        row.setOnClickListener(v -> PostActions.menu(this, c, it, this::fill));
-        return row;
     }
 }

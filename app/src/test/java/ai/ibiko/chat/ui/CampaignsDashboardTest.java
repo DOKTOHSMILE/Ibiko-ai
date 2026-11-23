@@ -99,11 +99,50 @@ public class CampaignsDashboardTest {
         ShadowLooper.idleMainLooper();
         View page = d.get().getWindow().getDecorView();
         assertNotNull(byText(page, "Pause"));
-        assertNotNull("a checked post links to itself", byText(page, "Open the post"));
-        assertNotNull(byText(page, "Posted ✓"));
+        // the posts are a grid of pictures; a tap opens one full size, with its state and its link
+        View tile = byDescription(page, "Posted ✓");
+        assertNotNull("the posted post is in the grid", tile);
+        tile.performClick();
+        ShadowLooper.idleMainLooper();
+        View post = org.robolectric.shadows.ShadowDialog.getLatestDialog().getWindow().getDecorView();
+        assertNotNull("a checked post links to itself", byText(post, "Open the post"));
+        assertNotNull(byTextStart(post, "Posted ✓"));
         d.pause().stop().destroy();
         CampaignRunner.store(app).remove("r1");
         CampaignRunner.store(app).remove("p1");
+    }
+
+    private static View byDescription(View v, String part) {
+        if (v.getContentDescription() != null && v.getContentDescription().toString().contains(part)) {
+            return v;
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                View f = byDescription(g.getChildAt(i), part);
+                if (f != null) {
+                    return f;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** A text that contains {@code part} (the viewer says when, where and the state on one line). */
+    private static TextView byTextStart(View v, String part) {
+        if (v instanceof TextView && ((TextView) v).getText().toString().contains(part)) {
+            return (TextView) v;
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                TextView f = byTextStart(g.getChildAt(i), part);
+                if (f != null) {
+                    return f;
+                }
+            }
+        }
+        return null;
     }
 
     private static TextView byText(View v, String text) {

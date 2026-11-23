@@ -102,6 +102,61 @@ public class PictureAndRepeatsTest {
     }
 
     @Test
+    public void yourPicturesGoOnTheNextPostsAndTheRestWait() throws Exception {
+        Campaign c = new Campaign();
+        for (int i = 0; i < 3; i++) {
+            Campaign.Item it = new Campaign.Item();
+            it.id = "p" + i;
+            it.at = 1000L * (3 - i); // out of order: placed by time
+            it.imageHtml = "<html>drawn</html>";
+            c.items.add(it);
+        }
+        c.items.get(0).state = Campaign.State.POSTED; // already out: keeps its picture
+        File dir = Files.createTempDirectory("own").toFile();
+        java.util.List<String> files = new java.util.ArrayList<String>();
+        for (int i = 0; i < 4; i++) {
+            File f = new File(dir, "own" + i + ".jpg");
+            Files.write(f.toPath(), new byte[]{1});
+            files.add(f.getPath());
+        }
+        String said = CampaignMedia.place(c, files);
+        assertTrue(said, said.startsWith("4 pictures added. On the next 2 posts") && said.contains("2 wait"));
+        assertTrue(c.items.get(2).own && c.items.get(2).imagePath.equals(files.get(0)) && c.items.get(2).imageHtml.isEmpty());
+        assertTrue(c.items.get(1).own && c.items.get(1).imagePath.equals(files.get(1)));
+        assertTrue(!c.items.get(0).own);
+        assertEquals(2, c.media.size());
+        Campaign.Item fresh = new Campaign.Item();
+        CampaignMedia.fromPool(c, fresh);
+        assertTrue(fresh.own && fresh.imagePath.equals(files.get(2)));
+        Campaign back = Campaign.of(ai.ibiko.brain.MiniJson.parse(ai.ibiko.brain.MiniJson.write(c.json())));
+        assertEquals("kept with the campaign", 1, back.media.size());
+        assertTrue(back.items.get(2).own);
+    }
+
+    @Test
+    public void performanceSaysWhichKindsOfPostDoBest() throws Exception {
+        File dir = Files.createTempDirectory("results").toFile();
+        Results r = new Results(dir);
+        Campaign c = new Campaign();
+        c.name = "Cakes";
+        java.util.TimeZone utc = java.util.TimeZone.getTimeZone("UTC");
+        assertTrue(r.insights(java.util.Collections.singletonList(c), utc).startsWith("No posts have gone out yet"));
+        for (int i = 0; i < 4; i++) {
+            Campaign.Item it = new Campaign.Item();
+            it.id = "q" + i;
+            it.state = Campaign.State.POSTED;
+            it.network = "facebook";
+            it.text = i < 2 ? "Which cake would you choose for a birthday? Tell us below!" : "Fresh cakes daily. Order now.";
+            it.at = 1_700_000_000_000L + i * 3_600_000L;
+            c.items.add(it);
+        }
+        String[] t = Results.traits(c.items.get(0), utc);
+        assertEquals("yes", t[java.util.Arrays.asList(Results.KINDS).indexOf("Asks a question")]);
+        String out = r.insights(java.util.Collections.singletonList(c), utc);
+        assertTrue(out, out.startsWith("4 posts out · 0 reactions"));
+    }
+
+    @Test
     public void onlyAPostNeverPressedIsTriedAgain() {
         assertTrue(ai.ibiko.social.SocialPoster.retryable("waiting"));
         assertTrue(ai.ibiko.social.SocialPoster.retryable("noimage"));

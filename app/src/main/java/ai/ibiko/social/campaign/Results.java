@@ -288,12 +288,108 @@ public final class Results {
         g[1]++;
     }
 
+    /** The ways a post can be told apart, to see which kind of content draws the most response. */
+    static final String[] KINDS = {"Theme", "Network", "Posting in", "Day", "Length", "Picture", "Asks a question",
+        "Hashtags", "Emoji", "Link"};
+
+    /** Which group a post falls in, for each of {@link #KINDS}. */
+    static String[] traits(Campaign.Item it, java.util.TimeZone zone) {
+        java.util.Calendar cal = java.util.Calendar.getInstance(zone);
+        cal.setTimeInMillis(it.at);
+        String words = it.text.replaceAll("https?://\\S+", "").trim();
+        int len = words.length();
+        int tags = 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("#\\w+").matcher(it.text);
+        while (m.find()) {
+            tags++;
+        }
+        boolean emoji = it.text.codePoints().anyMatch(cp -> Character.getType(cp) == Character.OTHER_SYMBOL || cp >= 0x1F300);
+        return new String[]{
+            it.theme.isEmpty() ? "other" : it.theme,
+            it.network.isEmpty() ? "other" : it.network,
+            partOfDay(it.at, zone),
+            new java.text.SimpleDateFormat("EEEE", Locale.US).format(cal.getTime()),
+            len < 100 ? "short (under 100 characters)" : len < 220 ? "medium (100–220)" : "long (over 220)",
+            !it.product.isEmpty() ? "a product photo" : it.designed ? "a designed picture" : it.imageHtml.isEmpty() && it.imagePath.isEmpty()
+                    ? "no picture" : "the formula's picture",
+            words.contains("?") ? "yes" : "no",
+            tags == 0 ? "none" : tags <= 2 ? "1–2" : "3 or more",
+            emoji ? "with emoji" : "without",
+            it.text.matches("(?s).*https?://.*") ? "with a link" : "without a link"};
+    }
+
     /**
-     * What earlier campaigns showed, for the brain planning the next one: the themes and parts of the day that drew the
-     * most response. "" until there is enough to say (at least 6 posts with responses counted).
+     * Every campaign's response, put together: posts out, reactions and comments or shares, the best posts, and for
+     * each kind of difference (theme, network, time, day, length, picture, a question, hashtags, emoji, a link) which
+     * did best and least. Counts are from the accounts' notifications (reactions, comments, replies, shares); the
+     * networks don't show views to Ibiko, so reach isn't counted.
+     */
+    public synchronized String insights(List<Campaign> all, java.util.TimeZone zone) {
+        List<Map<String, int[]>> groups = new java.util.ArrayList<Map<String, int[]>>();
+        for (int k = 0; k < KINDS.length; k++) {
+            groups.add(new LinkedHashMap<String, int[]>());
+        }
+        int posts = 0, reactions = 0, talk = 0;
+        List<Object[]> scored = new java.util.ArrayList<Object[]>();
+        for (Campaign c : all) {
+            for (Campaign.Item it : c.items) {
+                if (it.state != Campaign.State.POSTED || it.handoff) {
+                    continue;
+                }
+                Count n = counts.get(it.id);
+                int score = n == null ? 0 : n.score();
+                posts++;
+                reactions += n == null ? 0 : n.reactions;
+                talk += n == null ? 0 : n.talk;
+                scored.add(new Object[]{score, it, c.name});
+                String[] t = traits(it, zone);
+                for (int k = 0; k < KINDS.length; k++) {
+                    add(groups.get(k), t[k], score);
+                }
+            }
+        }
+        if (posts == 0) {
+            return "No posts have gone out yet. Once they do, Ibiko counts the reactions, comments and shares on each and"
+                    + " shows here which kinds of post do best.";
+        }
+        StringBuilder s = new StringBuilder().append(posts).append(posts == 1 ? " post" : " posts").append(" out · ")
+                .append(reactions).append(reactions == 1 ? " reaction · " : " reactions · ").append(talk)
+                .append(talk == 1 ? " comment or share" : " comments or shares").append(" · ")
+                .append(String.format(Locale.US, "%.1f", (reactions + 3.0 * talk) / posts)).append(" response points a post");
+        scored.sort((x, y) -> Integer.compare((Integer) y[0], (Integer) x[0]));
+        int shown = 0;
+        for (Object[] o : scored) {
+            if ((Integer) o[0] <= 0 || shown == 3) {
+                break;
+            }
+            Campaign.Item it = (Campaign.Item) o[1];
+            String t = it.text.replaceAll("\\s+", " ").trim();
+            s.append(shown == 0 ? "\n\nBest posts:" : "").append("\n• “").append(t.length() > 70 ? t.substring(0, 70) + "…" : t)
+                    .append("” (").append(o[2]).append(", ").append(o[0]).append(" points)");
+            shown++;
+        }
+        StringBuilder works = new StringBuilder();
+        for (int k = 0; k < KINDS.length; k++) {
+            String line = compare(groups.get(k), KINDS[k]);
+            if (!line.isEmpty()) {
+                works.append("\n• ").append(line);
+            }
+        }
+        s.append(works.length() == 0 ? "\n\nWhat works shows here once a few more posts have had responses."
+                : "\n\nWhat works:" + works);
+        return s.toString();
+    }
+
+    /**
+     * What earlier campaigns showed, for the brain planning the next one: of every kind of difference (theme, time,
+     * day, network, length, picture, a question, hashtags, emoji, a link), what drew the most response and what the
+     * least. "" until there is enough to say (at least 6 posts with responses counted).
      */
     public synchronized String lessons(List<Campaign> earlier, java.util.TimeZone zone) {
-        Map<String, int[]> themes = new LinkedHashMap<String, int[]>(), times = new LinkedHashMap<String, int[]>();
+        List<Map<String, int[]>> groups = new java.util.ArrayList<Map<String, int[]>>();
+        for (int k = 0; k < KINDS.length; k++) {
+            groups.add(new LinkedHashMap<String, int[]>());
+        }
         int posts = 0, total = 0;
         for (Campaign c : earlier) {
             for (Campaign.Item it : c.items) {
@@ -304,14 +400,22 @@ public final class Results {
                 int score = n == null ? 0 : n.score();
                 posts++;
                 total += score;
-                add(themes, it.theme.isEmpty() ? "other" : it.theme, score);
-                add(times, partOfDay(it.at, zone), score);
+                String[] t = traits(it, zone);
+                for (int k = 0; k < KINDS.length; k++) {
+                    add(groups.get(k), t[k], score);
+                }
             }
         }
         if (posts < 6 || total == 0) {
             return "";
         }
-        String th = compare(themes, "Theme"), ti = compare(times, "Posting in");
-        return (th + (th.isEmpty() || ti.isEmpty() ? "" : " ") + ti).trim();
+        StringBuilder out = new StringBuilder();
+        for (int k = 0; k < KINDS.length; k++) {
+            String line = compare(groups.get(k), KINDS[k]);
+            if (!line.isEmpty()) {
+                out.append(out.length() == 0 ? "" : " ").append(line);
+            }
+        }
+        return out.toString();
     }
 }
