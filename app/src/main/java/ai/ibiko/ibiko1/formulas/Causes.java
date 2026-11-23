@@ -197,7 +197,7 @@ public final class Causes {
             "by", "from", "with", "as", "very", "so", "such", "can", "could", "would", "will", "get", "got", "become", "became", "becomes"));
 
     /** A word as compared: lower case, a plain ending ("floods", "flooded", "flooding" are one). */
-    static String stem(String w) {
+    public static String stem(String w) {
         String s = w.toLowerCase(Locale.US);
         if (s.length() > 5 && s.endsWith("ing")) {
             s = s.substring(0, s.length() - 3);
