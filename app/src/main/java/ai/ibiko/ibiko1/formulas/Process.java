@@ -62,7 +62,7 @@ public final class Process {
             + "generated|manufactured|brewed|baked|mined|refined|harvested|processed|spread|transmitted|measured|calculated|"
             + "digested|absorbed|recycled|stored|cured|treated|prevented|diagnosed|used|controlled|powered|fuelled|fueled";
     private static final Pattern W1 = Pattern.compile("(?i)^(.{2,80}?)\\s+(?:is|are|was|were|can be|is usually|are usually|is often|"
-            + "are often|is mostly|are mostly)\\s+(" + DONE + ")\\s+((?:by|from|through|using|with|when|out of|in|via|as)\\s+.{3,})$");
+            + "are often|is mostly|are mostly)\\s+(" + DONE + ")\\s+((?:by|from|through|using|with|when|out of|via)\\s+.{3,})$");
     private static final Pattern W2 = Pattern.compile("(?i)^(.{2,80}?)\\s+(works?|operates?|functions?|runs?|moves?|flies|fly|swims?|"
             + "grows?|breathes?|reproduces?|feeds?|hunts?|survives?|communicates?)\\s+((?:by|through|using|with|when|via|because)\\s+.{3,})$");
     private static final Pattern W3 = Pattern.compile("(?i)^to\\s+(make|build|grow|cook|prepare|bake|brew|fix|repair|start|grow|plant|"
@@ -99,6 +99,13 @@ public final class Process {
                 steps = new ArrayList<String>();
                 lead = "";
             }
+            // "Bread is made in four steps:" leads the steps that follow
+            Matcher lead2 = Pattern.compile("(?i)^(.{2,60}?)\\s+(?:is|are)\\s+(" + DONE + ")\\s+(?:in\\s+\\w+\\s+(?:steps|stages)|like this|as follows)\\s*:?$").matcher(s);
+            if (lead2.matches()) {
+                stepsFor = it(tidy(lead2.group(1)), topic);
+                lead = s;
+                continue;
+            }
             if ((m = W3.matcher(s)).matches()) {
                 String thing = tidy(m.group(2));
                 out.add(new Way(thing, m.group(1).toLowerCase(Locale.US), m.group(3), null, raw));
@@ -122,12 +129,6 @@ public final class Process {
                 }
                 continue;
             }
-            // "Bread is made in four steps:" leads the steps that follow
-            Matcher lead2 = Pattern.compile("(?i)^(.{2,60}?)\\s+(?:is|are)\\s+(" + DONE + ")\\s+(?:in\\s+\\w+\\s+(?:steps|stages)|like this|as follows)\\s*:?$").matcher(s);
-            if (lead2.matches()) {
-                stepsFor = it(tidy(lead2.group(1)), topic);
-                lead = s;
-            }
         }
         flush(out, steps, stepsFor, lead);
         return out;
@@ -140,8 +141,14 @@ public final class Process {
     }
 
     private static String it(String thing, String topic) {
+        // "Glass is a hard material that (is made …)": the thing is glass
+        thing = thing.replaceFirst("(?i)^(.{2,60}?)\\s+(?:is|are|was|were)\\s+(?:a|an|the)\\s+.*\\b(?:that|which|who)$", "$1");
         if (thing.matches("(?i)it|this|they|these|that")) {
             return topic == null || topic.isEmpty() ? null : topic;
+        }
+        if (thing.matches("(?i)^(once|when|after|before|if|while|because|although|since|as|so|but|and|then)\\b.*")
+                || thing.matches("(?i).*(,|\\b(that|which|who|whose|where)\\b).*")) {
+            return null; // a clause, not a thing
         }
         if (thing.split("\\s+").length > 8) {
             return null;
@@ -172,8 +179,9 @@ public final class Process {
     /** One doing as compared: "works"/"work", "made"/"make" are one. */
     private static String family(String d) {
         String s = d.toLowerCase(Locale.US);
-        if (s.matches("made|make|makes|making")) {
-            return "make";
+        if (s.matches("made|make|makes|making|formed|form|forms|created|create|creates|produced|produce|produces|generated|generate|"
+                + "generates|manufactured|manufacture")) {
+            return "make"; // how a thing comes to be: made, formed, created, produced are one question
         }
         if (s.matches("grown|grow|grows")) {
             return "grow";
@@ -213,8 +221,8 @@ public final class Process {
             for (String a : asked) {
                 shared += thing.contains(a) ? 1 : 0;
             }
-            int need = asked.size() <= 2 ? asked.size() : Math.max(2, (int) Math.ceil(asked.size() * 0.6));
-            if (shared < need) {
+            // the very thing asked: all its words, and none more ("coloured glass" is not glass)
+            if (shared < asked.size() || shared < thing.size()) {
                 continue;
             }
             boolean sameDoing = d.isEmpty() || family(d).equals(family(w.doing)) || w.doing.equals("steps");

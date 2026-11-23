@@ -193,7 +193,14 @@ public final class WordTalk {
             return sound(x.group(1).toLowerCase(Locale.ROOT), x.group(2));
         }
         if ((x = MORPH.matcher(m)).matches()) {
-            return morphology(first(x));
+            // "how is garri made?" asks how the thing is made, not how the word is: only a question that says "word"
+            // (or a word it can break down) is about the word
+            boolean aboutWord = !m.matches("(?is)^how is\\b.*") || m.matches("(?is).*\\bword\\b.*");
+            String w = first(x);
+            if (!aboutWord && morphology.readings(w).isEmpty() && morphology.formation(w) == null) {
+                return null;
+            }
+            return morphology(w);
         }
         if ((x = EXPLAIN.matcher(m)).matches() && first(x).split("\\s+").length >= 3) {
             return explain(first(x));

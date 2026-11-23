@@ -59,6 +59,13 @@ public class ProcessTest {
         assertEquals("Mountains are formed when tectonic plates push against each other.", Process.how("How are mountains formed?", ways).said());
         assertNull("made is not how it works", Process.how("How does glass work?", ways));
         assertNull("another thing", Process.how("How is paper made?", ways));
+        List<Process.Way> glass = Process.read("Glass is a hard material that is made in many shapes. Coloured glass is made by adding "
+                + "small amounts of metal oxides. Once the food is made in the leaf, it is moved to the roots.", "Glass");
+        assertNull("coloured glass is not glass: " + glass, Process.how("How is glass made?", glass));
+        assertEquals("Coloured glass is made by adding small amounts of metal oxides.", Process.how("How is coloured glass made?", glass).said());
+        List<Process.Way> rain = Process.read("A rainbow is created when white light is bent while entering a droplet of water.", "Rainbow");
+        assertEquals("formed and created are one question", 1, rain.size());
+        assertNotNull(Process.how("How are rainbows formed?", rain));
         assertNull("not a how-question", Process.how("What is glass?", ways));
     }
 }
