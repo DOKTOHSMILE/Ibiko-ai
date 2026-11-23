@@ -142,9 +142,10 @@ public final class CampaignPlanner {
     }
 
     /** Posts written in one call: fewer calls, each still short enough to come back whole. */
-    static final int BATCH = 10;
+    /** Posts written in one call: small, so the first ones are back sooner and the calls run side by side. */
+    static final int BATCH = 6;
     /** Calls at once on an API (the phone's own model takes one at a time). */
-    public static final int WORKERS = 6;
+    public static final int WORKERS = 8;
 
     private static final String POSTS_SYSTEM = "You are a top social media copywriter for a small business. Every post"
             + " stops the scroll: a first line that hooks (a bold claim, a question, a surprising fact, a relatable"
@@ -176,9 +177,22 @@ public final class CampaignPlanner {
                 .append("; no two alike in opening or format.")
                 .append(" For each also a picture headline (3 to 6 punchy words, no business name) and a short line under it"
                         + " (at most 9 words) that adds to the headline, not repeats it.\n")
-                .append(DesignGen.HOW).append('\n')
-                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\",\"design\":{...}}]}");
+                // no design written out per post: the formula designs each picture fresh (no two alike), so the
+                // model writes only words, and a batch comes back in a fraction of the time
+                .append("Optionally a \"mood\" (dark or light) for its picture.\n")
+                .append("JSON: {\"posts\":[{\"n\":1,\"text\":\"the post\",\"headline\":\"...\",\"line\":\"...\"}]}");
         return s.toString();
+    }
+
+    /** The picture's design from a post: its "design" object if the model wrote one, else just its "mood", if any. */
+    static String designOf(java.util.Map<String, Object> post) {
+        Object d = post.get("design");
+        if (d == null && post.get("mood") != null) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<String, Object>();
+            m.put("mood", post.get("mood"));
+            d = m;
+        }
+        return DesignGen.Spec.of(d).json();
     }
 
     /** The request for one theme's picture template. */
@@ -366,7 +380,7 @@ public final class CampaignPlanner {
                 text = text.substring(0, cut > most / 2 ? cut : most - 1).trim() + "\u2026";
             }
             out.put(n - 1, new String[]{text, clip(MiniJson.str(p.get("headline"), ""), 60), clip(MiniJson.str(p.get("line"), ""), 90),
-                    DesignGen.Spec.of(p.get("design")).json()});
+                    designOf(p)});
         }
         return out;
     }
@@ -646,6 +660,7 @@ public final class CampaignPlanner {
                     }
                     it.seed = DesignGen.freshSeed(it.id);
                     it.imageHtml = picture(it, shown == null || shown.photo.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(shown.id));
+                    CampaignMedia.fromPool(c, it); // a picture the person uploaded, waiting for a post: this one takes it
                     it.at = at(c.startAt, slot.day, slot.minute, zone);
                     c.items.add(it);
                 }
@@ -701,7 +716,7 @@ public final class CampaignPlanner {
         return () -> {
             java.util.Map<Integer, String[]> got;
             try {
-                got = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 4000), part);
+                got = posts(brain.ask(POSTS_SYSTEM, postsPrompt(c.brief, part), 2600), part);
             } catch (RuntimeException e) {
                 got = new java.util.HashMap<Integer, String[]>();
             }

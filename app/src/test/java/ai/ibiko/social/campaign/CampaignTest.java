@@ -250,6 +250,6 @@ public class CampaignTest {
             }
         };
         assertEquals("Stopped.", CampaignPlanner.build(c, SEATS, big(), p, () -> stop[0], TimeZone.getTimeZone("Africa/Lagos"), 1));
-        assertTrue(c.items.size() + " kept", c.items.size() >= 10 && c.items.size() < 36);
+        assertTrue(c.items.size() + " kept", c.items.size() >= CampaignPlanner.BATCH && c.items.size() < 36);
     }
 }

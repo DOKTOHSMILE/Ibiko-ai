@@ -243,6 +243,7 @@ public final class CampaignRunner extends BroadcastReceiver {
         it.url = done.url;
         it.at = done.at;
         it.imagePath = done.imagePath;
+        it.own = done.own;
         try {
             st.put(latest);
         } catch (IOException e) {
@@ -284,6 +285,10 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         File picture = picture(c, camp, it);
+        if (it.own && picture == null) {
+            fail(c, camp, it, "your picture for it isn't on the phone any more");
+            return;
+        }
         if (!it.imageHtml.isEmpty() && picture == null) {
             fail(c, camp, it, "its picture couldn't be drawn on this phone");
             return;
@@ -479,9 +484,10 @@ public final class CampaignRunner extends BroadcastReceiver {
         it.seed = DesignGen.freshSeed(it.id);
         it.designed = page != null && !page.isEmpty();
         it.imageHtml = it.designed ? page : CampaignPlanner.picture(it, it.product.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(it.product));
-        if (!it.imagePath.isEmpty()) {
-            new File(it.imagePath).delete();
+        if (!it.imagePath.isEmpty() && !it.own) {
+            new File(it.imagePath).delete(); // a drawn picture; the person's own upload is never deleted
         }
+        it.own = false; // a new picture asked for: drawn, in place of their own
         it.imagePath = "";
         File made = picture(c, camp, it);
         CampaignStore st = store(c);
@@ -493,6 +499,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             kept.imageHtml = it.imageHtml;
             kept.designed = it.designed;
             kept.imagePath = it.imagePath;
+            kept.own = it.own;
             try {
                 st.put(latest);
             } catch (IOException ignored) {
@@ -509,6 +516,10 @@ public final class CampaignRunner extends BroadcastReceiver {
 
     /** The post's picture, drawn now if it wasn't yet; null when there is none or it couldn't be drawn. */
     static File picture(Context c, Campaign camp, Campaign.Item it) {
+        if (it.own) {
+            File mine = new File(it.imagePath); // the person's own picture: posted as it is
+            return mine.isFile() ? mine : null;
+        }
         if (it.imageHtml.isEmpty()) {
             return null;
         }

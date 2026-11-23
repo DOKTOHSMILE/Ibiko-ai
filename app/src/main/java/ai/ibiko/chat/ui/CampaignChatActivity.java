@@ -109,18 +109,43 @@ public final class CampaignChatActivity extends AppCompatActivity {
         chipScroll.addView(chips);
         root.addView(chipScroll);
 
+        // the entry as in a chat: one rounded box, the words on top, pictures (+) on the left and send on the right below
         LinearLayout composer = new LinearLayout(this);
-        composer.setGravity(Gravity.BOTTOM);
-        composer.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 10));
-        box = Ui.field(this, "Tell the studio what to change…", "", false, true);
+        composer.setOrientation(LinearLayout.VERTICAL);
+        composer.setBackgroundResource(ai.ibiko.R.drawable.bg_input_container);
+        composer.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
+        box = new EditText(this);
+        box.setHint("Tell the studio what to change…");
+        box.setHintTextColor(Ui.SUB);
+        box.setTextColor(Ui.TEXT);
+        box.setTextSize(16);
+        box.setBackground(null);
+        box.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
         box.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         box.setMinLines(1);
         box.setMaxLines(6);
         box.setContentDescription("Instruction for the campaign studio");
-        composer.addView(box, new LinearLayout.LayoutParams(0, -2, 1f));
-        ImageView send = iconButton(ai.ibiko.R.drawable.ic_send, "Send to the studio", v -> send(box.getText().toString()));
-        composer.addView(send, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
-        root.addView(composer);
+        composer.addView(box, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout tools = new LinearLayout(this);
+        tools.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView add = iconButton(ai.ibiko.R.drawable.ic_image, "Add your pictures", v -> pickPictures());
+        add.setPadding(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
+        tools.addView(add, new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40)));
+        TextView addLabel = Ui.text(this, "Pictures", 13, Ui.SUB, false);
+        addLabel.setOnClickListener(v -> pickPictures());
+        tools.addView(addLabel);
+        tools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        android.widget.ImageButton send = new android.widget.ImageButton(this);
+        send.setImageResource(ai.ibiko.R.drawable.ic_send);
+        send.setBackgroundResource(ai.ibiko.R.drawable.bg_send_button);
+        send.setScaleType(ImageView.ScaleType.CENTER);
+        send.setContentDescription("Send to the studio");
+        send.setOnClickListener(v -> send(box.getText().toString()));
+        tools.addView(send, new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40)));
+        composer.addView(tools, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, -2);
+        cl.setMargins(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 10));
+        root.addView(composer, cl);
 
         setContentView(root);
         Ui.fitInsets(root);
@@ -327,6 +352,50 @@ public final class CampaignChatActivity extends AppCompatActivity {
             lp.setMarginEnd(Ui.dp(this, 8));
             chips.addView(chip, lp);
         }
+    }
+
+    /** Several pictures from the phone at once (the system photo picker: no permission asked). */
+    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> picker =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(30),
+                    this::picked);
+
+    private void pickPictures() {
+        picker.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
+                .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build());
+    }
+
+    /** The pictures picked: kept with the campaign and put on its next posts, as they are; the studio says which. */
+    private void picked(java.util.List<android.net.Uri> uris) {
+        if (uris == null || uris.isEmpty() || id == null) {
+            return;
+        }
+        final android.content.Context app = getApplicationContext();
+        final java.util.List<android.net.Uri> chosen = new java.util.ArrayList<android.net.Uri>(uris);
+        android.widget.Toast.makeText(this, "Adding " + chosen.size() + (chosen.size() == 1 ? " picture…" : " pictures…"),
+                android.widget.Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            java.util.List<String> files = ai.ibiko.social.campaign.CampaignMedia.bring(app, id, chosen);
+            String said;
+            synchronized (CampaignRunner.class) {
+                Campaign c = CampaignRunner.store(app).get(id);
+                if (c == null) {
+                    return;
+                }
+                said = files.isEmpty() ? "Those pictures couldn't be read." : ai.ibiko.social.campaign.CampaignMedia.place(c, files);
+                try {
+                    CampaignRunner.store(app).put(c);
+                } catch (java.io.IOException e) {
+                    said = "The pictures couldn't be kept: " + e.getMessage();
+                }
+            }
+            ai.ibiko.social.campaign.CampaignStudio.chat(app, id).add(ai.ibiko.social.campaign.CampaignChat.STUDIO, "note", said,
+                    System.currentTimeMillis());
+            runOnUiThread(() -> {
+                if (!isFinishing()) {
+                    fill(true);
+                }
+            });
+        }, "ibiko-campaign-pictures").start();
     }
 
     private void send(String said) {

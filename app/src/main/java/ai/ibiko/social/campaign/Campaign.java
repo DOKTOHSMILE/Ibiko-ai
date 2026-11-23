@@ -115,6 +115,8 @@ public final class Campaign {
         public int checked;
         /** The post's own address on the network, when the check found it. */
         public String url = "";
+        /** The picture is the person's own (uploaded): {@link #imagePath} is posted as it is, never drawn or redrawn. */
+        public boolean own;
 
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -137,6 +139,7 @@ public final class Campaign {
             m.put("handoff", handoff);
             m.put("checked", (double) checked);
             m.put("url", url);
+            m.put("own", own);
             return m;
         }
 
@@ -166,6 +169,7 @@ public final class Campaign {
             i.handoff = Boolean.TRUE.equals(m.get("handoff"));
             i.checked = (int) MiniJson.num(m.get("checked"), 0);
             i.url = MiniJson.str(m.get("url"), "");
+            i.own = Boolean.TRUE.equals(m.get("own"));
             return i;
         }
 
@@ -203,6 +207,8 @@ public final class Campaign {
     /** What to search for: posts by people who may need the offer ("need a logo designer in Lagos"). */
     public final List<String> searches = new ArrayList<String>();
     public final List<Item> items = new ArrayList<Item>();
+    /** Pictures the person uploaded that no post carries yet (files on the phone): the next posts written take them. */
+    public final List<String> media = new ArrayList<String>();
 
     /** The posts still to go out, earliest first. */
     public List<Item> planned() {
@@ -255,6 +261,7 @@ public final class Campaign {
             its.add(i.json());
         }
         m.put("items", its);
+        m.put("media", new ArrayList<Object>(media));
         return m;
     }
 
@@ -285,6 +292,7 @@ public final class Campaign {
         for (Object i : MiniJson.list(m.get("items"))) {
             c.items.add(Item.of(i));
         }
+        c.media.addAll(MiniJson.strings(m.get("media")));
         return c;
     }
 }
