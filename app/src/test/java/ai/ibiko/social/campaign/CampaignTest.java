@@ -32,6 +32,9 @@ public class CampaignTest {
     }
 
     /** A brain that answers the outline, then each post, as a model would (with a little prose around the JSON). */
+    /** Every post the fake writes is numbered, so no two are the same words. */
+    private static final java.util.concurrent.atomic.AtomicInteger WRITTEN = new java.util.concurrent.atomic.AtomicInteger();
+
     private static CampaignPlanner.Brain fake() {
         return (system, prompt, tokens) -> {
             if (prompt.contains("Plan its strategy as JSON")) {
@@ -56,7 +59,9 @@ public class CampaignTest {
             for (String l : lines) {
                 if (l.matches("^\\d+\\. .*")) {
                     n++;
-                    String text = l.contains(". x ") ? new String(new char[400]).replace('\0', 'a') : "Fresh cakes for your party. Order now!";
+                    // each post its own words, as a model writes them (the same words twice would be a repeat)
+                    String text = l.contains(". x ") ? WRITTEN.incrementAndGet() + new String(new char[400]).replace('\0', 'a')
+                            : "Fresh cakes for your party. Order now! Batch " + WRITTEN.incrementAndGet() + ".";
                     posts.append(n > 1 ? "," : "").append("{\"n\":").append(n).append(",\"text\":\"").append(text)
                             .append("\",\"headline\":\"Cakes <b>& more</b>\",\"line\":\"Baked fresh\"}");
                 }

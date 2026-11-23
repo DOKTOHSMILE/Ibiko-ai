@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Something needs the person: a dot on the menu button. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#E5484D" />
+    <stroke android:width="2dp" android:color="@color/bg_main" />
+</shape>

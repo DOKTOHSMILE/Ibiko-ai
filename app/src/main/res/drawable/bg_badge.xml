@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A count of things that need the person (posts that didn't go out, ...): a small round pill in the alert colour. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#E5484D" />
+    <corners android:radius="10dp" />
+</shape>

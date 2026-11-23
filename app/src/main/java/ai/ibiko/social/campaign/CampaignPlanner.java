@@ -454,6 +454,31 @@ public final class CampaignPlanner {
         return DesignGen.make(it.seed, it.headline, it.line, it.theme, photo, CampaignImage.SIDE, CampaignImage.SIDE, DesignGen.Spec.of(spec));
     }
 
+    /** True when the campaign already has these words for this account. */
+    static boolean repeats(Campaign c, Campaign.Item it) {
+        String k = PostedLog.key(it.text);
+        for (Campaign.Item o : c.items) {
+            if (o.account.equals(it.account) && PostedLog.key(o.text).equals(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when another post for this account already shows this headline on its picture. */
+    static boolean sameHeadline(Campaign c, Campaign.Item it) {
+        String k = PostedLog.key(it.headline);
+        if (k.isEmpty()) {
+            return false;
+        }
+        for (Campaign.Item o : c.items) {
+            if (o.account.equals(it.account) && PostedLog.key(o.headline).equals(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The template with this post's words in it (as text: nothing the brain wrote becomes markup). */
     static String fill(String template, String headline, String line, String brand) {
         return fill(template, headline, line, brand, "");
@@ -606,6 +631,19 @@ public final class CampaignPlanner {
                     it.headline = p[1].isEmpty() ? slot.theme : p[1];
                     it.line = p[2];
                     it.design = p.length > 3 ? p[3] : "";
+                    // no repeats in one campaign: the same words for the same account are written again (asked once
+                    // more, with the rest), and the same picture headline gets the post's own first words instead
+                    if (repeats(c, it)) {
+                        missing.add(d.slots.get(k));
+                        n--;
+                        continue;
+                    }
+                    if (sameHeadline(c, it)) {
+                        String own = CampaignRunner.firstWords(it.text, 6);
+                        if (!own.isEmpty()) {
+                            it.headline = own;
+                        }
+                    }
                     it.seed = DesignGen.freshSeed(it.id);
                     it.imageHtml = picture(it, shown == null || shown.photo.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(shown.id));
                     it.at = at(c.startAt, slot.day, slot.minute, zone);

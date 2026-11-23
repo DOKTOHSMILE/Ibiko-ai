@@ -79,6 +79,29 @@ public class PictureAndRepeatsTest {
     }
 
     @Test
+    public void oneCampaignHasNoRepeats() {
+        Campaign c = new Campaign();
+        Campaign.Item first = new Campaign.Item();
+        first.account = "fb1";
+        first.text = "Grow your business online. #Lagos";
+        first.headline = "Grow With Your Business";
+        c.items.add(first);
+        Campaign.Item same = new Campaign.Item();
+        same.account = "fb1";
+        same.text = "Grow your business online! #Growth https://wa.me/1";
+        same.headline = "Something new";
+        assertTrue(CampaignPlanner.repeats(c, same));
+        same.account = "x1";
+        assertTrue("another account may carry it", !CampaignPlanner.repeats(c, same));
+        Campaign.Item other = new Campaign.Item();
+        other.account = "fb1";
+        other.text = "Deadlines met, every time.";
+        other.headline = "grow with your business";
+        assertTrue(!CampaignPlanner.repeats(c, other));
+        assertTrue(CampaignPlanner.sameHeadline(c, other));
+    }
+
+    @Test
     public void onlyAPostNeverPressedIsTriedAgain() {
         assertTrue(ai.ibiko.social.SocialPoster.retryable("waiting"));
         assertTrue(ai.ibiko.social.SocialPoster.retryable("noimage"));

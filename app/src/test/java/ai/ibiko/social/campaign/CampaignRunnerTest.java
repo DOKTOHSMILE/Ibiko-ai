@@ -31,6 +31,23 @@ public class CampaignRunnerTest {
     }
 
     @Test
+    public void postingOnScreenNeverDoublesAPostAndSaysWhyOneFailed() throws Exception {
+        Context ctx = RuntimeEnvironment.getApplication();
+        CampaignStore store = CampaignRunner.store(ctx);
+        Campaign c = campaign("screen", Campaign.Status.ACTIVE, 1L, 2L);
+        c.items.get(0).state = Campaign.State.POSTED;
+        c.items.get(0).result = "Posted and checked";
+        c.items.get(1).state = Campaign.State.FAILED;
+        store.put(c);
+        CampaignRunner.OnScreen out = CampaignRunner.postOnScreen(ctx, "screen", "screen-0", s -> { });
+        assertTrue(out.said, !out.posted && out.said.startsWith("That post already went out"));
+        CampaignRunner.OnScreen failed = CampaignRunner.postOnScreen(ctx, "screen", "screen-1", s -> { });
+        assertTrue(failed.said, !failed.posted && failed.said.contains("account"));
+        assertEquals("facebook", failed.network);
+        assertTrue(!CampaignRunner.postOnScreen(ctx, "none", "x", s -> { }).posted);
+    }
+
+    @Test
     public void onlyARunningCampaignsDuePostsAreTouched() throws Exception {
         Context ctx = RuntimeEnvironment.getApplication();
         long now = 1_800_000_000_000L;
