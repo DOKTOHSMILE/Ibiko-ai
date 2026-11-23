@@ -252,4 +252,32 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void questionsAboutCodeJustRead() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String code = "def factorial(n):\n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result\n\nprint(factorial(5))";
+            String read = ask(brain, chat, "Explain this:\n```python\n" + code + "\n```");
+            assertTrue(read, read.startsWith("This is Python code. It's the usual way to work out a factorial."));
+            String go = ask(brain, chat, "Convert it to Go");
+            assertTrue(go, go.startsWith("It does the same as my recipe to work out a factorial, so here it is in Go:") && go.contains("```go"));
+            String line = ask(brain, chat, "What does line 4 do?");
+            assertTrue(line, line.startsWith("Line 4: result *= i") && line.contains("Multiplies result by i."));
+            String ok = ask(brain, chat, "Are there any mistakes?");
+            assertTrue(ok, ok.startsWith("I can't see a mistake in it"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }

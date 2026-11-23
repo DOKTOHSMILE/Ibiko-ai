@@ -1842,6 +1842,13 @@ public final class Ibiko1 {
         if (snippet != null && !runIt) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
         }
+        // a follow-up about the code just read: convert it, one line of it, a mistake in it
+        final ai.ibiko.ibiko1.formulas.CodeReader.Snippet before = lastSnippet;
+        final ai.ibiko.ibiko1.formulas.CodeReader.Follow follow = snippet == null && before != null
+                ? ai.ibiko.ibiko1.formulas.CodeReader.follow(t) : null;
+        if (follow != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
+        }
         final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
         if (siteAsk != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
@@ -1870,7 +1877,12 @@ public final class Ibiko1 {
             switch (r.kind) {
                 case CODE:
                     turnDomain = "code";
-                    codeTurn(who, snippet);
+                    if (snippet == null) {
+                        codeFollow(who, before, follow);
+                    } else {
+                        lastSnippet = snippet;
+                        codeTurn(who, snippet);
+                    }
                     return true;
                 case SITE:
                     if (siteTurn(who, t, siteAsk)) {
@@ -1993,6 +2005,49 @@ public final class Ibiko1 {
             }
         }
         return false;
+    }
+
+    /** The code last pasted and read, for questions about it ("convert it to Go", "what does line 3 do?"). */
+    private volatile ai.ibiko.ibiko1.formulas.CodeReader.Snippet lastSnippet;
+
+    /**
+     * C5: a question about the code just read. Converted: when the code is one of its tested recipes, the same recipe in
+     * the language asked (tested too); otherwise said plainly that it can't convert it exactly. One line: in plain words.
+     * A mistake: what it can see.
+     */
+    private void codeFollow(final String who, ai.ibiko.ibiko1.formulas.CodeReader.Snippet s, ai.ibiko.ibiko1.formulas.CodeReader.Follow f) {
+        final String said;
+        List<String> steps = new ArrayList<String>(Arrays.asList("Reading your question about the code you pasted"));
+        switch (f.is) {
+            case CONVERT: {
+                String task = recipes().matchTask(s.code, s.lang);
+                ai.ibiko.ibiko1.formulas.Recipes.Recipe r = task == null ? null : recipes().get(task, f.lang);
+                if (r != null) {
+                    lastRecipe = new String[]{task, f.lang};
+                    codingLang = f.lang;
+                    said = "It does the same as my recipe to " + ai.ibiko.ibiko1.formulas.Recipes.titleOf(task) + ", so here it is in "
+                            + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang) + ":\n\n" + r.said().replaceFirst("^Here's how to [^:]*:\\n\\n", "");
+                    steps.add("It matches my tested recipe to " + ai.ibiko.ibiko1.formulas.Recipes.titleOf(task));
+                    steps.add("Taking the same recipe in " + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang));
+                } else {
+                    said = "I can't convert that one to " + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang) + " exactly on my own yet: it isn't one of my "
+                            + "tested recipes, and I won't guess at code. Choose a model from the menu at the top and the coding agent will convert it;"
+                            + " or ask me for a task (\"how do I sort a list in " + ai.ibiko.ibiko1.formulas.Recipes.shown(f.lang) + "?\").";
+                    steps.add("It isn't one of my tested recipes");
+                }
+                break;
+            }
+            case LINE:
+                said = ai.ibiko.ibiko1.formulas.CodeReader.line(s, f.line);
+                steps.add("Finding that line and putting it in plain words");
+                break;
+            default:
+                said = ai.ibiko.ibiko1.formulas.CodeReader.checked(s);
+                steps.add("Checking the brackets, the strings and how each line is formed");
+                break;
+        }
+        how = How.MEMORY;
+        think(steps, () -> saysExact(who, said));
     }
 
     /** C1–C4: pasted code explained in plain words. */

@@ -326,6 +326,25 @@ public final class Recipes {
         return bestScore >= 0.6 ? title(best) : null;
     }
 
+    /** The task id a piece of code does (as {@link #match}), or null. */
+    public synchronized String matchTask(String code, String lang) {
+        String title = match(code, lang);
+        if (title == null) {
+            return null;
+        }
+        for (Task t : TASKS) {
+            if (t.title.equals(title)) {
+                return t.id;
+            }
+        }
+        return null;
+    }
+
+    /** A task's name as said ("reverse a string"). */
+    public static String titleOf(String task) {
+        return title(task);
+    }
+
     private static java.util.Set<String> tokens(String code) {
         java.util.Set<String> out = new java.util.HashSet<String>();
         for (String w : code.split("[^A-Za-z0-9_]+")) {
