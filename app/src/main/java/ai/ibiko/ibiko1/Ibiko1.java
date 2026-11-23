@@ -885,6 +885,32 @@ public final class Ibiko1 {
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW && answerHow(who, t)) {
             return;
         }
+        // "is a frog an animal?": worked out by going up what each thing is (a frog is an amphibian, an amphibian is …)
+        final String[] kindAsked = ai.ibiko.ibiko1.formulas.Kinds.asked(t);
+        if (kindAsked != null && encyclopedia() != null) {
+            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
+                Encyclopedia.Article a = encyclopedia().find(name);
+                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kind(a.text);
+            });
+            if (chain != null) {
+                final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);
+                if (!knowledge().rejected(t, yes)) {
+                    how = How.MEMORY;
+                    List<String> steps = new ArrayList<String>();
+                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
+                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : chain) {
+                        steps.add("Reading what " + st.thing + " is: " + st.said);
+                    }
+                    steps.add("Reached " + kindAsked[1] + ": yes");
+                    think(steps, () -> {
+                        saysSure(who, yes, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
+                                "Worked out from Simple English Wikipedia, step by step");
+                        rateable(t, yes);
+                    });
+                    return;
+                }
+            }
+        }
         // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
             return;
