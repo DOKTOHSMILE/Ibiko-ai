@@ -87,4 +87,17 @@ public class CodeReaderTest {
         List<Readings.Reading> next = Readings.weigh("How come?", Arrays.asList(Readings.Kind.HOW, Readings.Kind.WHY), causes);
         assertEquals("after talk of causes, \"how come?\" asks a reason", Readings.Kind.WHY, next.get(0).kind);
     }
+
+    @Test
+    public void htmlLinesAndOneLineDecisionsInPlainWords() {
+        CodeReader.Snippet page = new CodeReader.Snippet("<!doctype html>\n<h1>Hello</h1>\n<input id=\"name\">\n<script>\n"
+                + "if (!name) missing.push(\"your name\");\nif (a === 1) { go(); }\nwindow.open(link);\n</script>", "html", "");
+        assertEquals("Line 2: <h1>Hello</h1>\n\nA heading showing “Hello”.", CodeReader.line(page, 2));
+        assertTrue(CodeReader.line(page, 3), CodeReader.line(page, 3).contains("A box to type in (named name, so the script can find it)."));
+        assertTrue(CodeReader.line(page, 5), CodeReader.line(page, 5).contains("If there's no name, it runs missing.push with \"your name\"."));
+        assertTrue(CodeReader.line(page, 6), CodeReader.line(page, 6).contains("If a is 1, it runs go."));
+        String all = CodeReader.explain(page, null);
+        assertTrue("window.open is not a file: " + all, !all.contains("files"));
+        assertTrue(!all.contains("database"));
+    }
 }

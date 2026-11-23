@@ -1871,7 +1871,7 @@ public final class Ibiko1 {
         // a follow-up about the code just read: convert it, one line of it, a mistake in it
         final ai.ibiko.ibiko1.formulas.CodeReader.Snippet before = lastSnippet;
         final ai.ibiko.ibiko1.formulas.CodeReader.Follow follow = snippet == null && before != null
-                ? ai.ibiko.ibiko1.formulas.CodeReader.follow(t) : null;
+                ? followOf(message, t) : null;
         if (follow != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
         }
@@ -1975,6 +1975,7 @@ public final class Ibiko1 {
                         if (changed == null) {
                             break;
                         }
+                        lastSnippet = new ai.ibiko.ibiko1.formulas.CodeReader.Snippet(made.html, "html", "");
                         final String again = "Done: " + changed + ".\n\n```html\n" + made.html + "```\n\nSave it over your "
                                 + made.app.id.replace('_', '-') + ".html.";
                         how = How.MEMORY;
@@ -1983,6 +1984,7 @@ public final class Ibiko1 {
                         return true;
                     }
                     lastMade = new ai.ibiko.ibiko1.formulas.Apps.Made(appAsk);
+                    lastSnippet = new ai.ibiko.ibiko1.formulas.CodeReader.Snippet(appAsk.html, "html", ""); // "what does line 40 do?"
                     lastDesign = null; // the thing just made is this app: "make it blue" changes it, not the site before
                     final String handed = ai.ibiko.ibiko1.formulas.Apps.reply(appAsk);
                     how = How.MEMORY;
@@ -2129,9 +2131,19 @@ public final class Ibiko1 {
      * the language asked (tested too); otherwise said plainly that it can't convert it exactly. One line: in plain words.
      * A mistake: what it can see.
      */
+    /** A follow-up about the code we're on, read from the message as typed first ("explain it": not "explain line"). */
+    private static ai.ibiko.ibiko1.formulas.CodeReader.Follow followOf(String message, String t) {
+        ai.ibiko.ibiko1.formulas.CodeReader.Follow f = ai.ibiko.ibiko1.formulas.CodeReader.follow(message);
+        return f != null ? f : ai.ibiko.ibiko1.formulas.CodeReader.follow(t);
+    }
+
     private void codeFollow(final String who, ai.ibiko.ibiko1.formulas.CodeReader.Snippet s, ai.ibiko.ibiko1.formulas.CodeReader.Follow f) {
         final String said;
-        List<String> steps = new ArrayList<String>(Arrays.asList("Reading your question about the code you pasted"));
+        List<String> steps = new ArrayList<String>(Arrays.asList("Reading your question about the code we're on"));
+        if (f.is == ai.ibiko.ibiko1.formulas.CodeReader.Follow.Is.EXPLAIN) {
+            codeTurn(who, s);
+            return;
+        }
         switch (f.is) {
             case CONVERT: {
                 String task = recipes().matchTask(s.code, s.lang);
@@ -2184,6 +2196,7 @@ public final class Ibiko1 {
             return false;
         }
         final String html = ai.ibiko.ibiko1.formulas.Sites.build(d);
+        lastSnippet = new ai.ibiko.ibiko1.formulas.CodeReader.Snippet(html, "html", "");
         final String said = "Done: " + changed + ".\n\n```html\n" + html + "```\n\nSave it over your index.html. Ask for any other change: a section added or "
                 + "taken out, a colour, the name, your number.";
         how = How.MEMORY;
@@ -2274,6 +2287,7 @@ public final class Ibiko1 {
                 lastDesign = design; // kept, so "add a pricing section" or "make it blue" changes this site
                 lastMade = null;
                 final String html = ai.ibiko.ibiko1.formulas.Sites.build(design);
+                lastSnippet = new ai.ibiko.ibiko1.formulas.CodeReader.Snippet(html, "html", ""); // "what does line 40 do?"
                 List<String> heads = new ArrayList<String>();
                 for (String[] sec : k.sections) {
                     heads.add(sec[1]);

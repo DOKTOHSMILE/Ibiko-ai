@@ -316,6 +316,14 @@ public class WhyFlowTest {
             String mine = ask(brain, chat, "My WhatsApp number is +234 803 123 4567");
             assertTrue("a change to the app just made: " + mine, mine.startsWith("Done: messages go to WhatsApp 2348031234567.")
                     && mine.contains("const WHATSAPP = \"2348031234567\""));
+            String line = ask(brain, chat, "What does line 40 do?");
+            assertTrue("the app just made is the code we're on: " + line, line.startsWith("Line 40: if (!reach)")
+                    && line.contains("If there's no reach, it runs missing.push"));
+            String check = ask(brain, chat, "Are there any mistakes?");
+            assertTrue(check, check.startsWith("I can't see a mistake in it"));
+            String whole = ask(brain, chat, "Explain it");
+            assertTrue("\"it\" is the code, not the word line: " + whole, whole.startsWith("This is HTML")
+                    && whole.contains("a form to fill in") && !whole.contains("files") && !whole.contains("database"));
             String green = ask(brain, chat, "Make it green");
             assertTrue("the app, not the site made before it: " + green, green.startsWith("Done: made its colour green.")
                     && green.contains("Save it over your contact-form.html."));
