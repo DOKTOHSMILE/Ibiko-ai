@@ -124,4 +124,31 @@ public class WhyFlowTest {
         String not = ask(brain, chat, "What is the capital of France?");
         assertTrue("a new question is answered, not taken as yes or no: " + not, !not.startsWith("Updated") && !not.startsWith("Okay, I'll keep"));
     }
+
+    @Test(timeout = 180000)
+    public void staysOnTheSubjectAndLinksNewThingsToIt() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            ask(brain, chat, "Tell me about Nigeria");
+            // a part of the subject, named with nothing else: of the subject
+            ask(brain, chat, "What is the capital?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("“the capital” is the capital of Nigeria"));
+            // something of another kind: linked to the subject, not the last question asked again about it
+            String oil = ask(brain, chat, "What about oil?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("oil, with Nigeria"));
+            assertTrue(oil, !oil.toLowerCase(java.util.Locale.ROOT).contains("capital of oil"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }

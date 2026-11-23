@@ -216,7 +216,7 @@ public final class Causes {
     }
 
     /** The content words of a text, as stems. */
-    static Set<String> words(String s) {
+    public static Set<String> words(String s) {
         Set<String> out = new LinkedHashSet<String>();
         for (String w : (s == null ? "" : s).toLowerCase(Locale.US).split("[^\\p{L}\\p{N}]+")) {
             if (!w.isEmpty() && !STOP.contains(w)) {

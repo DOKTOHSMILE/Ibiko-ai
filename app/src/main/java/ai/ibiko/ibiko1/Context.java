@@ -37,6 +37,8 @@ public final class Context {
     public static final class Resolved {
         public final String text;
         public final LinkedHashMap<String, String> put = new LinkedHashMap<String, String>();
+        /** "what about oil?" while talking about Nigeria: the new thing and the subject it is to be linked to; else null. */
+        public String link, linkTo;
 
         Resolved(String text) {
             this.text = text;
@@ -113,6 +115,23 @@ public final class Context {
         return f != null && now - f.at <= FRESH_MS ? f : null;
     }
 
+    /**
+     * Whether two things are of a kind ("Ghana" and "Nigeria": both countries), so "what about Ghana?" asks the last
+     * question again about Ghana; when they aren't ("oil" while talking about Nigeria), it asks how the new thing links
+     * to the subject. Null (or true) when it can't tell: the last question again, as before.
+     */
+    public volatile java.util.function.BiPredicate<String, String> peers;
+
+    /** Words that name a part or a property of a thing ("the capital", "the population", "the wife"): of what is talked about. */
+    private static final Pattern PART = Pattern.compile("(?i)\\bthe\\s+(capital|population|president|prime minister|leader|currency|"
+            + "official language|languages?|area|size|climate|weather|history|economy|flag|anthem|motto|founders?|ceo|owners?|"
+            + "headquarters|religion|government|king|queen|ruler|governor|mayor|wife|husband|children|kids|parents|father|mother|"
+            + "birthday|age|height|time zone|borders?|neighbou?rs|independence day|nickname|meaning|origin|price|cost|colou?rs?|"
+            + "author|director|cast|plot|ending|release date|members|players|coach|stadium|largest city|biggest city|national dish|"
+            + "national animal|national sport|main export|exports|imports|gdp|capital city|tallest building|highest point|"
+            + "longest river|founding date|first president|current president|name)\\b(?!\\s+(?:of|in|for|at)\\b|'s)");
+    private static final Pattern PEOPLE_PART = Pattern.compile("(?i)wife|husband|children|kids|parents|father|mother|birthday|age|height");
+
     private static final Pattern ABOUT = Pattern.compile("(?i)^\\s*(?:and |so |ok(?:ay)?,? |then )?(?:what about|how about|and what about|what of|same for|same question for|and for|and|also)\\s+(.+?)\\s*[?.!]*$");
     private static final Pattern MORE = Pattern.compile("(?i)^\\s*(?:(?:please )?tell me more|more|go on|continue|say more|anything else|what else|more please|tell me more about (?:him|her|it|them|that))\\s*[?.!]*$");
     private static final Pattern HIS = Pattern.compile("(?i)^\\s*(?:and |so |what about |how about )?(his|her|its|their)\\s+([a-z][a-z ]{1,30}?)\\s*[?.!]*$");
@@ -151,6 +170,16 @@ public final class Context {
         Matcher a = ABOUT.matcher(t);
         if (a.matches() && lastQuestion != null && lastSubjectWords != null && now - lastAt <= FRESH_MS) {
             String other = a.group(1).trim();
+            java.util.function.BiPredicate<String, String> same = peers;
+            if (!other.matches("(?i)(you|me|us|him|her|it|them|that|this|so|then|yes|no|ok|okay)") && other.split("\\s+").length <= 6
+                    && same != null && !same.test(other, cur.name)) {
+                // "what about oil?" while talking about Nigeria: not Nigeria's question again about oil, but oil in Nigeria
+                Resolved r = new Resolved("Tell me about " + other + " in " + cur.name);
+                r.put.put(t.replaceAll("[?.!]+$", ""), other + ", with " + cur.name);
+                r.link = other;
+                r.linkTo = cur.name;
+                return r;
+            }
             if (!other.matches("(?i)(you|me|us|him|her|it|them|that|this|so|then|yes|no|ok|okay)") && other.split("\\s+").length <= 6
                     && containsWords(lastQuestion, lastSubjectWords)) {
                 String again = replaceWords(lastQuestion, lastSubjectWords, other);
@@ -194,12 +223,26 @@ public final class Context {
                 out = out.substring(0, d.start()) + target.name + out.substring(d.end());
             }
         }
+        // "what is the capital?", "who is the president?": a part of the thing talked about, when the question names nothing
+        // else ("the capital" of Nigeria)
+        if (r.put.isEmpty() && !out.substring(1).matches("(?s).*\\b\\p{Lu}.*")) {
+            Matcher p = PART.matcher(out);
+            if (p.find()) {
+                Focus of = PEOPLE_PART.matcher(p.group(1)).matches() ? who : cur.kind == Kind.MAN || cur.kind == Kind.WOMAN ? cur : cur;
+                if (of != null) {
+                    r.put.put("the " + p.group(1).toLowerCase(Locale.ROOT), "the " + p.group(1).toLowerCase(Locale.ROOT) + " of " + of.name);
+                    out = out.substring(0, p.end()) + " of " + of.name + out.substring(p.end());
+                }
+            }
+        }
         return r.put.isEmpty() ? r : withText(r, out);
     }
 
     private static Resolved withText(Resolved from, String text) {
         Resolved r = new Resolved(text);
         r.put.putAll(from.put);
+        r.link = from.link;
+        r.linkTo = from.linkTo;
         return r;
     }
 

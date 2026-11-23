@@ -632,6 +632,18 @@ public final class Ibiko1 {
                 return;
             }
         }
+        // "what about oil?" while talking about Nigeria: what links the two, from what it has read about the subject
+        if (withContext.link != null) {
+            final String link = withContext.link, to = withContext.linkTo;
+            final String linked = linked(to, link);
+            if (linked != null) {
+                how = How.MEMORY;
+                think(Arrays.asList("Reading it with what we were talking about: " + to, "Looking for what links " + link + " to " + to,
+                        "Found it in what I've read about " + to), () -> saysPlain(who, "On " + link + " and " + to + ": " + linked));
+                return;
+            }
+            // nothing read links them: the question goes on as "tell me about oil in Nigeria" (looked up, or searched for)
+        }
         // "tell me more", after something was said about a subject: what hasn't been said yet
         if (withContext.changed() && t.startsWith("Tell me more about ")) {
             final String subject = t.substring("Tell me more about ".length());
@@ -2063,6 +2075,77 @@ public final class Ibiko1 {
 
     /** What the conversation is about (per brain: one chat). */
     private final Context context = new Context();
+
+    {
+        context.peers = this::peers; // "what about Ghana?" (a country, like Nigeria) or "what about oil?" (oil in Nigeria)
+    }
+
+    /**
+     * Whether two things are of a kind, read from what the encyclopedia says each is: the same kind of thing (a person,
+     * a place) or a kind word in common ("country"). True when either isn't found: it can't tell, and the last question
+     * is asked again about the new one, as before.
+     */
+    boolean peers(String a, String b) {
+        try {
+            Encyclopedia e = encyclopedia();
+            Encyclopedia.Article x = e == null ? null : e.find(a), y = e == null ? null : e.find(b);
+            if (x == null || y == null) {
+                return true;
+            }
+            Context.Kind kx = Context.kindOf(x, e.facts(x.title)), ky = Context.kindOf(y, e.facts(y.title));
+            if (kx == ky && kx != Context.Kind.THING) {
+                return true;
+            }
+            java.util.Set<String> hx = new java.util.HashSet<String>(), hy = new java.util.HashSet<String>();
+            for (ai.ibiko.ibiko1.formulas.Contrast.Kind k : ai.ibiko.ibiko1.formulas.Contrast.kinds(x.text, x.title)) {
+                hx.add(ai.ibiko.ibiko1.formulas.Causes.stem(k.head));
+            }
+            for (ai.ibiko.ibiko1.formulas.Contrast.Kind k : ai.ibiko.ibiko1.formulas.Contrast.kinds(y.text, y.title)) {
+                hy.add(ai.ibiko.ibiko1.formulas.Causes.stem(k.head));
+            }
+            if (hx.isEmpty() || hy.isEmpty()) {
+                return kx == ky;
+            }
+            hx.retainAll(hy);
+            return !hx.isEmpty();
+        } catch (RuntimeException ex) {
+            return true;
+        }
+    }
+
+    /**
+     * What links {@code term} to {@code topic}: the sentences of what it has read about the topic (its article, the
+     * facts it keeps about it) that speak of the term. "What about oil?" while talking about Nigeria finds "Nigeria
+     * is a major oil producer…". Null when nothing it has read links them.
+     */
+    String linked(String topic, String term) {
+        java.util.Set<String> want = ai.ibiko.ibiko1.formulas.Causes.words(term);
+        if (want.isEmpty()) {
+            return null;
+        }
+        List<String> found = new ArrayList<String>();
+        Encyclopedia e = encyclopedia();
+        Encyclopedia.Article a = e == null ? null : e.find(topic);
+        List<String> sentences = new ArrayList<String>();
+        if (a != null) {
+            sentences.addAll(Arrays.asList(a.text.split("(?<=[.!?])\\s+(?=[A-Z\"“(])")));
+        }
+        for (Grammar.Triple f : facts().all()) {
+            if (f.surface != null && Facts.same(f.subject, topic)) {
+                sentences.add(f.surface);
+            }
+        }
+        for (String sentence : sentences) {
+            java.util.Set<String> has = ai.ibiko.ibiko1.formulas.Causes.words(sentence);
+            if (has.containsAll(want) && !found.contains(sentence.trim())) {
+                found.add(sentence.trim());
+                if (found.size() >= 3) {
+                    break;
+                }
+            }
+        }
+        return found.isEmpty() ? null : String.join(" ", found);
+    }
     /** The steps that say how the message was read: the context put in, and its roles. */
     private volatile String contextStep, rolesStep;
 
