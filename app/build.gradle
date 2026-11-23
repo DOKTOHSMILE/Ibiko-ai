@@ -7,6 +7,13 @@ android {
         unitTests.all {
             // Robolectric screens (the UI tour, screenshots) need more than the default 512 MB
             maxHeapSize = "2g"
+            // the tests' temporary files go in the build folder, and go when the run ends: a run used to leave
+            // gigabytes behind in the system temp folder, until the disk filled and tests failed for want of space
+            // not under build/: the coding agent's tests read a path with "build" in it as build output, and skip it
+            def scratch = new File(projectDir, ".test-tmp")
+            systemProperty "java.io.tmpdir", scratch.absolutePath
+            doFirst { scratch.deleteDir(); scratch.mkdirs() }
+            doLast { scratch.deleteDir() }
         }
     }
     namespace "ai.ibiko"

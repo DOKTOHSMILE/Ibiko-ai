@@ -143,26 +143,22 @@ public final class Facts {
      * Reads a text for facts: a new one starts at {@code sightings} (2 for an encyclopedia or the pilot's own words), one
      * seen again grows, one it contradicts falls. How many were new.
      */
-    public synchronized int learn(String text, String topic, int sightings, long now) {
-        int added = 0;
+    /** Every fact a text says, as it would be kept: sentences, measures, dated events, reasons and ways. */
+    static List<Grammar.Triple> triples(String text, String topic) {
+        List<Grammar.Triple> out = new ArrayList<Grammar.Triple>();
         text = ai.ibiko.ibiko1.formulas.NumberSense.redact(text); // what is private (PINs, codes, phone numbers) is never kept
-        boolean changed = false;
         for (Grammar.Triple t : Grammar.facts(text, topic)) {
             if (t.subject.length() < 2 || t.object.length() < 2 || t.subject.length() > 80) {
                 continue;
             }
-            int was = all.size();
-            changed |= see(t, sightings, now);
-            added += all.size() > was ? 1 : 0;
+            out.add(t);
         }
         // how many, how long, how high, how big ("Lagos has about 15 million people"): kept as a measure of the thing,
         // (Lagos | population | 15,000,000), to compare and rank with what it has read
         for (ai.ibiko.ibiko1.formulas.Measures.Measure ms : ai.ibiko.ibiko1.formulas.Measures.read(text, topic)) {
             String subject = ms.subject.replaceFirst("(?i)^the\\s+", "").trim();
             Grammar.Triple t = new Grammar.Triple(subject, ms.what, ms.said(), ms.sentence.length() > 300 ? ms.sentence.substring(0, 300) : ms.sentence);
-            int was = all.size();
-            changed |= see(t, sightings, now);
-            added += all.size() > was ? 1 : 0;
+            out.add(t);
         }
         // what happened and when ("The country gained independence on 1 October 1960"): kept as a fact of its own,
         // (Nigeria | gained independence on | 1 October 1960), for the answers put together from what it has read
@@ -174,18 +170,14 @@ public final class Facts {
             }
             Grammar.Triple t = new Grammar.Triple(subject, action + (h.when.full() ? " on" : " in"), h.when.said,
                     h.sentence.length() > 300 ? h.sentence.substring(0, 300) : h.sentence);
-            int was = all.size();
-            changed |= see(t, sightings, now);
-            added += all.size() > was ? 1 : 0;
+            out.add(t);
         }
         // why things are as they are ("Plants are green because of chlorophyll"): kept as a link, effect ← cause,
         // (plants are green | because of | chlorophyll), for why-questions and the reason behind the reason
         for (ai.ibiko.ibiko1.formulas.Causes.Link l : ai.ibiko.ibiko1.formulas.Causes.read(text, topic)) {
             Grammar.Triple t = new Grammar.Triple(l.effect, l.joiner, l.cause,
                     l.sentence.length() > 300 ? l.sentence.substring(0, 300) : l.sentence);
-            int was = all.size();
-            changed |= see(t, sightings, now);
-            added += all.size() > was ? 1 : 0;
+            out.add(t);
         }
         // how a thing is made, formed or done, and how it works ("Glass is made by melting sand"; steps in order): kept
         // as (glass | way made | by melting sand), the steps as (bread | way steps | mix … || knead …)
@@ -194,6 +186,15 @@ public final class Facts {
             String surface = w.steps.isEmpty() ? w.sentence : w.means;
             Grammar.Triple t = new Grammar.Triple(w.thing, "way " + w.doing, object.length() > 600 ? object.substring(0, 600) : object,
                     surface.length() > 300 ? surface.substring(0, 300) : surface);
+            out.add(t);
+        }
+        return out;
+    }
+
+    public synchronized int learn(String text, String topic, int sightings, long now) {
+        int added = 0;
+        boolean changed = false;
+        for (Grammar.Triple t : triples(text, topic)) {
             int was = all.size();
             changed |= see(t, sightings, now);
             added += all.size() > was ? 1 : 0;
@@ -257,6 +258,61 @@ public final class Facts {
             }
         }
         return out;
+    }
+
+    /** What a text says against what is held: the fact held (sure, strength 2 or more) and the one said. */
+    public static final class Conflict {
+        public final Grammar.Triple held, said;
+        public final int strength;
+
+        Conflict(Grammar.Triple held, Grammar.Triple said, int strength) {
+            this.held = held;
+            this.said = said;
+            this.strength = strength;
+        }
+    }
+
+    /**
+     * T1–T3: what in a text goes against what it holds sure, before it is kept. T1 a fact with one answer (born, founded,
+     * capital of, invented by) and another one held; T2 an event with another date held for it; T3 a measure (population,
+     * length, height, area) more than a tenth off the one held. Nothing is changed: it is for asking which is right.
+     */
+    public synchronized List<Conflict> conflicts(String text, String topic) {
+        List<Conflict> out = new ArrayList<Conflict>();
+        for (Grammar.Triple t : triples(text, topic)) {
+            for (Row r : all) {
+                Grammar.Triple k = r.fact;
+                if (r.n < 2 || !same(k.subject, t.subject) || !k.relation.equals(t.relation) || same(k.object, t.object)) {
+                    continue;
+                }
+                boolean against = opposes(k, t)
+                        || k.relation.endsWith(" on") && ai.ibiko.ibiko1.formulas.Happenings.date(k.object) != null
+                        && ai.ibiko.ibiko1.formulas.Happenings.date(t.object) != null
+                        || k.relation.matches("population|length|elevation|area") && apart(k.object, t.object) > 0.1;
+                if (against) {
+                    out.add(new Conflict(k, t, r.n));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** How far apart two measures are, as a share of the larger; 0 when either isn't a number. */
+    static double apart(String a, String b) {
+        try {
+            double x = Double.parseDouble(a.replaceAll("[^0-9.]", "")), y = Double.parseDouble(b.replaceAll("[^0-9.]", ""));
+            return Math.max(x, y) == 0 ? 0 : Math.abs(x - y) / Math.max(x, y);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** T4: settled by the person: {@code keep} is made sure, {@code drop} is forgotten. */
+    public synchronized void settle(Grammar.Triple keep, Grammar.Triple drop, long now) {
+        forget(drop);
+        see(keep, 2, now);
+        see(keep, 2, now); // the person's settled word: seen and confirmed
+        save();
     }
 
     /** The strongest sure measure read of a thing ("population", "length", "elevation", "area"), as said; or null. */

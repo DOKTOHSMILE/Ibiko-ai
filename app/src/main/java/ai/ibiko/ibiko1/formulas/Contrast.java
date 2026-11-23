@@ -76,31 +76,88 @@ public final class Contrast {
     private static final Pattern IS_A = Pattern.compile("(?i)^(.{2,80}?)\\s+(?:\\([^)]*\\)\\s+)?(?:is|are|was|were)\\s+(?:also\\s+)?"
             + "(?:(a|an|the|one of the|any of the|a kind of|a type of|a group of|a family of|a member of the)\\s+)?(.+)$");
     private static final Pattern KIND_END = Pattern.compile("(?i)\\s(that|which|who|whose|with|of|in|from|for|by|used|found|living|made|"
-            + "where|when|known|called|native|between|on|at|to|and|but|given)\\b|,|;|\\(");
+            + "where|when|known|called|native|between|on|at|to|and|but|given)\\b|"
+            + ",(?=\\s*(?:the|a|an|and|or|which|who|that|it|its|located|known|also|but|in|on|with|one|usually|often|mostly)\\b|\\s*(?-i:\\p{Lu}))|;|\\(");
 
     /** D2: the kind from the first sentence that says what the thing is; null when none does. */
     public static Kind kind(String text) {
         for (String s : sentences(text, 4)) {
+            Kind k = read(s);
+            if (k == NAME_ONLY) {
+                return null; // what a word means, not what a thing is: it can't be told apart this way
+            }
+            if (k != null) {
+                return k;
+            }
+        }
+        return null;
+    }
+
+    /** A word's meaning, not a thing's kind ("Python is the name given to …"). */
+    private static final Kind NAME_ONLY = new Kind("", "", "", "");
+
+    /**
+     * Every kind the opening of a text gives its thing: "Mammals are in the class Mammalia. They are a group of vertebrate
+     * animals." gives vertebrate animals; "Frogs are amphibians and vertebrates" gives both. Only sentences about the
+     * thing itself (its name or "it", "they") count.
+     */
+    public static List<Kind> kinds(String text, String title) {
+        List<Kind> out = new ArrayList<Kind>();
+        Set<String> name = words(title);
+        for (String s : sentences(text, 5)) {
+            Matcher subj = Pattern.compile("^(.{2,80}?)\\s+(?:\\([^)]*\\)\\s+)?(?:is|are|was|were)\\b").matcher(s);
+            if (!subj.find()) {
+                continue;
+            }
+            String who = subj.group(1);
+            Set<String> w = words(who);
+            w.retainAll(name);
+            if (!who.matches("(?i)(it|they|these|this|both)") && w.isEmpty()) {
+                continue;
+            }
+            Kind k = read(s);
+            if (k == NAME_ONLY) {
+                return new ArrayList<Kind>();
+            }
+            if (k == null) {
+                continue;
+            }
+            out.add(k);
+            // "amphibians and vertebrates of the order Anura": the second is a kind too
+            Matcher and = Pattern.compile("(?i)^and\\s+(.+)$").matcher(k.rest);
+            if (and.matches()) {
+                Kind more = read(who + (k.all ? " are " : " is ") + and.group(1));
+                if (more != null && more != NAME_ONLY) {
+                    out.add(more);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** D2 for one sentence: the kind it says its subject is; null when it says none. */
+    static Kind read(String s) {
+        {
             Matcher m = IS_A.matcher(s.replaceAll("[.!]+$", ""));
             if (!m.matches()) {
-                continue;
+                return null;
             }
             String det = m.group(2) == null ? "" : m.group(2).toLowerCase(Locale.US);
             if (det.isEmpty() && !s.matches("(?is).*?\\s(are|were)\\s.*")) {
-                continue; // "Frogs are amphibians" says a kind without "a"; "Lagos is big" doesn't
+                return null; // "Frogs are amphibians" says a kind without "a"; "Lagos is big" doesn't
             }
             String pred = m.group(3).trim();
             Matcher end = KIND_END.matcher(pred);
             int at = end.find() ? end.start() : pred.length();
             String kind = pred.substring(0, at).trim();
             String rest = pred.substring(at).replaceFirst("^[,;\\s]+", "").trim();
-            if (kind.isEmpty() || kind.split(" ").length > 5 || det.isEmpty() && kind.split(" ")[0].matches("(?i)\\w+(ed|ing|ly)|not|very|so|too|also|still")) {
-                continue;
+            if (kind.isEmpty() || kind.split(" ").length > 6 || det.isEmpty() && kind.split(" ")[0].matches("(?i)\\w+(ed|ing|ly)|not|very|so|too|also|still|in|on|at|of|from|by|for|with|part|one|all|some|usually|often|mostly|found|called|known")) {
+                return null;
             }
             String[] w = kind.split("\\s+");
             String head = w[w.length - 1].toLowerCase(Locale.US);
             if (kind.toLowerCase(Locale.US).matches("(.*\\s)?(name|names|word|term|title|surname|nickname|abbreviation|acronym)(\\s.*)?")) {
-                return null; // what a word means, not what a thing is: it can't be told apart this way
+                return NAME_ONLY;
             }
             // "a genus of crocodilians", "a body of water": the kind is what the container word is of
             Matcher of = Pattern.compile("(?i)^of\\s+((?:the\\s+)?[\\p{L}-]+(?:\\s+[\\p{L}-]+){0,2}?)(?=\\s+(?:that|which|who|with|in|from|for|by|"
@@ -124,7 +181,6 @@ public final class Contrast {
             k.all = det.isEmpty();
             return k;
         }
-        return null;
     }
 
     private static final Set<String> STOP = new HashSet<String>(Arrays.asList("the", "a", "an", "of", "to", "in", "on", "at", "for", "and",

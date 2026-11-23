@@ -117,13 +117,14 @@ public final class IbikoApp extends Application {
 
     private void plugIbiko1() {
         final android.content.Context app = this;
-        ai.ibiko.ibiko1.Plug.asset = path -> {
+        // knowledge is upgradable: a newer copy downloaded to the phone is read before the one in the app
+        ai.ibiko.ibiko1.Plug.asset = ai.ibiko.net.KnowledgeFiles.over(getFilesDir(), path -> {
             try {
                 return getAssets().open(path);
             } catch (java.io.IOException e) {
                 return null;
             }
-        };
+        });
         ai.ibiko.ibiko1.Plug.web = new ai.ibiko.ibiko1.Plug.Web() {
             @Override
             public String get(String url) {

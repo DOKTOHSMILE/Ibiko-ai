@@ -1355,6 +1355,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
                     final ai.ibiko.brain.KnowledgePack full = store.load();
                     handler.post(() -> brain.replacePack(full));
                 });
+        sync.setKnowledgeFiles(new ai.ibiko.net.KnowledgeFiles(getFilesDir())); // newer knowledge files, not only the pack
         desk = new ai.ibiko.net.DeskClient(session::serverRoot, session::token, session::invalidate,
                 new ai.ibiko.net.DeskClient.RoomStore() {
                     @Override

@@ -632,6 +632,18 @@ public final class Ibiko1 {
                 return;
             }
         }
+        // "what about oil?" while talking about Nigeria: what links the two, from what it has read about the subject
+        if (withContext.link != null) {
+            final String link = withContext.link, to = withContext.linkTo;
+            final String linked = linked(to, link);
+            if (linked != null) {
+                how = How.MEMORY;
+                think(Arrays.asList("Reading it with what we were talking about: " + to, "Looking for what links " + link + " to " + to,
+                        "Found it in what I've read about " + to), () -> saysPlain(who, "On " + link + " and " + to + ": " + linked));
+                return;
+            }
+            // nothing read links them: the question goes on as "tell me about oil in Nigeria" (looked up, or searched for)
+        }
         // "tell me more", after something was said about a subject: what hasn't been said yet
         if (withContext.changed() && t.startsWith("Tell me more about ")) {
             final String subject = t.substring("Tell me more about ".length());
@@ -792,6 +804,16 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "Nothing is running right now, so there's nothing to stop."));
             return;
         }
+        // the answer to "should I change it?" after the person said something against what it holds
+        final Facts.Conflict dispute = disputed;
+        disputed = null;
+        if (dispute != null) {
+            final String settled = settle(dispute, t);
+            if (settled != null) {
+                think(Arrays.asList("Reading your answer", "Settling which is right"), () -> saysPlain(who, settled));
+                return;
+            }
+        }
         // "why?" after a reason: the reason behind it, one step further back along what it has read
         final ai.ibiko.ibiko1.formulas.Causes.Link reasonBefore = lastReason;
         lastReason = null; // anything else moves on from it
@@ -874,6 +896,32 @@ public final class Ibiko1 {
         // how something is made, formed or done, or how it works: the way read out of what it knows and reads
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.HOW && answerHow(who, t)) {
             return;
+        }
+        // "is a frog an animal?": worked out by going up what each thing is (a frog is an amphibian, an amphibian is …)
+        final String[] kindAsked = ai.ibiko.ibiko1.formulas.Kinds.asked(t);
+        if (kindAsked != null && encyclopedia() != null) {
+            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> chain = ai.ibiko.ibiko1.formulas.Kinds.chain(kindAsked[0], kindAsked[1], name -> {
+                Encyclopedia.Article a = encyclopedia().find(name);
+                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
+            });
+            if (chain != null) {
+                final String yes = ai.ibiko.ibiko1.formulas.Kinds.said(chain);
+                if (!knowledge().rejected(t, yes)) {
+                    how = How.MEMORY;
+                    List<String> steps = new ArrayList<String>();
+                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
+                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : chain) {
+                        steps.add("Reading what " + st.thing + " is: " + st.said);
+                    }
+                    steps.add("Reached " + kindAsked[1] + ": yes");
+                    think(steps, () -> {
+                        saysSure(who, yes, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED,
+                                "Worked out from Simple English Wikipedia, step by step");
+                        rateable(t, yes);
+                    });
+                    return;
+                }
+            }
         }
         // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
@@ -1649,6 +1697,51 @@ public final class Ibiko1 {
         });
     }
 
+    /** Something the person said against what it holds, waiting for "should I change it?"; null when nothing is. */
+    private volatile Facts.Conflict disputed;
+
+    /** A fact as said: "Ghana became independent on 6 March 1957", "the population of Lagos is 15,000,000". */
+    static String shown(Grammar.Triple t) {
+        if (t.relation.matches("population|length|elevation|area")) {
+            return "the " + t.relation + " of " + t.subject + " is " + t.object;
+        }
+        if (t.surface != null && !t.surface.isEmpty() && t.surface.length() <= 160) {
+            String s = t.surface.trim().replaceAll("[.!]+$", "");
+            return s.matches("^(The|A|An|It|This|These|There)\\b.*") ? Character.toLowerCase(s.charAt(0)) + s.substring(1) : s;
+        }
+        return t.subject + " " + t.relation + " " + t.object;
+    }
+
+    /**
+     * T4: the person's answer to "should I change it?": yes (or what they said, named again) makes theirs the fact and
+     * drops what it had; no (or what it had, named) keeps it. Anything else isn't an answer: null, read as a new message.
+     */
+    String settle(Facts.Conflict c, String reply) {
+        String low = reply.trim().toLowerCase(Locale.US);
+        String held = c.held.object.toLowerCase(Locale.US), said = c.said.object.toLowerCase(Locale.US);
+        boolean namesHeld = low.contains(held) && !low.contains(said), namesSaid = low.contains(said) && !low.contains(held);
+        boolean yes = low.matches("^(yes|yeah|yep|yup|sure|ok|okay|please do|do it|change it|update it|go ahead|correct|right)\\b.*")
+                || low.matches(".*\\b(i'?m right|i am right|mine is right|you'?re wrong|you are wrong|yours is wrong|trust me|i'?m sure|"
+                + "i am sure|use mine|change it|update it)\\b.*");
+        boolean no = low.matches("^(no|nope|nah|don'?t|do not|keep it|leave it)\\b.*")
+                || low.matches(".*\\b(you'?re right|you are right|yours is right|i was wrong|i'?m wrong|i am wrong|my mistake|my bad|"
+                + "keep yours|keep what you had|never ?mind)\\b.*");
+        if (namesSaid || yes && !no && !namesHeld) {
+            facts().settle(c.said, c.held, System.currentTimeMillis());
+            learner().read(shown(c.said), Learner.Source.PILOT, System.currentTimeMillis());
+            return "Updated: " + cap1(shown(c.said)) + ". I've dropped " + c.held.object + ".";
+        }
+        if (namesHeld || no) {
+            facts().settle(c.held, c.said, System.currentTimeMillis());
+            return "Okay, I'll keep what I had: " + shown(c.held) + ".";
+        }
+        return null;
+    }
+
+    private static String cap1(String s) {
+        return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
     /** The last reason given, for "why?" to go on from; null when the talk has moved on. */
     private volatile ai.ibiko.ibiko1.formulas.Causes.Link lastReason;
 
@@ -1982,6 +2075,77 @@ public final class Ibiko1 {
 
     /** What the conversation is about (per brain: one chat). */
     private final Context context = new Context();
+
+    {
+        context.peers = this::peers; // "what about Ghana?" (a country, like Nigeria) or "what about oil?" (oil in Nigeria)
+    }
+
+    /**
+     * Whether two things are of a kind, read from what the encyclopedia says each is: the same kind of thing (a person,
+     * a place) or a kind word in common ("country"). True when either isn't found: it can't tell, and the last question
+     * is asked again about the new one, as before.
+     */
+    boolean peers(String a, String b) {
+        try {
+            Encyclopedia e = encyclopedia();
+            Encyclopedia.Article x = e == null ? null : e.find(a), y = e == null ? null : e.find(b);
+            if (x == null || y == null) {
+                return true;
+            }
+            Context.Kind kx = Context.kindOf(x, e.facts(x.title)), ky = Context.kindOf(y, e.facts(y.title));
+            if (kx == ky && kx != Context.Kind.THING) {
+                return true;
+            }
+            java.util.Set<String> hx = new java.util.HashSet<String>(), hy = new java.util.HashSet<String>();
+            for (ai.ibiko.ibiko1.formulas.Contrast.Kind k : ai.ibiko.ibiko1.formulas.Contrast.kinds(x.text, x.title)) {
+                hx.add(ai.ibiko.ibiko1.formulas.Causes.stem(k.head));
+            }
+            for (ai.ibiko.ibiko1.formulas.Contrast.Kind k : ai.ibiko.ibiko1.formulas.Contrast.kinds(y.text, y.title)) {
+                hy.add(ai.ibiko.ibiko1.formulas.Causes.stem(k.head));
+            }
+            if (hx.isEmpty() || hy.isEmpty()) {
+                return kx == ky;
+            }
+            hx.retainAll(hy);
+            return !hx.isEmpty();
+        } catch (RuntimeException ex) {
+            return true;
+        }
+    }
+
+    /**
+     * What links {@code term} to {@code topic}: the sentences of what it has read about the topic (its article, the
+     * facts it keeps about it) that speak of the term. "What about oil?" while talking about Nigeria finds "Nigeria
+     * is a major oil producer…". Null when nothing it has read links them.
+     */
+    String linked(String topic, String term) {
+        java.util.Set<String> want = ai.ibiko.ibiko1.formulas.Causes.words(term);
+        if (want.isEmpty()) {
+            return null;
+        }
+        List<String> found = new ArrayList<String>();
+        Encyclopedia e = encyclopedia();
+        Encyclopedia.Article a = e == null ? null : e.find(topic);
+        List<String> sentences = new ArrayList<String>();
+        if (a != null) {
+            sentences.addAll(Arrays.asList(a.text.split("(?<=[.!?])\\s+(?=[A-Z\"“(])")));
+        }
+        for (Grammar.Triple f : facts().all()) {
+            if (f.surface != null && Facts.same(f.subject, topic)) {
+                sentences.add(f.surface);
+            }
+        }
+        for (String sentence : sentences) {
+            java.util.Set<String> has = ai.ibiko.ibiko1.formulas.Causes.words(sentence);
+            if (has.containsAll(want) && !found.contains(sentence.trim())) {
+                found.add(sentence.trim());
+                if (found.size() >= 3) {
+                    break;
+                }
+            }
+        }
+        return found.isEmpty() ? null : String.join(" ", found);
+    }
     /** The steps that say how the message was read: the context put in, and its roles. */
     private volatile String contextStep, rolesStep;
 
@@ -2141,6 +2305,17 @@ public final class Ibiko1 {
             return "Noted.";
         }
         said = Character.toUpperCase(said.charAt(0)) + said.substring(1);
+        // said against what it holds sure ("Ghana became independent in 1958" when it read 1957): not taken or dropped
+        // quietly; it says what it has, and asks
+        if (!said.matches("(?i)^(today|tomorrow|yesterday|i|we|my|our|you)\\b.*")) {
+            List<Facts.Conflict> against = facts().conflicts(said, null);
+            if (!against.isEmpty()) {
+                Facts.Conflict c = against.get(0);
+                disputed = c;
+                return "That's not what I have. I " + (c.strength >= 3 ? "have read more than once" : "read") + " that " + shown(c.held)
+                        + ", but you say " + shown(c.said) + ". Should I change it to what you said? (Yes changes it; no keeps what I had.)";
+            }
+        }
         // something that happened, with its date ("Ghana became independent on 6 March 1957"): understood and kept, to
         // reason with ("how old was Achebe when Ghana became independent?")
         List<ai.ibiko.ibiko1.formulas.Happenings.Happening> happened = ai.ibiko.ibiko1.formulas.Happenings.read(said, null);
@@ -2169,6 +2344,16 @@ public final class Ibiko1 {
                 got.add(l.effect + " " + l.because());
             }
             return "Noted: " + String.join("; ", got) + ". I'll use it when I'm asked why.";
+        }
+        // how many, how long, how high, how big ("Lagos has about 15 million people"): kept as a measure, to compare
+        List<ai.ibiko.ibiko1.formulas.Measures.Measure> measured = ai.ibiko.ibiko1.formulas.Measures.read(said, null);
+        if (!measured.isEmpty() && !said.matches("(?i)^(today|tomorrow|yesterday|i|we|my|our|you)\\b.*")) {
+            facts().learn(said, null, 2, System.currentTimeMillis()); // the pilot's own words: as good as a source
+            List<String> got = new ArrayList<String>();
+            for (ai.ibiko.ibiko1.formulas.Measures.Measure ms : measured) {
+                got.add("the " + ms.what + " of " + ms.subject + " is " + ms.said());
+            }
+            return "Noted: " + String.join("; ", got) + ". I'll use it when I compare and rank things.";
         }
         Matcher m = Pattern.compile("(?i)^(?:(the|a|an) )?(.{2,60}?) (is|are|was|were) (.{2,300}?)[.!]*$").matcher(said);
         if (m.matches() && m.group(2).matches("(?i)(today|tomorrow|yesterday|tonight|now|it|this|that|he|she|they|there|here)\\b.*")) {
