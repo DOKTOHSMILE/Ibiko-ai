@@ -240,13 +240,13 @@ public final class CodeReader {
         if (code.matches("(?s).*\\b(?:input|Scanner|readline|readLine|fgets|gets|stdin|scanf|cin)\\b.*")) {
             p.does.add("reads what the user types");
         }
-        if (low.matches("(?s).*\\b(?:open\\(|readfile|writefile|fopen|files\\.|file\\.read|file\\.write|fs\\.|os\\.writefile|os\\.readfile|ifstream|ofstream|read_to_string|file_put_contents|file_get_contents).*")) {
+        if (low.matches("(?s).*(?:(?<![.\\w])open\\(|\\breadfile|writefile|fopen|files\\.|file\\.read|file\\.write|fs\\.|os\\.writefile|os\\.readfile|ifstream|ofstream|read_to_string|file_put_contents|file_get_contents).*")) {
             p.does.add("reads or writes files");
         }
         if (low.matches("(?s).*(?:fetch\\(|requests\\.|urlopen|http\\.get|httpclient|axios|curl|file_get_contents\\(\"http|xmlhttprequest|net/http).*")) {
             p.does.add("talks to the internet");
         }
-        if (low.matches("(?s).*\\b(?:select |insert into|update .* set|create table|cursor|execute\\(|query\\(|sqlite|mysql|mongodb|prisma).*")) {
+        if (low.matches("(?s).*\\b(?:select [^\\n;]* from |insert into|update [^\\n;]* set |create table|cursor\\(|\\.cursor\\b|execute\\(|query\\(|sqlite|mysql|mongodb|prisma).*")) {
             p.does.add("works with a database");
         }
         if (low.matches("(?s).*\\b(?:app\\.listen|createserver|@app\\.route|app\\.get\\(|listenandserve|express\\(\\)).*")) {
@@ -461,6 +461,16 @@ public final class CodeReader {
         if (l.matches("^(?:public|private|protected|static)\\b.*\\(.*\\).*\\{?$")) {
             return "starts a method (a step that belongs to the class)";
         }
+        String oneLine = ifThen(l, lang);
+        if (oneLine != null) {
+            return oneLine;
+        }
+        if (l.startsWith("<")) {
+            String tag = tag(l);
+            if (tag != null) {
+                return tag;
+            }
+        }
         if ((m = Pattern.compile("^(?:if|elif|else if|} else if)\\s*\\(?(.+?)\\)?\\s*(?:\\{|:|then)?$").matcher(l)).find()) {
             return "checks whether " + condition(m.group(1)) + ", and only then does what follows";
         }
@@ -513,8 +523,73 @@ public final class CodeReader {
         return null;
     }
 
+    /** "if (!reach) missing.push(…);" on one line: the condition, then the step it guards. */
+    private static String ifThen(String l, String lang) {
+        Matcher m = Pattern.compile("^(?:}\\s*)?(?:else\\s+)?if\\s*\\(").matcher(l);
+        if (!m.find()) {
+            return null;
+        }
+        int depth = 1, i = m.end();
+        for (; i < l.length() && depth > 0; i++) {
+            char c = l.charAt(i);
+            depth += c == '(' ? 1 : c == ')' ? -1 : 0;
+        }
+        if (depth != 0) {
+            return null;
+        }
+        String cond = l.substring(m.end(), i - 1), rest = l.substring(i).trim();
+        if (rest.isEmpty() || rest.equals("{")) {
+            return "checks whether " + condition(cond) + ", and only then does what follows";
+        }
+        rest = rest.replaceFirst("^\\{\\s*", "").replaceFirst("\\s*}$", "");
+        String then = line(rest.replaceFirst(";\\s*$", ""), lang);
+        return "if " + condition(cond) + ", it " + (then != null ? then : "does " + shorten(rest));
+    }
+
+    /** An HTML line: the part of the page its tag makes. */
+    private static String tag(String l) {
+        Matcher m = Pattern.compile("^<(/?)([a-zA-Z][a-zA-Z0-9]*)").matcher(l);
+        if (!m.find()) {
+            return l.startsWith("<!") ? "says this is an HTML page (the doctype)" : null;
+        }
+        if (!m.group(1).isEmpty()) {
+            return "closes the " + m.group(2).toLowerCase(Locale.ROOT);
+        }
+        Matcher text = Pattern.compile(">([^<]{1,50})<").matcher(l);
+        String words = text.find() ? " showing “" + text.group(1).trim() + "”" : "";
+        Matcher id = Pattern.compile("\\bid=\"([^\"]+)\"").matcher(l);
+        String named = id.find() ? " (named " + id.group(1) + ", so the script can find it)" : "";
+        switch (m.group(2).toLowerCase(Locale.ROOT)) {
+            case "html": return "starts the page";
+            case "head": return "starts the page's head: things the browser needs that aren't shown";
+            case "meta": return l.contains("viewport") ? "makes the page fit a phone's screen" : "tells the browser about the page (its text encoding)";
+            case "title": return "the page's title, shown on the browser tab" + words;
+            case "style": return "starts the styles: colours, sizes and layout";
+            case "script": return "starts the script: the JavaScript that makes the page do things";
+            case "body": return "starts what the page shows";
+            case "main": return "the page's main part";
+            case "h1": case "h2": case "h3": return "a heading" + words + named;
+            case "p": return "a paragraph" + words + named;
+            case "form": return "starts a form (fields to fill in and send)" + named;
+            case "label": return "a label for a box" + words;
+            case "input": return "a box to type in" + named;
+            case "textarea": return "a bigger box for longer text" + named;
+            case "button": return "a button" + words + named;
+            case "ul": case "ol": return "starts a list" + named;
+            case "li": return "an item in a list" + words;
+            case "a": return "a link" + words;
+            case "img": return "a picture";
+            case "div": case "section": return "a box grouping what's inside it" + named;
+            case "output": return "where the answer is shown" + named;
+            case "header": return "the top of the page (the name and menu)";
+            case "footer": return "the bottom of the page";
+            case "nav": return "the menu";
+            default: return "a " + m.group(2).toLowerCase(Locale.ROOT) + " element" + words + named;
+        }
+    }
+
     private static String condition(String c) {
-        return c.replace("===", " is ").replace("==", " is ").replace("!==", " is not ").replace("!=", " is not ")
+        return c.replaceAll("!(?!=)\\s*([A-Za-z_][\\w.]*)", "there's no $1").replace("===", " is ").replace("==", " is ").replace("!==", " is not ").replace("!=", " is not ")
                 .replace(">=", " is at least ").replace("<=", " is at most ").replace("&&", " and ").replace("||", " or ")
                 .replaceAll("\\s+", " ").trim();
     }
@@ -588,7 +663,7 @@ public final class CodeReader {
 
     /** A question about code just read: convert it, one line of it, or whether it has a mistake. */
     public static final class Follow {
-        public enum Is { CONVERT, LINE, CHECK }
+        public enum Is { CONVERT, LINE, CHECK, EXPLAIN }
 
         public final Is is;
         public final String lang;
@@ -604,6 +679,9 @@ public final class CodeReader {
     private static final Pattern CONVERT = Pattern.compile("(?i)^\\s*(?:can you |please |now )?(?:convert|translate|rewrite|port|turn|write|show)\\s+"
             + "(?:it|this|that|the code|the same|this code|it all)?\\s*(?:in|into|to|as|for|using)\\s+(.{1,20}?)\\s*[?.!]*$|^\\s*(?:and |what about |how about )?in (.{1,20}?)\\s*[?.!]*$");
     private static final Pattern LINE = Pattern.compile("(?i)\\bline\\s+(\\d{1,3})\\b|\\b(first|second|third|fourth|fifth|last) line\\b");
+    private static final Pattern EXPLAIN = Pattern.compile("(?i)^\\s*(?:can you |please |now )?(?:explain (?:it|this|that|the code|the page|how it works)"
+            + "|how does (?:it|this|that|the code) work|what does (?:it|this|that|the code) do|walk me through (?:it|this|the code)|break it down)"
+            + "(?: to me)?(?: line by line| in plain (?:words|english))?\\s*[?.!]*$");
     private static final Pattern CHECK = Pattern.compile("(?i)\\b(?:any|a|the) (?:mistakes?|bugs?|errors?|problems?)\\b|\\bis (?:it|this|that) (?:right|correct|ok|okay|wrong)\\b|"
             + "\\bwill (?:it|this) (?:work|run)\\b|\\bwhat'?s wrong\\b|\\bwhy (?:doesn'?t|won'?t) (?:it|this) (?:work|run)\\b");
 
@@ -628,6 +706,9 @@ public final class CodeReader {
         }
         if (CHECK.matcher(m).find()) {
             return new Follow(Follow.Is.CHECK, null, 0);
+        }
+        if (EXPLAIN.matcher(m).matches()) {
+            return new Follow(Follow.Is.EXPLAIN, null, 0);
         }
         return null;
     }
