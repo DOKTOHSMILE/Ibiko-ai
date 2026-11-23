@@ -244,6 +244,8 @@ public class WhyFlowTest {
             assertTrue(need, need.startsWith("A restaurant or food website shows the food"));
             String made = ask(brain, chat, "What is a website made of?");
             assertTrue(made, made.startsWith("Every website is made of the same layers"));
+            String read = ask(brain, chat, "What does this do?\n```\ndef add(a, b):\n    return a + b\n\nprint(add(2, 3))\n```");
+            assertTrue(read, read.startsWith("This is Python code.") && read.contains("Line by line:"));
             String kotlin = ask(brain, chat, "How do I sort a list in Kotlin?");
             assertTrue("offline, not in its recipes: said plainly: " + kotlin, kotlin.startsWith("I don't have that in Kotlin yet"));
         } finally {

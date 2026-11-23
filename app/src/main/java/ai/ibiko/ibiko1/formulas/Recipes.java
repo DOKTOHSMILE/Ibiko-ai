@@ -296,6 +296,46 @@ public final class Recipes {
         }
     }
 
+    /**
+     * The task a piece of code does, when it is (near enough) one of the recipes in that language: most of its words are
+     * the recipe's. Null when it isn't one.
+     */
+    public synchronized String match(String code, String lang) {
+        java.util.Set<String> words = tokens(code);
+        if (words.size() < 3) {
+            return null;
+        }
+        String best = null;
+        double bestScore = 0;
+        for (Map.Entry<String, Map<String, String>> e : shipped.entrySet()) {
+            String r = e.getValue().get(lang);
+            if (r == null) {
+                continue;
+            }
+            java.util.Set<String> rw = tokens(r);
+            java.util.Set<String> both = new java.util.HashSet<String>(rw);
+            both.retainAll(words);
+            java.util.Set<String> any = new java.util.HashSet<String>(rw);
+            any.addAll(words);
+            double j = any.isEmpty() ? 0 : both.size() / (double) any.size();
+            if (j > bestScore) {
+                bestScore = j;
+                best = e.getKey();
+            }
+        }
+        return bestScore >= 0.6 ? title(best) : null;
+    }
+
+    private static java.util.Set<String> tokens(String code) {
+        java.util.Set<String> out = new java.util.HashSet<String>();
+        for (String w : code.split("[^A-Za-z0-9_]+")) {
+            if (!w.isEmpty()) {
+                out.add(w);
+            }
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------------------------------------- R4: finding code
 
     private static final Pattern FENCED = Pattern.compile("```\\s*([A-Za-z0-9+#.-]*)\\s*\\n(.*?)```", Pattern.DOTALL);

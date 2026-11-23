@@ -535,13 +535,16 @@ public final class Ibiko1 {
         // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
         // (not in the turn after it asked back, which is an explanation or a correction, read as said)
         // a long text pasted in: read and kept, never rewritten with the conversation's names
-        final Passage pasted = inquiry == null ? Passage.of(message, heardAt) : null;
-        final Context.Resolved withContext = pasted != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
+        // code pasted in: read as code (to explain), never as a passage of prose or rewritten with the talk's names
+        final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet = inquiry == null ? ai.ibiko.ibiko1.formulas.CodeReader.find(message) : null;
+        final Passage pasted = inquiry == null && snippet == null ? Passage.of(message, heardAt) : null;
+        final Context.Resolved withContext = pasted != null || snippet != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
+        turnDomain = null;
         // questions inside the question ("the capital of the country where Kilimanjaro is"): the inner ones answered
         // from the facts first, so what is left is one question
         // (not a yes-or-no claim: "is Lagos the capital of Nigeria?" is checked as said, not made "is Lagos Abuja?")
-        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || inquiry != null
+        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || snippet != null || inquiry != null
                 || ai.ibiko.ibiko1.formulas.Verify.check(withContext.text, this::fact) != null ? null
                 : ai.ibiko.ibiko1.formulas.Hops.resolve(withContext.text, this::fact);
         final String t = hops == null ? withContext.text : hops.text;
@@ -704,9 +707,9 @@ public final class Ibiko1 {
         // words, meanings and grammar: what a word means (here), the word for a meaning, synonyms, a sentence explained,
         // whether two say the same, a word's morphemes, whether a sentence is grammatical
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
-        // websites: built offline for a request, kinds explained and told apart, what a website is made of
-        final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = ai.ibiko.ibiko1.formulas.Sites.read(t);
-        if (siteAsk != null && siteTurn(who, t, siteAsk)) {
+        // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
+        // the best taken first (not the first pattern that fits); the others kept to fall back on
+        if (ranked(who, message, t, snippet)) {
             return;
         }
         final WordTalk byTopic = topic == null && !t.matches("(?is).*\\b(in|for)\\s+\\p{L}+\\s*[?.!]*$") ? null : wordTalk();
@@ -1877,6 +1880,83 @@ public final class Ibiko1 {
         return true;
     }
 
+    /** The subject of this turn's answer ("code", "web", "facts"…), for the next message's reading; null: not known. */
+    private volatile String turnDomain;
+    /** What the last turns were about, for reading the next message with the conversation. */
+    private final ai.ibiko.ibiko1.formulas.Readings.Context readingContext = new ai.ibiko.ibiko1.formulas.Readings.Context();
+
+    /**
+     * P1–P4: the readers that recognise the message offer their readings; they are weighed (the message's own words, the
+     * conversation's last subjects, a short follow-up) and tried best first. True when one answered; false leaves the
+     * message to the rest of Ibiko (a word's meaning chosen first goes on to the word reader there).
+     */
+    private boolean ranked(final String who, String message, final String t, final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet) {
+        List<ai.ibiko.ibiko1.formulas.Readings.Kind> offered = new ArrayList<ai.ibiko.ibiko1.formulas.Readings.Kind>();
+        boolean runIt = snippet != null && message.replace(snippet.code, " ").matches("(?is).*\\b(?:run|execute|exec)\\b.*");
+        if (snippet != null && !runIt) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
+        }
+        final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
+        if (siteAsk != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
+        }
+        final String[] lastCode = lastRecipe;
+        final String followLang = lastCode == null ? null : ai.ibiko.ibiko1.formulas.Recipes.followUp(t);
+        final ai.ibiko.ibiko1.formulas.Recipes.Ask coding = snippet != null ? null : followLang != null && !lastCode[0].startsWith("q:")
+                ? ai.ibiko.ibiko1.formulas.Recipes.ask(lastCode[0], followLang) : ai.ibiko.ibiko1.formulas.Recipes.read(t);
+        if (coding != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODING);
+        }
+        if (snippet == null && WordTalk.asks(message)) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.WORD);
+        }
+        if (offered.isEmpty()) {
+            return false;
+        }
+        Context.Focus f = context.focus(System.currentTimeMillis());
+        readingContext.focus = f == null ? null : f.name;
+        List<ai.ibiko.ibiko1.formulas.Readings.Reading> order = ai.ibiko.ibiko1.formulas.Readings.weigh(t, offered, readingContext);
+        if (order.size() > 1) {
+            String weighed = ai.ibiko.ibiko1.formulas.Readings.said(order);
+            contextStep = contextStep == null ? weighed : contextStep + "; " + weighed;
+        }
+        for (ai.ibiko.ibiko1.formulas.Readings.Reading r : order) {
+            switch (r.kind) {
+                case CODE:
+                    turnDomain = "code";
+                    codeTurn(who, snippet);
+                    return true;
+                case SITE:
+                    if (siteTurn(who, t, siteAsk)) {
+                        turnDomain = "web";
+                        return true;
+                    }
+                    break;
+                case CODING:
+                    if (codingTurn(who, t, coding)) {
+                        turnDomain = "code";
+                        return true;
+                    }
+                    break;
+                case WORD:
+                    turnDomain = "language";
+                    return false; // the word reader, further on, answers it
+                default:
+                    break;
+            }
+        }
+        return false;
+    }
+
+    /** C1–C4: pasted code explained in plain words. */
+    private void codeTurn(final String who, ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet) {
+        final String said = ai.ibiko.ibiko1.formulas.CodeReader.explain(snippet, recipes());
+        how = How.MEMORY;
+        think(Arrays.asList("Reading what you pasted: it's code", "Working out the language from how it's written: "
+                        + ai.ibiko.ibiko1.formulas.CodeReader.name(snippet.lang), "Finding its parts: what it defines, brings in, and does",
+                "Going through it line by line", "Putting it in plain words"), () -> saysExact(who, said));
+    }
+
     private ai.ibiko.ibiko1.formulas.Sites sites;
 
     /** What it knows about kinds of websites (shipped coded: knowledge/web/sites.tsv.ibk). */
@@ -1989,6 +2069,23 @@ public final class Ibiko1 {
     private void kept(String said) {
         Context.Focus f = context.focus(System.currentTimeMillis());
         talk.add(asking, f == null ? null : f.name, said);
+        // what this turn was about, for reading the next one with the conversation
+        String domain = turnDomain;
+        if (domain == null && asking != null) {
+            int best = 0;
+            for (java.util.Map.Entry<String, java.util.Set<String>> e : ai.ibiko.ibiko1.formulas.Readings.VOCAB.entrySet()) {
+                int hits = 0;
+                for (String w : asking.toLowerCase(Locale.ROOT).split("[^\\p{L}0-9+#-]+")) {
+                    hits += e.getValue().contains(w) ? 1 : 0;
+                }
+                if (hits > best) {
+                    best = hits;
+                    domain = e.getKey();
+                }
+            }
+        }
+        readingContext.said(domain);
+        turnDomain = null;
     }
 
     /**
