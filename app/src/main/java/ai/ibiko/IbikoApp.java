@@ -11,11 +11,28 @@ public final class IbikoApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        CrashLog.install(this); // first of all: nothing below can crash without leaving a report
+        // how the app closed last time that the catcher couldn't see (a native crash, a freeze, the system ending it for
+        // memory), collected at once: a start that crashes quickly still gets it written
+        Thread exits = new Thread(() -> {
+            try {
+                CrashLog.collectExits(this);
+            } catch (Throwable ignored) {
+                // never let the report keep the app from starting
+            }
+        }, "ibiko-exits");
+        exits.setDaemon(true);
+        exits.start();
+        // a start that keeps crashing: the next one skips the loading behind the splash, so the app opens and the
+        // report can be read (MainActivity marks a start as good once it has run a few seconds)
+        android.content.SharedPreferences starts = getSharedPreferences("ibiko", MODE_PRIVATE);
+        int failed = starts.getInt(START_FAILS, 0);
+        starts.edit().putInt(START_FAILS, failed + 1).commit();
+        safeStart = failed >= 2;
         // where the dictionary is: the brain's coded files are read with it, so it opens itself the first time it is needed
         ai.ibiko.learn.WordBook.at(new java.io.File(getFilesDir(), "brain/knowledge/lexicon.tsv"));
         ai.ibiko.learn.Symbols.open(getFilesDir()); // first: word ids are read back before any is made, the same for good
         ai.ibiko.main.FormerName.move(this); // once: what an older install kept under the former name moves over
-        CrashLog.install(this);
         try {
             ai.ibiko.net.Transfers.use(new ai.ibiko.chat.ui.DownloadNotice(this)); // every download shows its progress
         } catch (RuntimeException ignored) {
@@ -38,24 +55,25 @@ public final class IbikoApp extends Application {
             ai.ibiko.net.WebSearch.browser = (q, most) -> ai.ibiko.net.GoogleWeb.search(this, q, most);
         }
         plugIbiko1();
-        if (!"robolectric".equals(android.os.Build.FINGERPRINT)) {
+        if (!"robolectric".equals(android.os.Build.FINGERPRINT) && !safeStart) {
             ai.ibiko.main.Warmup.start(this); // gets the chat and Ibiko v1 ready while the splash shows
         }
         // the voice is loaded as Ibiko starts and kept on standby, so the first reply read aloud doesn't wait for it
-        if (ai.ibiko.main.AppFiles.ready(getFilesDir()) && !"robolectric".equals(android.os.Build.FINGERPRINT)) {
+        if (ai.ibiko.main.AppFiles.ready(getFilesDir()) && !"robolectric".equals(android.os.Build.FINGERPRINT) && !safeStart) {
             ai.ibiko.voice.NeuralVoice.preload(getFilesDir(), ai.ibiko.voice.VoicePacks.KOKORO.key); // the one voice
             final java.io.File files = getFilesDir();
             new Thread(() -> ai.ibiko.voice.VoicePacks.dropOthers(files), "ibiko-old-voices").start(); // Piper, no longer offered
         }
-        Thread t = new Thread(() -> {
-            try {
-                CrashLog.collectExits(this);
-            } catch (Throwable ignored) {
-                // never let the report keep the app from starting
-            }
-        }, "ibiko-exits");
-        t.setDaemon(true);
-        t.start();
+    }
+
+    static final String START_FAILS = "start_fails";
+
+    /** The last starts crashed: this one skips the loading behind the splash (it loads when first needed instead). */
+    public static volatile boolean safeStart;
+
+    /** The app has been up a few seconds: this start was good. */
+    public static void startedWell(android.content.Context c) {
+        c.getSharedPreferences("ibiko", MODE_PRIVATE).edit().putInt(START_FAILS, 0).apply();
     }
 
     /**

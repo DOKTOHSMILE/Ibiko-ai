@@ -3292,8 +3292,15 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         inFront = true;
         if (chatPane != null) {
             final ai.ibiko.stage.ChatPane pane = chatPane;
-            handler.post(pane::drawerTop); // the menu's dot and the Campaigns count: what needs the person since they looked
+            handler.post(() -> {
+                try {
+                    pane.drawerTop(); // the menu's dot and the Campaigns count: what needs the person since they looked
+                } catch (RuntimeException e) {
+                    // a count that can't be read never keeps the app from opening
+                }
+            });
         }
+        handler.postDelayed(() -> IbikoApp.startedWell(getApplicationContext()), 8000); // up and running: a good start
         showPersonaBar(); // Settings may have turned the group chat on or off
         connectivity.start();
         ai.ibiko.llm.ReplyNotice.clear(this);

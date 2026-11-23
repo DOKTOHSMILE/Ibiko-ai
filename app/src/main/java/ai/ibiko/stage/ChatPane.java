@@ -1822,7 +1822,11 @@ public final class ChatPane extends LinearLayout {
         list.removeAllViews();
         // the campaigns fold into the Campaigns row and the projects open from the Projects row: the list below is
         // the chats only (Pinned, then Recents), so it doesn't run long
-        drawerTop();
+        try {
+            drawerTop();
+        } catch (RuntimeException e) {
+            // the campaigns' count can't be read now: the chats still show
+        }
         List<ChatBook.Section> all = book.groups();
         boolean pinned = false, recents = false;
         for (ChatBook.Section s : all) {

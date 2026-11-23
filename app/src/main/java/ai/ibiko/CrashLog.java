@@ -49,7 +49,15 @@ public final class CrashLog {
         installed = true;
         final Context app = context.getApplicationContext() != null ? context.getApplicationContext() : context;
         final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        reserve = new byte[2 * 1024 * 1024];
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            reserve = null; // the memory kept back for this: a crash from running out of memory still gets its report
+            try {
+                // first a short line, which needs almost nothing; then the full report (it reads the log, which needs more)
+                keep(app, "Crash on thread \"" + thread.getName() + "\"\n" + error + "\n" + firstFrames(error));
+            } catch (Throwable ignored) {
+                // the full report below may still get through
+            }
             try {
                 String report = report(app, "Crash on thread \"" + thread.getName() + "\"", stack(error), log());
                 keep(app, report);
@@ -188,6 +196,27 @@ public final class CrashLog {
         } catch (IOException | RuntimeException e) {
             return "";
         }
+    }
+
+    /** Memory set aside at start and given back when a crash is caught, so the report can be written even then. */
+    private static volatile byte[] reserve;
+
+    /** The top of a stack trace, cheaply (no log read). */
+    static String firstFrames(Throwable e) {
+        StringBuilder b = new StringBuilder();
+        StackTraceElement[] st = e.getStackTrace();
+        for (int i = 0; i < st.length && i < 12; i++) {
+            b.append("\tat ").append(st[i]).append('\n');
+        }
+        Throwable cause = e.getCause();
+        if (cause != null && cause != e) {
+            b.append("Caused by: ").append(cause).append('\n');
+            StackTraceElement[] cs = cause.getStackTrace();
+            for (int i = 0; i < cs.length && i < 8; i++) {
+                b.append("\tat ").append(cs[i]).append('\n');
+            }
+        }
+        return b.toString();
     }
 
     /** The banner's copy, on the phone (replaced by the next one). */
