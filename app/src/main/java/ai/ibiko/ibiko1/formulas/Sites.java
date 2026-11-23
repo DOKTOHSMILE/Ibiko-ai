@@ -158,6 +158,25 @@ public final class Sites {
         return null;
     }
 
+    private static final Pattern LOOSE_BUILD = Pattern.compile("(?i)\\b(?:build|create|make|design|generate|code|develop|write|set up|put together"
+            + "|i (?:want|need)|get me)\\b.{0,60}?\\b(?:web ?sites?|web ?pages?|landing pages?|home ?pages?|online (?:shop|store)s?)\\b");
+    private static final Pattern WHAT_IS = Pattern.compile("(?i)^\\s*what(?:'s| is| are) (?:a |an )?web ?sites?\\s*[?.!]*$");
+
+    /**
+     * A looser reading, when a message carries a website's words but not the usual way of asking ("Write html for a bakery
+     * website", "I need a landing page for my shop", "What is a website?"): a site to build, or what one is made of.
+     */
+    public static Ask loose(String message) {
+        if (message == null) {
+            return null;
+        }
+        String m = message.trim();
+        if (WHAT_IS.matcher(m).matches()) {
+            return new Ask(Ask.Is.MADE_OF, m, null, null);
+        }
+        return LOOSE_BUILD.matcher(m).find() ? new Ask(Ask.Is.BUILD, m, null, null) : null;
+    }
+
     // ------------------------------------------------------------------------------------------------- explaining
 
     /** "What is a website made of?": the parts every website has. */
