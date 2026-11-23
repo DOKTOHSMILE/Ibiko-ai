@@ -58,8 +58,12 @@ public class CampaignStudioScreenTest {
         assertNotNull(byText(root, "Post number 0"));
         assertNotNull("a post that went out links to itself", byText(root, "Open the post on Facebook"));
         assertNotNull(byText(root, "Coming up"));
-        assertNotNull(byText(root, "How is it doing?"));
-        assertNotNull(byText(root, "Pause"));
+        assertNotNull("the next step for a running campaign, one tap", byText(root, "How is it doing?"));
+        // the tools over the message box, as in the chat; pausing is in the Campaign sheet
+        for (String tool : new String[] {"Campaign", "Posts", "Media", "Edit"}) {
+            assertNotNull(tool, byText(root, tool));
+        }
+        assertNotNull("the model, chosen in the message box", byText(root, "Choose a model"));
         a.pause().stop().destroy();
         CampaignRunner.delete(app, c);
     }
