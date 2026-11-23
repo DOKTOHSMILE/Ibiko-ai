@@ -21,6 +21,50 @@ import java.util.List;
 public final class CampaignMedia {
     /** The longest side a picture is kept at. */
     static final int SIDE = 1600;
+    /** The largest video or animation kept (bigger ones are left out, and said). */
+    static final long MOST_FILE = 100L * 1024 * 1024;
+
+    /** What a picked file is kept as: "jpg" for a still picture (made a JPEG), else its own kind (mp4, mov, gif…). */
+    static String kind(String type, String name) {
+        String t = type == null ? "" : type.toLowerCase(java.util.Locale.ROOT);
+        String n = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        if (t.equals("image/gif") || n.endsWith(".gif")) {
+            return "gif";
+        }
+        if (t.startsWith("video/") || n.matches(".*\\.(mp4|m4v|mov|webm|3gp|mkv)$")) {
+            String ext = t.contains("quicktime") || n.endsWith(".mov") ? "mov" : t.contains("webm") || n.endsWith(".webm") ? "webm"
+                    : t.contains("3gp") || n.endsWith(".3gp") ? "3gp" : t.contains("matroska") || n.endsWith(".mkv") ? "mkv" : "mp4";
+            return ext;
+        }
+        return "jpg";
+    }
+
+    /** A video or an animation is a moving file; anything else here is a still picture. */
+    public static boolean moving(String path) {
+        return path != null && path.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(gif|mp4|m4v|mov|webm|3gp|mkv)$");
+    }
+
+    private static boolean copy(Context c, Uri u, File to, long most) {
+        long total = 0;
+        try (InputStream in = c.getContentResolver().openInputStream(u); FileOutputStream o = new FileOutputStream(to)) {
+            if (in == null) {
+                return false;
+            }
+            byte[] buf = new byte[1 << 16];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                total += n;
+                if (total > most) {
+                    throw new IOException("too big");
+                }
+                o.write(buf, 0, n);
+            }
+        } catch (IOException | RuntimeException e) {
+            to.delete();
+            return false;
+        }
+        return total > 0;
+    }
 
     private CampaignMedia() {
     }
@@ -36,6 +80,21 @@ public final class CampaignMedia {
         File dir = folder(c, campaign);
         dir.mkdirs();
         for (Uri u : picked) {
+            String type = null;
+            try {
+                type = c.getContentResolver().getType(u);
+            } catch (RuntimeException ignored) {
+                // read as a picture below
+            }
+            // a video or an animated GIF is kept as it is (made smaller it would be a still); a still is made a JPEG
+            String kept = kind(type, u.getLastPathSegment());
+            if (!kept.equals("jpg")) {
+                File f = new File(dir, "own-" + System.currentTimeMillis() + "-" + out.size() + "." + kept);
+                if (copy(c, u, f, MOST_FILE)) {
+                    out.add(f.getPath());
+                }
+                continue;
+            }
             try {
                 BitmapFactory.Options bounds = new BitmapFactory.Options();
                 bounds.inJustDecodeBounds = true;
@@ -99,7 +158,15 @@ public final class CampaignMedia {
         }
         c.media.addAll(left);
         java.text.DateFormat when = new java.text.SimpleDateFormat("EEE d MMM, HH:mm", java.util.Locale.getDefault());
-        StringBuilder s = new StringBuilder().append(files.size()).append(files.size() == 1 ? " picture" : " pictures").append(" added.");
+        int moving = 0;
+        for (String f : files) {
+            moving += moving(f) && !f.toLowerCase(java.util.Locale.ROOT).endsWith(".gif") ? 1 : 0; // a GIF is a picture, moving
+        }
+        int still = files.size() - moving;
+        String what = (still > 0 ? still + (still == 1 ? " picture" : " pictures") : "")
+                + (still > 0 && moving > 0 ? " and " : "")
+                + (moving > 0 ? moving + (moving == 1 ? " video" : " videos") : "");
+        StringBuilder s = new StringBuilder().append(what).append(" added.");
         if (!on.isEmpty()) {
             s.append(" On ").append(on.size() == 1 ? "the next post: " : "the next " + on.size() + " posts: ");
             for (int i = 0; i < on.size(); i++) {

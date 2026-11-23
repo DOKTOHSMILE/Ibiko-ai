@@ -127,16 +127,17 @@ public final class SocialPoster {
                 + "if(opt){opt.click();d.ti++;d.typed=false;return 'tagged';}"
                 + "if(++d.tries>4){d.missed.push(tags[d.ti]);d.ti++;d.typed=false;return 'notag';}return 'tagwait';}"
                 + "if(d.stage==2&&image&&d.img!==2){"
-                + "if(!d.img){var inp=document.querySelector('input[type=file][accept*=image]')||document.querySelector('input[type=file]');"
+                + "if(!d.img){var vid=/^video/.test(window.__dvtype||'');"
+                + "var inp=document.querySelector(vid?'input[type=file][accept*=video]':'input[type=file][accept*=image]')||document.querySelector('input[type=file]');"
                 + "if(!inp&&net=='facebook'){var ph=byText(/^(photo|photo\\/video|photos?|add photos?(\\/videos?)?)$/i);"
                 + "if(ph&&!d.opened){d.opened=1;ph.click();return 'imgopen';}}"
                 + "if(!inp){d.it=(d.it||0)+1;return d.it>10?'noimage':'imgwait';}"
                 + "try{var bin=atob(window.__dvimg||'');if(!bin.length)return 'noimage';var arr=new Uint8Array(bin.length);"
                 + "for(var k=0;k<bin.length;k++)arr[k]=bin.charCodeAt(k);"
-                + "var f=new File([arr],'post.jpg',{type:'image/jpeg'});var dt=new DataTransfer();dt.items.add(f);"
+                + "var f=new File([arr],window.__dvname||'post.jpg',{type:window.__dvtype||'image/jpeg'});var dt=new DataTransfer();dt.items.add(f);"
                 + "inp.files=dt.files;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));"
                 + "d.img=1;return 'imgset';}catch(e){return 'noimage';}}"
-                + "if(document.querySelector('[data-testid=attachments] img,img[src^=\\\"blob:\\\"],[aria-label*=emove][role=button]')){d.img=2;return 'imgready';}"
+                + "if(document.querySelector('[data-testid=attachments] img,[data-testid=attachments] video,img[src^=\\\"blob:\\\"],video[src^=\\\"blob:\\\"],[aria-label*=emove][role=button]')){d.img=2;return 'imgready';}"
                 + "d.pt=(d.pt||0)+1;return d.pt>14?'noimage':'imgload';}"
                 + "if(d.stage==2){var b2=box();if(b2&&said(b2).indexOf(head)<0)return 'nottyped';"
                 + "var btn=q('[data-testid=tweetButton]')||q('[data-testid=tweetButtonInline]')"
@@ -184,7 +185,35 @@ public final class SocialPoster {
     }
 
     /** The most a picture may be to go with a post: it travels to the page as text. */
-    static final long MOST_IMAGE = 4L * 1024 * 1024;
+    static final long MOST_IMAGE = 8L * 1024 * 1024;
+    /** The largest video posted through the page (it goes in as text first); a bigger one is shared instead. */
+    static final long MOST_VIDEO = 25L * 1024 * 1024;
+
+    /** A post's file is a video, by its name. */
+    public static boolean isVideo(java.io.File f) {
+        return f != null && f.getName().toLowerCase(java.util.Locale.ROOT).matches(".*\\.(mp4|m4v|mov|webm|3gp|mkv)$");
+    }
+
+    /** The file's media type, by its name: what the network's page is told it is. */
+    public static String mime(java.io.File f) {
+        switch (extension(f)) {
+            case "png": return "image/png";
+            case "gif": return "image/gif";
+            case "webp": return "image/webp";
+            case "mp4": case "m4v": return "video/mp4";
+            case "mov": return "video/quicktime";
+            case "webm": return "video/webm";
+            case "3gp": return "video/3gpp";
+            case "mkv": return "video/x-matroska";
+            default: return "image/jpeg";
+        }
+    }
+
+    static String extension(java.io.File f) {
+        String n = f == null ? "" : f.getName().toLowerCase(java.util.Locale.ROOT);
+        int dot = n.lastIndexOf('.');
+        return dot < 0 ? "jpg" : n.substring(dot + 1);
+    }
 
     /**
      * As above, with {@code image} (a JPEG) attached to a new post. The picture goes into the composer's own file field
@@ -219,8 +248,10 @@ public final class SocialPoster {
         final String net = p == Platform.X ? "x" : "facebook";
         String data = null;
         if (image != null && !comment) {
-            if (!image.isFile() || image.length() > MOST_IMAGE) {
-                return new Result(false, "The picture for this post isn't there.");
+            boolean video = isVideo(image);
+            if (!image.isFile() || image.length() > (video ? MOST_VIDEO : MOST_IMAGE)) {
+                return new Result(false, !image.isFile() ? "The picture for this post isn't there."
+                        : "The video is too big to post from here (over " + MOST_VIDEO / (1024 * 1024) + " MB): share it from the post's menu instead.");
             }
             try {
                 data = android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(image.toPath()), android.util.Base64.NO_WRAP);
@@ -230,7 +261,8 @@ public final class SocialPoster {
         }
         final boolean withImage = data != null;
         final String js = script(net, text.trim(), tags, comment, withImage);
-        final String setImage = withImage ? "window.__dvimg=" + quote(data) + ";true" : null;
+        final String setImage = withImage ? "window.__dvimg=" + quote(data) + ";window.__dvtype=" + quote(mime(image))
+                + ";window.__dvname=" + quote("post." + extension(image)) + ";true" : null;
         // flexible in how it gets there, strict in what it does: when the page never got as far as pressing Post (its
         // composer, its picture field, its words), it is tried once more from another of the network's own pages.
         // Once Post has been pressed it is never pressed again, so nothing is doubled.

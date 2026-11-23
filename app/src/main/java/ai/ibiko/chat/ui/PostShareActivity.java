@@ -85,7 +85,8 @@ public final class PostShareActivity extends Activity {
         Intent send = new Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, text);
         if (picture != null && picture.isFile()) {
             Uri uri = androidx.core.content.FileProvider.getUriForFile(a, "ai.ibiko.files", picture);
-            send.setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            send.setType(ai.ibiko.social.SocialPoster.mime(picture)).putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } else {
             send.setType("text/plain");
         }
@@ -115,6 +116,9 @@ public final class PostShareActivity extends Activity {
      * post the person makes by hand, can pick it from there. True when it is there.
      */
     public static boolean toGallery(Context c, File picture) {
+        if (ai.ibiko.social.SocialPoster.isVideo(picture) || picture.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".gif")) {
+            return false; // a video or an animation is shared as it is; the gallery copy here is for still pictures
+        }
         android.content.ContentResolver cr = c.getContentResolver();
         String name = "ibiko-" + picture.getName();
         Uri images = android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY);

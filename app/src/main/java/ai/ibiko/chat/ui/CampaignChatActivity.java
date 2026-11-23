@@ -86,8 +86,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
         names.addView(title, new LinearLayout.LayoutParams(-1, -2));
         names.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
         head.addView(names, new LinearLayout.LayoutParams(0, -2, 1f));
-        head.addView(iconButton(ai.ibiko.R.drawable.ic_more_vert, "Campaign options", v -> menu()),
-                new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+        head.addView(new View(this), new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48))); // balances the back arrow
         root.addView(head);
 
         banner = new LinearLayout(this); // where the campaign stands, always in view
@@ -143,9 +142,6 @@ public final class CampaignChatActivity extends AppCompatActivity {
         Ui.press(modelChip);
         tools.addView(modelChip, new LinearLayout.LayoutParams(-2, Ui.dp(this, 32)));
         tools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-        ImageView add = iconButton(ai.ibiko.R.drawable.ic_attach, "Add your pictures", v -> pickPictures());
-        add.setPadding(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
-        tools.addView(add, new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40)));
         android.widget.ImageButton send = new android.widget.ImageButton(this);
         send.setImageResource(ai.ibiko.R.drawable.ic_send);
         send.setBackgroundResource(ai.ibiko.R.drawable.bg_send_button);
@@ -318,6 +314,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
      */
     private void chips(final Campaign c, boolean planning) {
         chips.removeAllViews();
+        lit = null;
         // the one next step, lit
         if (planning) {
             chip("Stop planning", ai.ibiko.R.drawable.ic_stop, 0, true, () -> CampaignDraft.stop(c.id));
@@ -336,15 +333,21 @@ public final class CampaignChatActivity extends AppCompatActivity {
         chip("Campaign", ai.ibiko.R.drawable.ic_tools_chip, ai.ibiko.R.drawable.ic_chevron_down, false, () -> campaignSheet(c, planning));
         chip("Posts", ai.ibiko.R.drawable.ic_media, ai.ibiko.R.drawable.ic_chevron_right, false,
                 () -> startActivity(new Intent(this, CampaignActivity.class).putExtra(CampaignActivity.EXTRA_ID, c.id)));
-        chip("Media", ai.ibiko.R.drawable.ic_image, ai.ibiko.R.drawable.ic_chevron_right, false, this::pickPictures);
+        chip("Media", ai.ibiko.R.drawable.ic_image, ai.ibiko.R.drawable.ic_chevron_down, false, this::mediaSheet);
         if (c.status != Campaign.Status.ACTIVE) {
             chip("Results", ai.ibiko.R.drawable.ic_usage, ai.ibiko.R.drawable.ic_chevron_right, false, () -> send("How did it do?"));
         }
         chip("Edit", ai.ibiko.R.drawable.ic_edit, ai.ibiko.R.drawable.ic_chevron_down, false, () -> editSheet(c));
     }
 
+    /** The next step lit in the row (its label), or null: the Campaign sheet doesn't offer it a second time. */
+    private String lit;
+
     /** One chip in the row: an icon, the words, and a chevron (a sheet opens) or an arrow (a screen opens). */
     private void chip(String label, int icon, int end, boolean lit, Runnable act) {
+        if (lit) {
+            this.lit = label; // shown here, so not again in the Campaign sheet
+        }
         TextView chip = Ui.text(this, label, 13, lit ? Ui.ACCENT : Ui.TEXT, lit);
         chip.setBackgroundResource(ai.ibiko.R.drawable.bg_chip);
         chip.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, end, 0);
@@ -424,12 +427,16 @@ public final class CampaignChatActivity extends AppCompatActivity {
         acts.add(() -> rename(c));
         items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_copy, "Run it again", "A copy with the same brief, planned fresh"));
         acts.add(() -> duplicate(c));
-        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_set_models, "Model", "Which model plans and writes"));
-        acts.add(this::pickModel);
         items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_plus, "New campaign", "Start another from a brief"));
         acts.add(() -> startActivity(new Intent(this, CampaignsActivity.class)));
         items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_delete, "Delete the campaign", "Posts already out stay on the networks"));
         acts.add(() -> confirmDelete(c));
+        for (int i = items.size() - 1; i >= 0; i--) {
+            if (items.get(i).name.equals(lit)) { // already one tap away in the row
+                items.remove(i);
+                acts.remove(i);
+            }
+        }
         BottomSheet.show(this, "Campaign", c.items.isEmpty() ? null : CampaignControls.standing(c, now),
                 items.toArray(new BottomSheet.Item[0]), -1, which -> acts.get(which).run());
     }
@@ -573,14 +580,36 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 .show();
     }
 
-    /** Several pictures from the phone at once (the system photo picker: no permission asked). */
+    /** Several photos and videos from the phone at once (the system photo picker: no permission asked). */
     private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> picker =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(30),
                     this::picked);
 
+    /** Your own photos and videos, from the gallery (no permission asked). */
     private void pickPictures() {
         picker.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
-                .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build());
+                .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo.INSTANCE).build());
+    }
+
+    /** Photos, videos and GIFs from the phone's files (Downloads, WhatsApp, a drive), several at once. */
+    private final androidx.activity.result.ActivityResultLauncher<String[]> files =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(), this::picked);
+
+    /** Media ▾: from the gallery or from the files, and how many are waiting for posts. */
+    private void mediaSheet() {
+        Campaign c = campaign();
+        int waiting = c == null ? 0 : c.media.size();
+        BottomSheet.show(this, "Add media", waiting == 0 ? "Your own photos and videos go on the next posts"
+                        : waiting + " of yours waiting for the next posts", new BottomSheet.Item[] {
+                new BottomSheet.Item(ai.ibiko.R.drawable.ic_image, "Photos and videos", "From your gallery, several at once"),
+                new BottomSheet.Item(ai.ibiko.R.drawable.ic_folder, "From files", "Downloads, WhatsApp, a drive: pictures, GIFs, videos")},
+                -1, which -> {
+                    if (which == 0) {
+                        pickPictures();
+                    } else {
+                        files.launch(new String[] {"image/*", "video/*"});
+                    }
+                });
     }
 
     /** The pictures picked: kept with the campaign and put on its next posts, as they are; the studio says which. */
@@ -590,7 +619,7 @@ public final class CampaignChatActivity extends AppCompatActivity {
         }
         final android.content.Context app = getApplicationContext();
         final java.util.List<android.net.Uri> chosen = new java.util.ArrayList<android.net.Uri>(uris);
-        android.widget.Toast.makeText(this, "Adding " + chosen.size() + (chosen.size() == 1 ? " picture…" : " pictures…"),
+        android.widget.Toast.makeText(this, "Adding " + chosen.size() + (chosen.size() == 1 ? " file…" : " files…"),
                 android.widget.Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             java.util.List<String> files = ai.ibiko.social.campaign.CampaignMedia.bring(app, id, chosen);
@@ -600,11 +629,12 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 if (c == null) {
                     return;
                 }
-                said = files.isEmpty() ? "Those pictures couldn't be read." : ai.ibiko.social.campaign.CampaignMedia.place(c, files);
+                said = files.isEmpty() ? "Those files couldn't be read (a video over 100 MB is left out)."
+                        : ai.ibiko.social.campaign.CampaignMedia.place(c, files);
                 try {
                     CampaignRunner.store(app).put(c);
                 } catch (java.io.IOException e) {
-                    said = "The pictures couldn't be kept: " + e.getMessage();
+                    said = "The files couldn't be kept: " + e.getMessage();
                 }
             }
             ai.ibiko.social.campaign.CampaignStudio.chat(app, id).add(ai.ibiko.social.campaign.CampaignChat.STUDIO, "note", said,
@@ -814,11 +844,4 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 .show();
     }
 
-    /** ⋮: the same Campaign sheet as the chip, everything in one place. */
-    private void menu() {
-        final Campaign c = campaign();
-        if (c != null) {
-            campaignSheet(c, CampaignDraft.planning(c.id) != null);
-        }
-    }
 }

@@ -38,4 +38,10 @@ public class SocialPosterTest {
     public void theWordsCannotBreakOutOfTheScript() {
         assertEquals("\"say \\\"hi\\\"\\n\\u003c/script>\"", SocialPoster.quote("say \"hi\"\n</script>"));
     }
+
+    @Test
+    public void aVideoIsPostedAsAVideo() {
+        String js = SocialPoster.script("facebook", "Watch this", new java.util.ArrayList<String>(), false, true);
+        org.junit.Assert.assertTrue(js.contains("window.__dvtype") && js.contains("accept*=video") && js.contains("video[src^="));
+    }
 }
