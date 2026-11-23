@@ -9,7 +9,8 @@ android {
             maxHeapSize = "2g"
             // the tests' temporary files go in the build folder, and go when the run ends: a run used to leave
             // gigabytes behind in the system temp folder, until the disk filled and tests failed for want of space
-            def scratch = new File(buildDir, "tmp/unit-tests")
+            // not under build/: the coding agent's tests read a path with "build" in it as build output, and skip it
+            def scratch = new File(projectDir, ".test-tmp")
             systemProperty "java.io.tmpdir", scratch.absolutePath
             doFirst { scratch.deleteDir(); scratch.mkdirs() }
             doLast { scratch.deleteDir() }
