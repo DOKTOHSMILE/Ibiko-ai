@@ -535,16 +535,29 @@ public final class Ibiko1 {
         // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
         // (not in the turn after it asked back, which is an explanation or a correction, read as said)
         // a long text pasted in: read and kept, never rewritten with the conversation's names
-        final Passage pasted = inquiry == null ? Passage.of(message, heardAt) : null;
-        final Context.Resolved withContext = pasted != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
+        // code pasted in: read as code (to explain), never as a passage of prose or rewritten with the talk's names
+        final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet = inquiry == null ? ai.ibiko.ibiko1.formulas.CodeReader.find(message) : null;
+        final Passage pasted = inquiry == null && snippet == null ? Passage.of(message, heardAt) : null;
+        final Context.Resolved withContext = pasted != null || snippet != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
-        final String t = withContext.text;
+        turnDomain = null;
+        // questions inside the question ("the capital of the country where Kilimanjaro is"): the inner ones answered
+        // from the facts first, so what is left is one question
+        // (not a yes-or-no claim: "is Lagos the capital of Nigeria?" is checked as said, not made "is Lagos Abuja?")
+        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || snippet != null || inquiry != null
+                || ai.ibiko.ibiko1.formulas.Verify.check(withContext.text, this::fact) != null ? null
+                : ai.ibiko.ibiko1.formulas.Hops.resolve(withContext.text, this::fact);
+        final String t = hops == null ? withContext.text : hops.text;
         if (leadIn == null) {
             previous = current; // a message's own rest (after "I'm a man, …") isn't a new question
             current = message;
         }
         asking = t; // what this turn asks, as understood: kept with its answer in the conversation
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
+        if (hops != null) {
+            String worked = String.join("; ", hops.steps) + ". So: " + t;
+            contextStep = contextStep == null ? worked : contextStep + "; " + worked;
+        }
         rolesStep = roleStep(t);
         if (pasted == null) {
             noteFocus(t, heardAt);
@@ -694,6 +707,11 @@ public final class Ibiko1 {
         // words, meanings and grammar: what a word means (here), the word for a meaning, synonyms, a sentence explained,
         // whether two say the same, a word's morphemes, whether a sentence is grammatical
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
+        // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
+        // the best taken first (not the first pattern that fits); the others kept to fall back on
+        if (ranked(who, message, t, snippet)) {
+            return;
+        }
         final WordTalk byTopic = topic == null && !t.matches("(?is).*\\b(in|for)\\s+\\p{L}+\\s*[?.!]*$") ? null : wordTalk();
         if (byTopic != null) {
             byTopic.topic(topic);
@@ -808,6 +826,27 @@ public final class Ibiko1 {
         // the conversation itself: "what have we talked about?", "what did you say about Nigeria?", "go back to Ghana"
         final Conversation.Ask aboutTalk = Conversation.read(t);
         if (aboutTalk != null && talkTurn(who, aboutTalk, heardAt)) {
+            return;
+        }
+        // coding: "how do I reverse a string in Go?" from its own tested recipes; the web when it hasn't got one
+        final String[] lastCode = lastRecipe;
+        final String followLang = lastCode == null ? null : ai.ibiko.ibiko1.formulas.Recipes.followUp(t);
+        final ai.ibiko.ibiko1.formulas.Recipes.Ask coding = followLang != null && !lastCode[0].startsWith("q:")
+                ? ai.ibiko.ibiko1.formulas.Recipes.ask(lastCode[0], followLang) // "and in Rust?": the same task
+                : ai.ibiko.ibiko1.formulas.Recipes.read(t);
+        if (coding != null && codingTurn(who, t, coding)) {
+            return;
+        }
+        // a yes-or-no claim ("is Lagos the capital of Nigeria?"): checked against the facts, yes or no first
+        final ai.ibiko.ibiko1.formulas.Verify.Said checked = ai.ibiko.ibiko1.formulas.Verify.check(t, this::fact);
+        if (checked != null && !knowledge().rejected(t, checked.text)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question: a yes or no", "Looking up " + checked.thing + "'s facts",
+                    "Checking what you said against them: " + (checked.yes ? "it holds" : "it doesn't")), () -> {
+                        saysSure(who, checked.text, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                                "Source: Simple English Wikipedia, \u201c" + checked.thing + "\u201d (its information box)");
+                        rateable(t, checked.text);
+                    });
             return;
         }
         // the answer to "should I change it?" after the person said something against what it holds
@@ -1708,6 +1747,314 @@ public final class Ibiko1 {
         });
     }
 
+    private ai.ibiko.ibiko1.formulas.Recipes recipes;
+    /** The coding language last asked for in this chat: the next coding question without one means it too. */
+    private volatile String codingLang;
+    /** The recipe just given (task, language), for the thumbs up or down that confirms or drops it. */
+    private volatile String[] lastRecipe;
+
+    /** The coding recipes: shipped (each tested before it was built), and what it has found and had confirmed. */
+    public synchronized ai.ibiko.ibiko1.formulas.Recipes recipes() {
+        if (recipes == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/code/recipes.tsv"); // shipped coded (.ibk)
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            recipes = new ai.ibiko.ibiko1.formulas.Recipes(in, new File(dir, "learned_recipes.tsv"));
+        }
+        return recipes;
+    }
+
+    /**
+     * R1–R4: a coding request answered from the recipes; when it hasn't one, looked up on the web (online), the code
+     * that reads as the language taken from what is found, given as untested and kept until it is confirmed. False when
+     * it is not a request it can do anything with (the rest of Ibiko takes it).
+     */
+    private boolean codingTurn(final String who, final String t, ai.ibiko.ibiko1.formulas.Recipes.Ask ask) {
+        final ai.ibiko.ibiko1.formulas.Recipes book = recipes();
+        String lang = ask.lang != null ? ask.lang : codingLang;
+        if (ask.lang != null) {
+            codingLang = ask.lang;
+        }
+        if (ask.task != null && lang == null) {
+            // no language named (in this message or the chat): the first it has, and the others it can give
+            List<String> langs = book.languages(ask.task);
+            if (langs.isEmpty()) {
+                return false;
+            }
+            String first = langs.contains("python") ? "python" : langs.get(0);
+            final ai.ibiko.ibiko1.formulas.Recipes.Recipe r = book.get(ask.task, first);
+            List<String> others = new ArrayList<String>();
+            for (String l : langs) {
+                if (!l.equals(first)) {
+                    others.add(ai.ibiko.ibiko1.formulas.Recipes.shown(l));
+                }
+            }
+            final String said = r.said() + (others.isEmpty() ? "" : "\n\nI have it in " + String.join(", ", others) + " too: just say which.");
+            lastRecipe = new String[]{ask.task, first};
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question: code to write", "No language named: starting with " + ai.ibiko.ibiko1.formulas.Recipes.shown(first),
+                    "Taking my tested recipe"), () -> {
+                        saysExact(who, said);
+                        rateable(t, said);
+                    });
+            return true;
+        }
+        if (ask.task != null) {
+            final ai.ibiko.ibiko1.formulas.Recipes.Recipe r = book.get(ask.task, lang);
+            if (r != null) {
+                lastRecipe = new String[]{ask.task, lang};
+                how = How.MEMORY;
+                final String said = r.said();
+                think(Arrays.asList("Reading your question: code to write in " + ai.ibiko.ibiko1.formulas.Recipes.shown(lang),
+                        r.tested ? "Taking my tested recipe" : "Taking what I found before (not confirmed yet)"), () -> {
+                            saysExact(who, said);
+                            rateable(t, said);
+                        });
+                return true;
+            }
+        }
+        if (lang == null) {
+            return false;
+        }
+        // not in its recipes: the web, when it can reach it; said plainly when it can't
+        final String language = lang, task = ask.task != null ? ask.task : "q:" + t.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9+#]+", " ").trim();
+        if (!host.online() || Plug.web == null) {
+            List<String> has = ask.task == null ? new ArrayList<String>() : book.languages(ask.task);
+            final String said = "I don't have that in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) + " yet"
+                    + (has.isEmpty() ? "" : " (I have it in " + shownAll(has) + ")")
+                    + ". When you're online, ask again and I'll look it up, try to tell working code from the rest, and keep it once you confirm it works.";
+            think(Arrays.asList("Reading your question: code to write in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language), "Not in my recipes yet"),
+                    () -> saysPlain(who, said));
+            return true;
+        }
+        how = How.RESEARCH;
+        think(Arrays.asList("Reading your question: code to write in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language),
+                "Not in my recipes: looking it up on the web and in social media posts", "Taking the code that reads as " + ai.ibiko.ibiko1.formulas.Recipes.shown(language)), () -> {
+                    final int mine = token;
+                    new Thread(() -> {
+                        String found = null;
+                        try {
+                            String q = t + (ai.ibiko.ibiko1.formulas.Recipes.language(t) == null ? " in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) : "")
+                                    + " code example";
+                            found = ai.ibiko.ibiko1.formulas.Recipes.code(Plug.web.search(q), language);
+                        } catch (RuntimeException ignored) {
+                            // nothing found on the web
+                        }
+                        if (found == null) {
+                            // social media too: people share working code in posts (Reddit, the networks signed in here)
+                            try {
+                                StringBuilder posts = new StringBuilder();
+                                for (ai.ibiko.ibiko1.formulas.Corroborate.Post p : Plug.social.apply(t + " " + ai.ibiko.ibiko1.formulas.Recipes.shown(language))) {
+                                    posts.append(p.text).append("\n\n");
+                                }
+                                found = ai.ibiko.ibiko1.formulas.Recipes.code(posts.toString(), language);
+                            } catch (RuntimeException ignored) {
+                                // nothing there either
+                            }
+                        }
+                        final String code = found;
+                        if (code != null) {
+                            book.found(task, language, code); // kept untested, until it is confirmed
+                            lastRecipe = new String[]{task, language};
+                        }
+                        host.onScreen(() -> {
+                            if (mine != token) {
+                                return;
+                            }
+                            if (code == null) {
+                                saysPlain(who, "I looked it up but found no code I could trust for that in "
+                                        + ai.ibiko.ibiko1.formulas.Recipes.shown(language) + ". Could you say it another way, or try another language?");
+                                return;
+                            }
+                            String said = "Here's what I found for it in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) + ":\n\n```"
+                                    + language + "\n" + code + "\n```\n\nFound on the web, not tested yet: tell me if it works (thumbs up),"
+                                    + " and I'll keep it for next time, offline.";
+                            saysExact(who, said);
+                            rateable(t, said);
+                        });
+                    }, "ibiko1-code-lookup").start();
+                });
+        return true;
+    }
+
+    /** The subject of this turn's answer ("code", "web", "facts"…), for the next message's reading; null: not known. */
+    private volatile String turnDomain;
+    /** What the last turns were about, for reading the next message with the conversation. */
+    private final ai.ibiko.ibiko1.formulas.Readings.Context readingContext = new ai.ibiko.ibiko1.formulas.Readings.Context();
+
+    /**
+     * P1–P4: the readers that recognise the message offer their readings; they are weighed (the message's own words, the
+     * conversation's last subjects, a short follow-up) and tried best first. True when one answered; false leaves the
+     * message to the rest of Ibiko (a word's meaning chosen first goes on to the word reader there).
+     */
+    private boolean ranked(final String who, String message, final String t, final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet) {
+        List<ai.ibiko.ibiko1.formulas.Readings.Kind> offered = new ArrayList<ai.ibiko.ibiko1.formulas.Readings.Kind>();
+        boolean runIt = snippet != null && message.replace(snippet.code, " ").matches("(?is).*\\b(?:run|execute|exec)\\b.*");
+        if (snippet != null && !runIt) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
+        }
+        final ai.ibiko.ibiko1.formulas.Sites.Ask siteAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Sites.read(t) : null;
+        if (siteAsk != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SITE);
+        }
+        final String[] lastCode = lastRecipe;
+        final String followLang = lastCode == null ? null : ai.ibiko.ibiko1.formulas.Recipes.followUp(t);
+        final ai.ibiko.ibiko1.formulas.Recipes.Ask coding = snippet != null ? null : followLang != null && !lastCode[0].startsWith("q:")
+                ? ai.ibiko.ibiko1.formulas.Recipes.ask(lastCode[0], followLang) : ai.ibiko.ibiko1.formulas.Recipes.read(t);
+        if (coding != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODING);
+        }
+        if (snippet == null && WordTalk.asks(message)) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.WORD);
+        }
+        if (offered.isEmpty()) {
+            return false;
+        }
+        Context.Focus f = context.focus(System.currentTimeMillis());
+        readingContext.focus = f == null ? null : f.name;
+        List<ai.ibiko.ibiko1.formulas.Readings.Reading> order = ai.ibiko.ibiko1.formulas.Readings.weigh(t, offered, readingContext);
+        if (order.size() > 1) {
+            String weighed = ai.ibiko.ibiko1.formulas.Readings.said(order);
+            contextStep = contextStep == null ? weighed : contextStep + "; " + weighed;
+        }
+        for (ai.ibiko.ibiko1.formulas.Readings.Reading r : order) {
+            switch (r.kind) {
+                case CODE:
+                    turnDomain = "code";
+                    codeTurn(who, snippet);
+                    return true;
+                case SITE:
+                    if (siteTurn(who, t, siteAsk)) {
+                        turnDomain = "web";
+                        return true;
+                    }
+                    break;
+                case CODING:
+                    if (codingTurn(who, t, coding)) {
+                        turnDomain = "code";
+                        return true;
+                    }
+                    break;
+                case WORD:
+                    turnDomain = "language";
+                    return false; // the word reader, further on, answers it
+                default:
+                    break;
+            }
+        }
+        return false;
+    }
+
+    /** C1–C4: pasted code explained in plain words. */
+    private void codeTurn(final String who, ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet) {
+        final String said = ai.ibiko.ibiko1.formulas.CodeReader.explain(snippet, recipes());
+        how = How.MEMORY;
+        think(Arrays.asList("Reading what you pasted: it's code", "Working out the language from how it's written: "
+                        + ai.ibiko.ibiko1.formulas.CodeReader.name(snippet.lang), "Finding its parts: what it defines, brings in, and does",
+                "Going through it line by line", "Putting it in plain words"), () -> saysExact(who, said));
+    }
+
+    private ai.ibiko.ibiko1.formulas.Sites sites;
+
+    /** What it knows about kinds of websites (shipped coded: knowledge/web/sites.tsv.ibk). */
+    public synchronized ai.ibiko.ibiko1.formulas.Sites sites() {
+        if (sites == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/web/sites.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            sites = new ai.ibiko.ibiko1.formulas.Sites(in);
+        }
+        return sites;
+    }
+
+    /**
+     * W1–W4: a website request. Built: the kind read from the request (a bakery is a restaurant site), the business's name,
+     * place and number put in, one responsive HTML file given whole. Explained or compared: from what it knows of each
+     * kind. False when it names no kind it knows (the rest of Ibiko, or the coding agent, takes it).
+     */
+    private boolean siteTurn(final String who, final String t, ai.ibiko.ibiko1.formulas.Sites.Ask ask) {
+        final ai.ibiko.ibiko1.formulas.Sites book = sites();
+        if (book.size() == 0) {
+            return false;
+        }
+        how = How.MEMORY;
+        switch (ask.is) {
+            case MADE_OF: {
+                final String said = ai.ibiko.ibiko1.formulas.Sites.madeOf();
+                think(Arrays.asList("Reading your question: what a website is made of"), () -> saysPlain(who, said));
+                return true;
+            }
+            case EXPLAIN: {
+                final ai.ibiko.ibiko1.formulas.Sites.Kind k = book.kind(ask.a);
+                if (k == null) {
+                    return false;
+                }
+                final String said = ai.ibiko.ibiko1.formulas.Sites.explain(k);
+                think(Arrays.asList("Reading your question: a kind of website", "What I know of a " + k.name), () -> saysPlain(who, said));
+                return true;
+            }
+            case COMPARE: {
+                final ai.ibiko.ibiko1.formulas.Sites.Kind a = book.kind(ask.a), b = book.kind(ask.b);
+                if (a == null || b == null || a == b) {
+                    return false;
+                }
+                final String said = ai.ibiko.ibiko1.formulas.Sites.compare(a, b);
+                think(Arrays.asList("Reading your question: two kinds of website", "What each is for, its sections, features and design"),
+                        () -> saysPlain(who, said));
+                return true;
+            }
+            default: {
+                ai.ibiko.ibiko1.formulas.Sites.Kind found = book.kind(t);
+                final ai.ibiko.ibiko1.formulas.Sites.Kind k = found != null ? found : book.kind("business");
+                if (k == null) {
+                    return false;
+                }
+                final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
+                final String html = ai.ibiko.ibiko1.formulas.Sites.build(k, brief);
+                List<String> heads = new ArrayList<String>();
+                for (String[] sec : k.sections) {
+                    heads.add(sec[1]);
+                }
+                String name = brief.name.isEmpty() ? "your business" : brief.name;
+                final String said = "Here's a " + k.name + " for " + name + (brief.place.isEmpty() ? "" : " in " + brief.place) + ": "
+                        + String.join(" · ", heads) + ". It works on phones first, and its forms "
+                        + (brief.phone.isEmpty() && brief.email.isEmpty() ? "need your WhatsApp number or email (tell me and I'll put it in)"
+                        : "send straight to " + (brief.phone.isEmpty() ? "your email" : "your WhatsApp")) + ".\n\n```html\n" + html + "```\n\n"
+                        + "Save it as index.html and open it in a browser. Change the words, prices and photos to your own. To put it online free: "
+                        + "drag it onto Netlify Drop, or use GitHub Pages. For logins, payments or a database, choose a model and the coding agent can build on it.";
+                think(Arrays.asList("Reading your request: a website to build", "It's a " + k.name + (found == null ? " (no kind named: a business site)" : ""),
+                        "Taking the name, place and number from what you said", "Laying out its sections: " + String.join(", ", heads),
+                        "Writing the page: HTML, CSS for phones first, and the script for the menu and forms"), () -> saysExact(who, said));
+                return true;
+            }
+        }
+    }
+
+    private static String shownAll(List<String> langs) {
+        List<String> out = new ArrayList<String>();
+        for (String l : langs) {
+            out.add(ai.ibiko.ibiko1.formulas.Recipes.shown(l));
+        }
+        return String.join(", ", out);
+    }
+
+    /** A fact from the encyclopedia's tables, as stored: {@code thing}'s {@code relation}, or null. */
+    String fact(String thing, String relation) {
+        try {
+            Encyclopedia e = encyclopedia();
+            Encyclopedia.Article a = e == null ? null : e.find(thing);
+            return a == null ? null : e.facts(a.title).get(relation);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
     /** The conversation so far, turn by turn (one per chat), to be talked about. */
     private final Conversation talk = new Conversation();
     /** What the message being answered asks, as understood. */
@@ -1722,6 +2069,23 @@ public final class Ibiko1 {
     private void kept(String said) {
         Context.Focus f = context.focus(System.currentTimeMillis());
         talk.add(asking, f == null ? null : f.name, said);
+        // what this turn was about, for reading the next one with the conversation
+        String domain = turnDomain;
+        if (domain == null && asking != null) {
+            int best = 0;
+            for (java.util.Map.Entry<String, java.util.Set<String>> e : ai.ibiko.ibiko1.formulas.Readings.VOCAB.entrySet()) {
+                int hits = 0;
+                for (String w : asking.toLowerCase(Locale.ROOT).split("[^\\p{L}0-9+#-]+")) {
+                    hits += e.getValue().contains(w) ? 1 : 0;
+                }
+                if (hits > best) {
+                    best = hits;
+                    domain = e.getKey();
+                }
+            }
+        }
+        readingContext.said(domain);
+        turnDomain = null;
     }
 
     /**
@@ -2551,6 +2915,15 @@ public final class Ibiko1 {
         learner().judged(right, System.currentTimeMillis());
         methods().judge(question, right); // the way that reached it, too
         reflection().judged(Methods.kind(question), right); // and the record of how replies like it go
+        String[] recipe = lastRecipe;
+        if (recipe != null && answer.contains("```")) {
+            // a recipe it found: kept as known once it works, dropped for good when it doesn't
+            if (right) {
+                recipes().confirm(recipe[0], recipe[1]);
+            } else {
+                recipes().wrong(recipe[0], recipe[1]);
+            }
+        }
         if (right) {
             knowledge().confirm(question, answer);
             host.learnTalk(question, answer);

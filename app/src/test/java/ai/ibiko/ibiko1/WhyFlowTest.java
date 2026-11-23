@@ -186,4 +186,70 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void questionsInsideQuestionsAreWorkedOutStepByStep() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String capital = ask(brain, chat, "What is the capital of the country where Mount Kilimanjaro is?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("Working out the country Mount Kilimanjaro is in: Tanzania"));
+            assertTrue(capital, capital.contains("Dodoma"));
+            String no = ask(brain, chat, "Is Lagos the capital of Nigeria?");
+            assertTrue(no, no.startsWith("No. The capital of Nigeria is Abuja, not Lagos."));
+            String kenya = ask(brain, chat, "Was Barack Obama born in Kenya?");
+            assertTrue(kenya, kenya.startsWith("No. Barack Obama was born in Honolulu"));
+            String yes = ask(brain, chat, "Is Swahili spoken in Tanzania?");
+            assertTrue(yes, yes.startsWith("Yes."));
+            String born = ask(brain, chat, "When was the founder of Microsoft born?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("the founder of Microsoft: Bill Gates"));
+            assertTrue(born, born.contains("1955"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
+
+    @Test(timeout = 180000)
+    public void writesCodeFromItsTestedRecipes() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String go = ask(brain, chat, "How do I reverse a string in Go?");
+            assertTrue(go, go.startsWith("Here's how to reverse a string in Go:") && go.contains("```go") && go.contains("Tested"));
+            String rust = ask(brain, chat, "And in Rust?");
+            assertTrue("the same task, another language: " + rust, rust.startsWith("Here's how to reverse a string in Rust:"));
+            String any = ask(brain, chat, "Write a factorial function");
+            assertTrue("the chat's language goes on: " + any, any.startsWith("Here's how to work out a factorial in Rust:"));
+            String site = ask(brain, chat, "Build me a website for my bakery called Sweet Crumbs in Lagos, WhatsApp 0803 123 4567");
+            assertTrue(site, site.startsWith("Here's a restaurant or food website for Sweet Crumbs in Lagos:") && site.contains("```html\n<!doctype html>"));
+            String need = ask(brain, chat, "What does a restaurant website need?");
+            assertTrue(need, need.startsWith("A restaurant or food website shows the food"));
+            String made = ask(brain, chat, "What is a website made of?");
+            assertTrue(made, made.startsWith("Every website is made of the same layers"));
+            String read = ask(brain, chat, "What does this do?\n```\ndef add(a, b):\n    return a + b\n\nprint(add(2, 3))\n```");
+            assertTrue(read, read.startsWith("This is Python code.") && read.contains("Line by line:"));
+            String kotlin = ask(brain, chat, "How do I sort a list in Kotlin?");
+            assertTrue("offline, not in its recipes: said plainly: " + kotlin, kotlin.startsWith("I don't have that in Kotlin yet"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
