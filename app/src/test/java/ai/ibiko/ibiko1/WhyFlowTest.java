@@ -217,4 +217,31 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void writesCodeFromItsTestedRecipes() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String go = ask(brain, chat, "How do I reverse a string in Go?");
+            assertTrue(go, go.startsWith("Here's how to reverse a string in Go:") && go.contains("```go") && go.contains("Tested"));
+            String rust = ask(brain, chat, "And in Rust?");
+            assertTrue("the same task, another language: " + rust, rust.startsWith("Here's how to reverse a string in Rust:"));
+            String any = ask(brain, chat, "Write a factorial function");
+            assertTrue("the chat's language goes on: " + any, any.startsWith("Here's how to work out a factorial in Rust:"));
+            String kotlin = ask(brain, chat, "How do I sort a list in Kotlin?");
+            assertTrue("offline, not in its recipes: said plainly: " + kotlin, kotlin.startsWith("I don't have that in Kotlin yet"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
