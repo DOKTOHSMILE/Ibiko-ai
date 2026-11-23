@@ -543,6 +543,7 @@ public final class Ibiko1 {
             previous = current; // a message's own rest (after "I'm a man, …") isn't a new question
             current = message;
         }
+        asking = t; // what this turn asks, as understood: kept with its answer in the conversation
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
         rolesStep = roleStep(t);
         if (pasted == null) {
@@ -802,6 +803,11 @@ public final class Ibiko1 {
         if (t.trim().matches("(?i)(stop|cancel|halt|wait|pause)( it| that| please)?[.!]*")) {
             // "Stop" with nothing of Ibiko v1's running: said plainly, not kept as a fact ("Noted.")
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "Nothing is running right now, so there's nothing to stop."));
+            return;
+        }
+        // the conversation itself: "what have we talked about?", "what did you say about Nigeria?", "go back to Ghana"
+        final Conversation.Ask aboutTalk = Conversation.read(t);
+        if (aboutTalk != null && talkTurn(who, aboutTalk, heardAt)) {
             return;
         }
         // the answer to "should I change it?" after the person said something against what it holds
@@ -1505,6 +1511,7 @@ public final class Ibiko1 {
         host.noRating(text);
         String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
         lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all;
+        kept(text);
         host.stepsDone();
         if (worker != null) {
             Plug.workers.end(worker, true);
@@ -1695,6 +1702,74 @@ public final class Ibiko1 {
             saysPlain(who, kept);
             opened(g.question, r.statement); // "no, it's …" right after still corrects it
         });
+    }
+
+    /** The conversation so far, turn by turn (one per chat), to be talked about. */
+    private final Conversation talk = new Conversation();
+    /** What the message being answered asks, as understood. */
+    private volatile String asking;
+
+    /** The conversation so far, for a host that starts a new chat. */
+    public Conversation conversation() {
+        return talk;
+    }
+
+    /** Keeps the turn just answered: what was asked, what it was about, and what was said. */
+    private void kept(String said) {
+        Context.Focus f = context.focus(System.currentTimeMillis());
+        talk.add(asking, f == null ? null : f.name, said);
+    }
+
+    /**
+     * V1–V4: a question about the conversation itself, answered from it. "Go back to X" makes X the subject again (so
+     * "he", "it" and "the capital" are X's) and says what was said about it last. False when the conversation has nothing
+     * for it (a subject never talked about): the message goes on as any other.
+     */
+    private boolean talkTurn(String who, Conversation.Ask ask, long now) {
+        final String reply;
+        List<String> steps = new ArrayList<String>(Arrays.asList("Reading your message: it's about our conversation"));
+        switch (ask.kind) {
+            case RECAP:
+                String recap = talk.recap();
+                reply = recap == null ? "We haven't talked about anything yet in this chat. What's on your mind?" : recap;
+                steps.add("Going back over what we said, subject by subject");
+                break;
+            case RECALL:
+                String recalled = talk.recall(ask.subject);
+                if (recalled == null) {
+                    return false; // not talked about here: a question like any other ("what did you say about X" → about X)
+                }
+                reply = recalled;
+                steps.add("Finding what I said about " + ask.subject);
+                break;
+            case RETURN:
+                List<Conversation.Turn> before = talk.about(ask.subject);
+                if (before.isEmpty()) {
+                    return false;
+                }
+                String name = talk.named(ask.subject);
+                Encyclopedia e = encyclopedia();
+                Encyclopedia.Article a = e == null ? null : e.find(name);
+                context.about("Tell me about " + name, a == null ? name : a.title, name,
+                        a == null ? Context.Kind.THING : Context.kindOf(a, e.facts(a.title)), now);
+                Conversation.Turn last = before.get(before.size() - 1);
+                reply = "Back to " + name + ". Last time you asked “" + Conversation.clip(last.asked, 80) + "”, and I said: "
+                        + Conversation.clip(last.said, 300) + "\n\nWhat would you like to know next about " + name + "?";
+                steps.add("Making " + name + " what we're talking about again");
+                break;
+            case FIRST:
+            case LAST:
+                String q = talk.question(ask.kind == Conversation.Ask.Kind.FIRST);
+                reply = q == null ? "You haven't asked me anything yet in this chat."
+                        : (ask.kind == Conversation.Ask.Kind.FIRST ? "The first thing you asked was: “" : "The last thing you asked was: “") + q + "”";
+                steps.add("Looking back through our conversation");
+                break;
+            default:
+                return false;
+        }
+        how = How.MEMORY;
+        think(steps, () -> saysPlain(who, reply));
+        return true;
     }
 
     /** Something the person said against what it holds, waiting for "should I change it?"; null when nothing is. */
@@ -1949,6 +2024,7 @@ public final class Ibiko1 {
         }
         String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
         lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all; // what was said lately
+        kept(text);
         host.stepsDone();
         if (worker != null) {
             Plug.workers.end(worker, true);

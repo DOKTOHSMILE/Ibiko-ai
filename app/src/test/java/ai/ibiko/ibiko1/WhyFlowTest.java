@@ -151,4 +151,37 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void remembersTheConversationAndGoesBackToASubject() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            ask(brain, chat, "Tell me about Nigeria");
+            ask(brain, chat, "What is the capital?");
+            ask(brain, chat, "Who was Nelson Mandela?");
+            String recap = ask(brain, chat, "What have we talked about?");
+            assertTrue(recap, recap.startsWith("So far we've talked about:"));
+            assertTrue(recap, recap.contains("Nigeria (2 questions") && recap.contains("Nelson Mandela"));
+            String said = ask(brain, chat, "What did you say about Nigeria?");
+            assertTrue(said, said.startsWith("You asked “What is the capital of Nigeria?”"));
+            String back = ask(brain, chat, "Let's go back to Nigeria");
+            assertTrue(back, back.startsWith("Back to Nigeria."));
+            ask(brain, chat, "What is the population?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("the population of Nigeria"));
+            String first = ask(brain, chat, "What was the first thing I asked?");
+            assertTrue(first, first.equals("The first thing you asked was: “Tell me about Nigeria”"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
