@@ -538,13 +538,21 @@ public final class Ibiko1 {
         final Passage pasted = inquiry == null ? Passage.of(message, heardAt) : null;
         final Context.Resolved withContext = pasted != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
-        final String t = withContext.text;
+        // questions inside the question ("the capital of the country where Kilimanjaro is"): the inner ones answered
+        // from the facts first, so what is left is one question
+        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || inquiry != null ? null
+                : ai.ibiko.ibiko1.formulas.Hops.resolve(withContext.text, this::fact);
+        final String t = hops == null ? withContext.text : hops.text;
         if (leadIn == null) {
             previous = current; // a message's own rest (after "I'm a man, …") isn't a new question
             current = message;
         }
         asking = t; // what this turn asks, as understood: kept with its answer in the conversation
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
+        if (hops != null) {
+            String worked = String.join("; ", hops.steps) + ". So: " + t;
+            contextStep = contextStep == null ? worked : contextStep + "; " + worked;
+        }
         rolesStep = roleStep(t);
         if (pasted == null) {
             noteFocus(t, heardAt);
@@ -1706,6 +1714,17 @@ public final class Ibiko1 {
             saysPlain(who, kept);
             opened(g.question, r.statement); // "no, it's …" right after still corrects it
         });
+    }
+
+    /** A fact from the encyclopedia's tables, as stored: {@code thing}'s {@code relation}, or null. */
+    String fact(String thing, String relation) {
+        try {
+            Encyclopedia e = encyclopedia();
+            Encyclopedia.Article a = e == null ? null : e.find(thing);
+            return a == null ? null : e.facts(a.title).get(relation);
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     /** The conversation so far, turn by turn (one per chat), to be talked about. */

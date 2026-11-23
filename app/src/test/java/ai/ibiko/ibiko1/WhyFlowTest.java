@@ -186,4 +186,29 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void questionsInsideQuestionsAreWorkedOutStepByStep() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String capital = ask(brain, chat, "What is the capital of the country where Mount Kilimanjaro is?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("Working out the country Mount Kilimanjaro is in: Tanzania"));
+            assertTrue(capital, capital.contains("Dodoma"));
+            String born = ask(brain, chat, "When was the founder of Microsoft born?");
+            assertTrue(String.valueOf(chat.steps), chat.steps.toString().contains("the founder of Microsoft: Bill Gates"));
+            assertTrue(born, born.contains("1955"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
