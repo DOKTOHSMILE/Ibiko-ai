@@ -231,6 +231,58 @@ public final class SocialPoster {
         final boolean withImage = data != null;
         final String js = script(net, text.trim(), tags, comment, withImage);
         final String setImage = withImage ? "window.__dvimg=" + quote(data) + ";true" : null;
+        // flexible in how it gets there, strict in what it does: when the page never got as far as pressing Post (its
+        // composer, its picture field, its words), it is tried once more from another of the network's own pages.
+        // Once Post has been pressed it is never pressed again, so nothing is doubled.
+        String[] pages = comment ? new String[]{commentOn} : entryPages(p, text.trim());
+        String st = "waiting";
+        for (int i = 0; i < pages.length; i++) {
+            st = attempt(c, p, pages[i], js, setImage);
+            if (!retryable(st)) {
+                break;
+            }
+        }
+        if ("done".equals(st)) {
+            lim.record(a.id, SocialLimits.Kind.POST, System.currentTimeMillis());
+            SocialWeb.keepLimits(c);
+            ai.ibiko.act.ActionLog.add(c.getFilesDir(), "post", p.shown + " · " + a.label, "approved", "posted", text);
+            return new Result(true, "Posted on " + p.shown + " from your account (" + a.label + ").");
+        }
+        if ("clicked".equals(st) || "checking".equals(st)) {
+            // Post was pressed but the network never showed it went: it may have; it is not said that it did
+            ai.ibiko.act.ActionLog.add(c.getFilesDir(), "post", p.shown + " · " + a.label, "approved", "unconfirmed", text);
+            return new Result(true, "I pressed Post on " + p.shown + ", but the page didn't confirm it went out. Check your profile;"
+                    + " I won't post it again, so it isn't doubled.");
+        }
+        if ("signedout".equals(st)) {
+            all.signedIn(a.id, false);
+            return new Result(false, "Your " + p.shown + " account is signed out here. Sign in again under Social accounts.");
+        }
+        if ("noimage".equals(st)) {
+            return new Result(false, "I couldn't attach the picture on " + p.shown + ", so I didn't post it.");
+        }
+        String why = "nobutton".equals(st) ? "its Post button wasn't on the page" : "disabled".equals(st) ? "its Post button stayed greyed out"
+                : "nottyped".equals(st) ? "the words didn't go into its composer" : "its composer didn't open";
+        return new Result(false, "I couldn't post on " + p.shown + " myself: " + why + ".");
+    }
+
+    /** The pages a new post may start from: the network's composer first, another way into it second. */
+    static String[] entryPages(Platform p, String text) {
+        if (p == Platform.X) {
+            return new String[]{composeUrl(p, text), "https://x.com/compose/post"};
+        }
+        return new String[]{composeUrl(p, text), "https://m.facebook.com/home.php"};
+    }
+
+    /** A stage at which Post was never pressed: the page didn't do its part, and another start may do better. */
+    public static boolean retryable(String stage) {
+        return stage == null || stage.isEmpty() || "waiting".equals(stage) || "nottyped".equals(stage) || "nobutton".equals(stage)
+                || "noimage".equals(stage) || "opening".equals(stage) || "typed".equals(stage) || "disabled".equals(stage)
+                || "imgopen".equals(stage) || "imgready".equals(stage) || "imgset".equals(stage);
+    }
+
+    /** One go at the page from {@code url}: the steps run until done, signed out, no picture or the time is up. */
+    private static String attempt(Context c, Platform p, String url, String js, String setImage) {
         final String[] missed = {""};
         final Context app = c.getApplicationContext();
         final Handler main = new Handler(Looper.getMainLooper());
@@ -286,7 +338,7 @@ public final class SocialPoster {
                         });
                     }
                 };
-                w.loadUrl(comment ? commentOn : composeUrl(p, text.trim()));
+                w.loadUrl(url);
                 main.postDelayed(tick, 3_000); // the page draws its composer after it loads
             } catch (RuntimeException e) {
                 stage[0] = "nowebview";
@@ -305,28 +357,6 @@ public final class SocialPoster {
             }
         });
         CookieManager.getInstance().flush();
-        String st = stage[0];
-        if ("done".equals(st)) {
-            lim.record(a.id, SocialLimits.Kind.POST, System.currentTimeMillis());
-            SocialWeb.keepLimits(c);
-            ai.ibiko.act.ActionLog.add(c.getFilesDir(), "post", p.shown + " · " + a.label, "approved", "posted", text);
-            return new Result(true, "Posted on " + p.shown + " from your account (" + a.label + ").");
-        }
-        if ("clicked".equals(st) || "checking".equals(st)) {
-            // Post was pressed but the network never showed it went: it may have; it is not said that it did
-            ai.ibiko.act.ActionLog.add(c.getFilesDir(), "post", p.shown + " · " + a.label, "approved", "unconfirmed", text);
-            return new Result(true, "I pressed Post on " + p.shown + ", but the page didn't confirm it went out. Check your profile;"
-                    + " I won't post it again, so it isn't doubled.");
-        }
-        if ("signedout".equals(st)) {
-            all.signedIn(a.id, false);
-            return new Result(false, "Your " + p.shown + " account is signed out here. Sign in again under Social accounts.");
-        }
-        if ("noimage".equals(st)) {
-            return new Result(false, "I couldn't attach the picture on " + p.shown + ", so I didn't post it.");
-        }
-        String why = "nobutton".equals(st) ? "its Post button wasn't on the page" : "disabled".equals(st) ? "its Post button stayed greyed out"
-                : "nottyped".equals(st) ? "the words didn't go into its composer" : "its composer didn't open";
-        return new Result(false, "I couldn't post on " + p.shown + " myself: " + why + ".");
+        return stage[0];
     }
 }

@@ -78,6 +78,10 @@ public final class PostShareActivity extends Activity {
 
     /** The share to the app for {@code to}; the share sheet when it isn't on the phone. */
     static void share(Activity a, String to, String text, File picture) {
+        if (picture != null && picture.isFile() && toGallery(a, picture)) {
+            // in the gallery too: if the app drops the picture, it is one tap away in any app's photo picker
+            Toast.makeText(a, "The picture is in your gallery (Pictures › Ibiko).", Toast.LENGTH_SHORT).show();
+        }
         Intent send = new Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, text);
         if (picture != null && picture.isFile()) {
             Uri uri = androidx.core.content.FileProvider.getUriForFile(a, "ai.ibiko.files", picture);
@@ -103,6 +107,56 @@ public final class PostShareActivity extends Activity {
             }
         } catch (ActivityNotFoundException e) {
             Toast.makeText(a, "Nothing on this phone can share it.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * The post's picture saved to the phone's gallery (Pictures/Ibiko), once: an app that drops a shared picture, or a
+     * post the person makes by hand, can pick it from there. True when it is there.
+     */
+    public static boolean toGallery(Context c, File picture) {
+        android.content.ContentResolver cr = c.getContentResolver();
+        String name = "ibiko-" + picture.getName();
+        Uri images = android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        try (android.database.Cursor q = cr.query(images, new String[]{android.provider.MediaStore.Images.Media._ID},
+                android.provider.MediaStore.Images.Media.DISPLAY_NAME + "=?", new String[]{name}, null)) {
+            if (q != null && q.moveToFirst()) {
+                return true; // saved before
+            }
+        } catch (RuntimeException ignored) {
+            // can't look: saved again below at worst
+        }
+        android.content.ContentValues v = new android.content.ContentValues();
+        v.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+        v.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        v.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Ibiko");
+        v.put(android.provider.MediaStore.Images.Media.IS_PENDING, 1);
+        Uri at = null;
+        try {
+            at = cr.insert(images, v);
+            if (at == null) {
+                return false;
+            }
+            try (java.io.OutputStream o = cr.openOutputStream(at)) {
+                if (o == null) {
+                    cr.delete(at, null, null);
+                    return false;
+                }
+                java.nio.file.Files.copy(picture.toPath(), o);
+            }
+            android.content.ContentValues done = new android.content.ContentValues();
+            done.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0);
+            cr.update(at, done, null, null);
+            return true;
+        } catch (java.io.IOException | RuntimeException e) {
+            if (at != null) {
+                try {
+                    cr.delete(at, null, null);
+                } catch (RuntimeException ignored) {
+                    // nothing more to undo
+                }
+            }
+            return false;
         }
     }
 
@@ -148,10 +202,14 @@ public final class PostShareActivity extends Activity {
      */
     public static void offerFailed(Context c, Campaign camp, Campaign.Item it, String why) {
         String net = CampaignRunner.shown(it.network);
+        if (!it.imagePath.isEmpty() && new File(it.imagePath).isFile()) {
+            toGallery(c, new File(it.imagePath)); // ready to pick by hand, whatever the app does with a share
+        }
         notify(c, CHANNEL_DUE, "Posts to share", "A campaign post that is due on a network you post on yourself",
                 ("due-" + it.id).hashCode(), "Tap to post on " + net + " (" + camp.name + ")",
                 "I couldn't post it on " + net + "'s page myself (" + why.replaceAll("^I couldn't post on \\S+ myself: ", "").replaceAll("\\.$", "")
-                        + "). Tap: " + net + " opens with the picture and the words ready, and you press Post.\n\n" + it.text,
+                        + "). Tap: " + net + " opens with the picture and the words ready, and you press Post. The picture is"
+                        + " also saved to your gallery (Pictures › Ibiko).\n\n" + it.text,
                 intent(c, camp.id, it.id, it.network));
     }
 

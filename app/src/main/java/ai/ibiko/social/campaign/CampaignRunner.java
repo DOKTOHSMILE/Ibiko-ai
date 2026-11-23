@@ -252,10 +252,15 @@ public final class CampaignRunner extends BroadcastReceiver {
 
     /** Posts one item from its own account and records what happened. */
     static void postOne(Context c, Campaign camp, Campaign.Item it, long now) {
+        String whose = it.handoff ? "share:" + it.network : it.account;
+        if (repeat(c, camp, it, whose, now)) {
+            return;
+        }
         if (it.handoff) {
             // a network Ibiko can't post on itself: the post, its picture drawn, is offered to the person to share
             picture(c, camp, it);
             ai.ibiko.chat.ui.PostShareActivity.offerDue(c, camp, it);
+            posted(c).add(whose, it.text, it.headline, now);
             it.state = Campaign.State.POSTED;
             it.result = "Offered to you to share on " + shown(it.network) + " (you tap Share)";
             return;
@@ -304,6 +309,7 @@ public final class CampaignRunner extends BroadcastReceiver {
             }
         }
         if (r.posted) {
+            posted(c).add(a.id, it.text, it.headline, now); // pressed Post: never put out again on this account
             checked(c, camp, it, seen, a.label, net.shown, r.said);
             return;
         }
@@ -321,6 +327,58 @@ public final class CampaignRunner extends BroadcastReceiver {
             return;
         }
         fail(c, camp, it, r.said);
+    }
+
+    private static PostedLog posted;
+
+    /** What every account has put out, across campaigns. */
+    static synchronized PostedLog posted(Context c) {
+        if (posted == null) {
+            posted = new PostedLog(new File(new File(c.getFilesDir(), "campaigns"), "posted.tsv"));
+        }
+        return posted;
+    }
+
+    /**
+     * Strict about repeats: the same words already out on this account (within the window, from any campaign) are not
+     * posted again: the post is skipped and says when it went. The same picture headline with new words gets a headline
+     * of its own (the post's first words) and a fresh picture, so the page doesn't show the same graphic twice.
+     * True when the post was skipped.
+     */
+    static boolean repeat(Context c, Campaign camp, Campaign.Item it, String whose, long now) {
+        PostedLog log = posted(c);
+        long same = log.sameWords(whose, it.text, now);
+        if (same > 0) {
+            it.state = Campaign.State.SKIPPED;
+            it.result = "Not posted: the same post already went out on this account on "
+                    + new java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(new java.util.Date(same))
+                    + ", so it isn't doubled.";
+            return true;
+        }
+        if (!it.imageHtml.isEmpty() && !it.headline.isEmpty() && log.sameHeadline(whose, it.headline, now) > 0) {
+            String fresh = firstWords(it.text, 6);
+            if (!fresh.isEmpty() && log.sameHeadline(whose, fresh, now) == 0) {
+                it.headline = fresh;
+                it.seed = DesignGen.freshSeed(it.id);
+                it.designed = false;
+                it.imageHtml = CampaignPlanner.picture(it, it.product.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(it.product));
+                if (!it.imagePath.isEmpty()) {
+                    new File(it.imagePath).delete();
+                }
+                it.imagePath = "";
+            }
+        }
+        return false;
+    }
+
+    /** The first few words of a post, without links or hashtags, for a headline. */
+    static String firstWords(String text, int most) {
+        String[] w = (text == null ? "" : text).replaceAll("(?i)https?://\\S+|#\\w+", " ").trim().split("\\s+");
+        StringBuilder h = new StringBuilder();
+        for (int i = 0; i < w.length && i < most; i++) {
+            h.append(i == 0 ? "" : " ").append(w[i]);
+        }
+        return h.toString().replaceAll("[.,!?:;]+$", "");
     }
 
     /** The page, not the account, stopped the post: the person can post it in the app with one tap. */
@@ -389,7 +447,19 @@ public final class CampaignRunner extends BroadcastReceiver {
             return kept;
         }
         File out = new File(new File(new File(c.getFilesDir(), "campaigns"), safe(camp.id)), safe(it.id) + ".jpg");
-        File made = CampaignImage.render(c, catalog(c).inline(it.imageHtml), out);
+        CampaignImage.Drawn d = CampaignImage.drawn(c, catalog(c).inline(it.imageHtml), out, CampaignImage.SIDE, CampaignImage.SIDE);
+        // strict about the words: a picture whose words still collide or run off it after the layout check is not
+        // posted; the formula, whose layout keeps its words clear, draws it again (a few fresh seeds at most)
+        for (int tries = 0; d.file != null && d.problem != null && tries < 3; tries++) {
+            if (it.headline.isEmpty()) {
+                break; // nothing for the formula to set: the checked picture stands
+            }
+            it.seed = DesignGen.freshSeed(it.id + tries);
+            it.designed = false;
+            it.imageHtml = CampaignPlanner.picture(it, it.product.isEmpty() ? "" : Catalog.PHOTO + Catalog.safe(it.product));
+            d = CampaignImage.drawn(c, catalog(c).inline(it.imageHtml), out, CampaignImage.SIDE, CampaignImage.SIDE);
+        }
+        File made = d.file;
         if (made != null) {
             it.imagePath = made.getPath();
         }

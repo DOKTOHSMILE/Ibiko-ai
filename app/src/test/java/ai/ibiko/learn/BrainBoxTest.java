@@ -34,6 +34,23 @@ public class BrainBoxTest {
     }
 
     @Test
+    public void aGreetingNeverSwitchesAModeOn() throws Exception {
+        File f = file();
+        BrainBox b = new BrainBox(f);
+        b.learn("Hello", "§PM"); // a model's slip: "Hello" answered with plan mode
+        assertEquals("not learned as a habit", 0, b.size());
+        // a box that learned it before this check: it is still not carried out
+        java.nio.file.Files.write(f.toPath(), "hello\t§PM\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertNull(new BrainBox(f).recall("Hello"));
+        assertNull(new BrainBox(f).recall("Hello there!"));
+        assertTrue(BrainBox.fits("switch to plan mode", "§PM"));
+        assertTrue(!BrainBox.fits("hello", "§PM"));
+        assertTrue(!BrainBox.fits("thanks", "DO TIME"));
+        assertTrue(BrainBox.fits("what's the time", "DO TIME"));
+        assertTrue(!BrainBox.fits("good morning", "§SR weather"));
+    }
+
+    @Test
     public void theNewestOrderForTheSameWordsWinsAndTheBoxStaysSmall() throws Exception {
         BrainBox b = new BrainBox(file());
         b.learn("search the weather", "DO SEARCH weather");
