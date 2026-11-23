@@ -17,7 +17,13 @@ import ai.ibiko.ibiko1.formulas.Recipes;
 /** Ibiko v1's coding: tested recipes in 11 languages, read from the request; what it finds is kept once confirmed. */
 public class RecipesTest {
     private static Recipes book(File learned) throws Exception {
-        return new Recipes(new FileInputStream("src/main/assets/knowledge/code/recipes.tsv"), learned);
+        return new Recipes(TextCode.open(path -> {
+            try {
+                return new FileInputStream("src/main/assets/" + path);
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        }, "knowledge/code/recipes.tsv"), learned);
     }
 
     @Test
@@ -81,5 +87,9 @@ public class RecipesTest {
         assertTrue(code, code.contains("println(\"Hello, $name\")"));
         assertNull("no block reads as Swift", Recipes.code(page, "swift"));
         assertNotNull(Recipes.code("Here:\n```python\ndef f(x):\n    print(x)\n```", "python"));
+        String reddit = "You can do it like this:\n\n    fun main() {\n        val nums = listOf(3, 1, 2).sorted()\n        println(nums)\n    }\n\nHope that helps!";
+        String posted = Recipes.code(reddit, "kotlin");
+        assertNotNull("code in a post, indented four spaces as people share it", posted);
+        assertTrue(posted, posted.startsWith("fun main() {") && posted.contains("    val nums"));
     }
 }

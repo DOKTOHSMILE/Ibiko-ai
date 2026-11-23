@@ -1750,7 +1750,7 @@ public final class Ibiko1 {
         if (recipes == null) {
             java.io.InputStream in = null;
             try {
-                in = Plug.asset.apply("knowledge/code/recipes.tsv");
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/code/recipes.tsv"); // shipped coded (.ibk)
             } catch (RuntimeException ignored) {
                 // none shipped here
             }
@@ -1824,7 +1824,7 @@ public final class Ibiko1 {
         }
         how = How.RESEARCH;
         think(Arrays.asList("Reading your question: code to write in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language),
-                "Not in my recipes: looking it up", "Taking the code that reads as " + ai.ibiko.ibiko1.formulas.Recipes.shown(language)), () -> {
+                "Not in my recipes: looking it up on the web and in social media posts", "Taking the code that reads as " + ai.ibiko.ibiko1.formulas.Recipes.shown(language)), () -> {
                     final int mine = token;
                     new Thread(() -> {
                         String found = null;
@@ -1833,7 +1833,19 @@ public final class Ibiko1 {
                                     + " code example";
                             found = ai.ibiko.ibiko1.formulas.Recipes.code(Plug.web.search(q), language);
                         } catch (RuntimeException ignored) {
-                            // nothing found
+                            // nothing found on the web
+                        }
+                        if (found == null) {
+                            // social media too: people share working code in posts (Reddit, the networks signed in here)
+                            try {
+                                StringBuilder posts = new StringBuilder();
+                                for (ai.ibiko.ibiko1.formulas.Corroborate.Post p : Plug.social.apply(t + " " + ai.ibiko.ibiko1.formulas.Recipes.shown(language))) {
+                                    posts.append(p.text).append("\n\n");
+                                }
+                                found = ai.ibiko.ibiko1.formulas.Recipes.code(posts.toString(), language);
+                            } catch (RuntimeException ignored) {
+                                // nothing there either
+                            }
                         }
                         final String code = found;
                         if (code != null) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds app/src/main/assets/knowledge/code/recipes.tsv: Ibiko v1's own coding knowledge.
+"""Builds app/src/main/assets/knowledge/code/recipes.tsv.ibk: Ibiko v1's own coding knowledge (coded, IBK1T).
 
 Every recipe is a whole program, and every one is run here before it is kept: compiled and run, and its output
 compared with what it must print. A recipe that fails is left out and said. Nothing goes in untested.
@@ -372,6 +372,8 @@ def main():
         f.write("# Ibiko v1's coding recipes: every one compiled, run and its output checked (tools/build_code_recipes.py)\n")
         for task, lang, code, _ in kept:
             f.write("%s\t%s\t%s\n" % (task, lang, esc(code.rstrip("\n"))))
+    # shipped coded, like the rest of the knowledge (ai.ibiko.ibiko1.TextCode reads it back byte for byte)
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "encode_text.py"), OUT, "--remove"], check=True)
     print("kept %d recipes in %d languages" % (len(kept), len({k[1] for k in kept})))
     for task, lang, _, why in failed:
         print("FAILED %s/%s: %s" % (lang, task, why.strip().splitlines()[-1] if why.strip() else why))

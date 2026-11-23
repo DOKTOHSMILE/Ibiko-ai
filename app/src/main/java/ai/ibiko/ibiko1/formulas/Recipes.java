@@ -316,6 +316,18 @@ public final class Recipes {
             blocks.add(p.group(1).replaceAll("<[^>]+>", "").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
                     .replace("&#39;", "'").replace("&amp;", "&"));
         }
+        // code in a post (Reddit, a forum): lines indented four spaces or a tab, as people share it there
+        StringBuilder run = new StringBuilder();
+        for (String line : (page + "\n").split("\n")) {
+            if (line.matches("(?: {4}|\t).*") && !line.trim().isEmpty() || run.length() > 0 && line.trim().isEmpty()) {
+                run.append(line.replaceFirst("^(?: {4}|\t)", "")).append('\n');
+            } else {
+                if (run.toString().trim().split("\n").length >= 2) {
+                    blocks.add(run.toString());
+                }
+                run.setLength(0);
+            }
+        }
         String best = null;
         int bestScore = 0;
         for (String b : blocks) {
