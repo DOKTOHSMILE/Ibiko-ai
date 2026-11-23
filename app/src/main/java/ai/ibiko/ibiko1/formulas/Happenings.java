@@ -254,8 +254,16 @@ public final class Happenings {
         }
     }
 
-    /** A bare four-figure number is a year only where a year is said: after "in", "since", "by"… or in brackets. */
+    /**
+     * A bare four-figure number is a year only when the sentence makes it one: every reading it could have (a year, a
+     * PIN, a price, a count, a distance, a time…) is weighed by {@link NumberSense}, and only a year that wins is a year.
+     */
     static boolean yearAt(String s, int start, int end) {
+        return NumberSense.isYear(s, start, end);
+    }
+
+    /** The older, simpler test, kept for reference: a year where "in", "since", "by"… or a bracket is before it. */
+    static boolean yearAtByWords(String s, int start, int end) {
         String before = s.substring(Math.max(0, start - 12), start).toLowerCase(Locale.US);
         String after = s.substring(end, Math.min(s.length(), end + 12)).toLowerCase(Locale.US);
         if (after.matches("^\\s*(people|persons|men|women|km|kilometres|kilometers|metres|meters|miles|years|times|percent|%|"
