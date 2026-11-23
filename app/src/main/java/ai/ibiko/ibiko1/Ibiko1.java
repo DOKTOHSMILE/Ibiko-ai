@@ -850,6 +850,27 @@ public final class Ibiko1 {
                 return;
             }
         }
+        // two things told apart ("difference between a frog and a toad"): each read for what kind of thing it is and
+        // what is said of it, then compared: the same kind or not, and what sets each apart
+        final String[] pair = ai.ibiko.ibiko1.formulas.Contrast.pair(t);
+        if (pair != null && encyclopedia() != null) {
+            final Encyclopedia.Article a = encyclopedia().find(pair[0]), b = encyclopedia().find(pair[1]);
+            final String told = a == null || b == null || a.title.equals(b.title) ? null
+                    : ai.ibiko.ibiko1.formulas.Contrast.tell(pair[0], a.text, pair[1], b.text);
+            if (told != null && !knowledge().rejected(t, told)) {
+                how = How.MEMORY;
+                long now = System.currentTimeMillis();
+                facts().learn(a.text, a.title, 2, now); // what it read is kept
+                facts().learn(b.text, b.title, 2, now);
+                think(Arrays.asList("Reading your question: two things to tell apart", "Reading my encyclopedia on " + a.title + " and on " + b.title,
+                        "Finding what kind of thing each is", "Finding what each says that the other doesn't"), () -> {
+                            saysSure(who, told, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN,
+                                    "Source: Simple English Wikipedia, \u201c" + a.title + "\u201d and \u201c" + b.title + "\u201d");
+                            rateable(t, told);
+                        });
+                return;
+            }
+        }
         // why something is so: the reason read out of what it knows and reads (cause and effect), not looked up whole
         if (ai.ibiko.ibiko1.formulas.Asking.of(t).wants == ai.ibiko.ibiko1.formulas.Asking.Wants.WHY && answerWhy(who, t)) {
             return;
