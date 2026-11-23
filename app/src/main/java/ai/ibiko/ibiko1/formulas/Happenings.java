@@ -79,7 +79,7 @@ public final class Happenings {
         public final String subject, action, sentence;
         public final When when;
 
-        Happening(String subject, String action, When when, String sentence) {
+        public Happening(String subject, String action, When when, String sentence) {
             this.subject = subject;
             this.action = action;
             this.when = when;

@@ -229,16 +229,20 @@ public final class Ibiko1 {
         return builtIn;
     }
 
-    private static Composer composer;
+    private Composer composer;
 
-    /** Facts put together (ages at events, comparisons, the most in a place), over the built-in facts and what it reads. */
-    static synchronized Composer composer() {
+    /**
+     * Facts put together (ages at events, comparisons, the most in a place), over the built-in facts and what it reads.
+     * Its memory first (events it read or was told before, sure ones); then the encyclopedia, read by the events
+     * formula when asked, and what it read is kept in memory: it finds facts for itself and remembers them.
+     */
+    synchronized Composer composer() {
         if (composer == null) {
-            // dates of events are read, not listed: the encyclopedia's articles, read by the events formula when asked
             composer = new Composer(builtIn(), title -> {
                 Encyclopedia e = encyclopedia();
                 return e == null ? null : e.find(title);
-            });
+            }, subject -> facts().happenings(subject),
+                    article -> facts().learn(article.text, article.title, 2, System.currentTimeMillis()));
         }
         return composer;
     }
@@ -484,9 +488,25 @@ public final class Ibiko1 {
         learner().heard(said, System.currentTimeMillis());
     }
 
-    /** Any model's answer: read for language only (a model's claim is not a fact). */
+    /**
+     * Any model's answer: read for language, and for facts and events kept as weak ones (seen once). A model's claim
+     * alone is not a fact: it is answered from or reasoned with only once something else says the same (the
+     * encyclopedia, a page it researched, the pilot, or another reply), which makes it sure.
+     */
     public void readReply(String reply) {
         replied = reply != null && !reply.trim().isEmpty();
+        if (replied) {
+            final String text = reply.length() > 6000 ? reply.substring(0, 6000) : reply;
+            Thread t = new Thread(() -> {
+                try {
+                    facts().learn(text, null, 1, System.currentTimeMillis());
+                } catch (RuntimeException ignored) {
+                    // read for language all the same
+                }
+            }, "ibiko1-read-reply");
+            t.setPriority(Thread.MIN_PRIORITY);
+            t.start();
+        }
         learner().read(reply, Learner.Source.MODEL, System.currentTimeMillis());
         if (replied && lastRequest != null) {
             learnThinking(lastRequest, reply); // the reasoning written into a reply ("first…, then…, so…")
@@ -1769,7 +1789,7 @@ public final class Ibiko1 {
      */
     public String learnStatement(String t) {
         String said = t.trim();
-        if (ratingQuestion != null && host.ratingWaiting() && answers(ratingQuestion, said)) {
+        if (ratingQuestion != null && host.ratingWaiting() && answers(ratingQuestion, said) && !aboutSomethingElse(ratingQuestion, said)) {
             String q = ratingQuestion;
             ratingQuestion = null;
             host.clearRating();
@@ -1787,6 +1807,17 @@ public final class Ibiko1 {
             return "Noted.";
         }
         said = Character.toUpperCase(said.charAt(0)) + said.substring(1);
+        // something that happened, with its date ("Ghana became independent on 6 March 1957"): understood and kept, to
+        // reason with ("how old was Achebe when Ghana became independent?")
+        List<ai.ibiko.ibiko1.formulas.Happenings.Happening> happened = ai.ibiko.ibiko1.formulas.Happenings.read(said, null);
+        if (!happened.isEmpty() && !said.matches("(?i)^(today|tomorrow|yesterday|i|we|my|our)\\b.*")) {
+            facts().learn(said, null, 2, System.currentTimeMillis()); // the pilot's own words: as good as a source
+            List<String> got = new ArrayList<String>();
+            for (ai.ibiko.ibiko1.formulas.Happenings.Happening h : happened) {
+                got.add(h.clause() + " " + h.when.on());
+            }
+            return "Noted: " + String.join("; ", got) + ". I'll use it when I work things out.";
+        }
         Matcher m = Pattern.compile("(?i)^(?:(the|a|an) )?(.{2,60}?) (is|are|was|were) (.{2,300}?)[.!]*$").matcher(said);
         if (m.matches() && m.group(2).matches("(?i)(today|tomorrow|yesterday|tonight|now|it|this|that|he|she|they|there|here)\\b.*")) {
             // "today is Christmas day", "it is cold": true now, or about something only the chat knows; not kept as a fact
@@ -1824,6 +1855,26 @@ public final class Ibiko1 {
         } catch (RuntimeException | LinkageError ignored) {
             // nothing more it can do
         }
+    }
+
+    /**
+     * A statement about something the question didn't ask about ("Ghana became independent on …" after a question on
+     * Nigeria): new knowledge, not the answer to that question.
+     */
+    static boolean aboutSomethingElse(String question, String statement) {
+        List<ai.ibiko.ibiko1.formulas.Happenings.Happening> h = ai.ibiko.ibiko1.formulas.Happenings.read(statement, null);
+        if (h.isEmpty()) {
+            return false;
+        }
+        String q = question.toLowerCase(Locale.US);
+        for (ai.ibiko.ibiko1.formulas.Happenings.Happening x : h) {
+            for (String w : x.subject.toLowerCase(Locale.US).split("[^\\p{L}\\p{N}]+")) {
+                if (w.length() > 2 && !w.matches("the|and") && q.contains(w)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**

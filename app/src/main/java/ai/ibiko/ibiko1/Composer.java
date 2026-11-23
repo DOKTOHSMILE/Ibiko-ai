@@ -42,9 +42,21 @@ final class Composer {
     /** People's last names (lower case) → the people (keys) with a birth date, so "Achebe" finds Chinua Achebe. */
     private Map<String, List<String>> surnames;
 
+    /** What it has read and kept about a thing (its memory of events), or null for none. */
+    private final java.util.function.Function<String, List<Happenings.Happening>> memory;
+    /** What it reads is kept: an article read for an answer is learned from (its facts and events go into memory). */
+    private final java.util.function.Consumer<Encyclopedia.Article> keep;
+
     Composer(BuiltIn k, java.util.function.Function<String, Encyclopedia.Article> articles) {
+        this(k, articles, null, null);
+    }
+
+    Composer(BuiltIn k, java.util.function.Function<String, Encyclopedia.Article> articles,
+            java.util.function.Function<String, List<Happenings.Happening>> memory, java.util.function.Consumer<Encyclopedia.Article> keep) {
         this.k = k;
         this.articles = articles;
+        this.memory = memory;
+        this.keep = keep;
     }
 
     /** A phrase as events are matched: plain, hyphens as spaces ("COVID-19" is "covid 19"). */
@@ -52,12 +64,19 @@ final class Composer {
         return BuiltIn.plainQuestion(s).replace('-', ' ').replaceAll("\\s+", " ").trim();
     }
 
-    /** What the articles say happened to a thing, read once and kept. */
+    /** What the articles say happened to a thing, read once and kept (in memory too, when there is one). */
     private synchronized List<Happenings.Happening> happenings(Encyclopedia.Article a) {
         List<Happenings.Happening> h = read.get(a.title);
         if (h == null) {
             h = Happenings.read(a.text, a.title);
             read.put(a.title, h);
+            if (keep != null) {
+                try {
+                    keep.accept(a); // read once: learned for good, its facts and events in memory
+                } catch (RuntimeException ignored) {
+                    // answered all the same; learned next time
+                }
+            }
         }
         return h;
     }
@@ -70,11 +89,35 @@ final class Composer {
      * is the one meant. Null when nothing read dates it.
      */
     Dated event(String phrase) {
-        if (articles == null) {
+        if (articles == null && memory == null) {
             return null;
         }
         String p = flat(phrase).replaceFirst("^(the|a|an)\\s+", "");
         String[] w = p.split(" ");
+        // first what it already knows: events it read or was told before, kept in its memory
+        if (memory != null) {
+            for (int len = Math.min(5, w.length); len >= 1; len--) {
+                for (int i = 0; i + len <= w.length; i++) {
+                    String about = String.join(" ", Arrays.asList(w).subList(i, i + len));
+                    if (about.length() < 3 || STOPWORDS.contains(about)) {
+                        continue;
+                    }
+                    List<Happenings.Happening> known = memory.apply(about);
+                    if (known == null || known.isEmpty()) {
+                        continue;
+                    }
+                    String rest = (String.join(" ", Arrays.asList(w).subList(0, i)) + " " + String.join(" ", Arrays.asList(w).subList(i + len, w.length))).trim();
+                    this.phrase = typed(flat(phrase));
+                    Dated d = best(known, rest, about, about);
+                    if (d != null) {
+                        return new Dated(d.when, d.clause, d.read, true);
+                    }
+                }
+            }
+        }
+        if (articles == null) {
+            return null;
+        }
         for (int len = Math.min(5, w.length); len >= 1; len--) {
             for (int i = 0; i + len <= w.length; i++) {
                 String title = String.join(" ", Arrays.asList(w).subList(i, i + len));
@@ -131,6 +174,11 @@ final class Composer {
 
     /** Of what an article says happened, the one the asked words mean; null when none shares a word's meaning. */
     private Dated best(Encyclopedia.Article a, String asked, String title) {
+        return best(happenings(a), asked, title, a.title);
+    }
+
+    /** Of what happened (read from an article, or remembered), the one the asked words mean; null when none fits. */
+    private Dated best(List<Happenings.Happening> all, String asked, String title, String about) {
         java.util.Set<String> want = Happenings.gist(asked);
         java.util.Set<String> wanted = new java.util.HashSet<String>(want);
         ai.ibiko.ibiko1.words.Meanings m = ai.ibiko.ibiko1.words.Meanings.shared();
@@ -152,13 +200,13 @@ final class Composer {
         }
         Happenings.Happening pick = null;
         double bestScore = 0;
-        for (Happenings.Happening h : happenings(a)) {
+        for (Happenings.Happening h : all) {
             java.util.Set<String> has = Happenings.gist(h.action + " " + (want.isEmpty() ? h.sentence : ""));
             double score = 0;
             for (String g : wanted) {
                 score += has.contains(g) ? (want.contains(g) ? 3 : 1) : 0;
             }
-            if (score > 0 && flat(h.subject).equals(flat(a.title))) {
+            if (score > 0 && flat(h.subject).equals(flat(about))) {
                 score += 0.5; // about the thing itself, not something in its article: only to break a tie
             }
             if (score > 0 && h.when.full()) {
@@ -288,15 +336,22 @@ final class Composer {
         final String clause;
         /** The sentence it was read from, when it was read (null for a fact's own date). */
         final String read;
+        /** From its memory (read or told before), not read just now. */
+        final boolean remembered;
 
         Dated(Happenings.When when, String clause) {
             this(when, clause, null);
         }
 
         Dated(Happenings.When when, String clause, String read) {
+            this(when, clause, read, false);
+        }
+
+        Dated(Happenings.When when, String clause, String read, boolean remembered) {
             this.when = when;
             this.clause = clause;
             this.read = read;
+            this.remembered = remembered;
         }
     }
 
@@ -541,6 +596,11 @@ final class Composer {
         return new Reasoner.Result(name + " was " + about(b, d) + n + " at death: born " + b.on() + ", died " + d.on() + ".", steps);
     }
 
+    /** Where a date came from, for the steps: memory, or the article just read (which is now in memory). */
+    private static String source(Dated d) {
+        return d.read == null ? "" : d.remembered ? " (remembered: I read it before)" : " (read just now in the encyclopedia, and kept)";
+    }
+
     private Reasoner.Result ageAt(String who, Dated at, List<String> steps) {
         Happenings.When b = born(who), d = died(who);
         if (b == null) {
@@ -548,7 +608,7 @@ final class Composer {
         }
         String name = k.name(who);
         steps.add(name + " was born " + b.on());
-        steps.add(cap(at.clause) + " " + at.when.on());
+        steps.add(cap(at.clause) + " " + at.when.on() + source(at));
         if (at.when.before(b) || at.when.y < b.y) {
             int n = years(at.when, b);
             return new Reasoner.Result(name + " wasn't born yet when " + at.clause + ": that was " + at.when.on() + ", and " + name

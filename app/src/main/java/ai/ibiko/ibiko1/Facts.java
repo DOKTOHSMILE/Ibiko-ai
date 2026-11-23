@@ -154,6 +154,20 @@ public final class Facts {
             changed |= see(t, sightings, now);
             added += all.size() > was ? 1 : 0;
         }
+        // what happened and when ("The country gained independence on 1 October 1960"): kept as a fact of its own,
+        // (Nigeria | gained independence on | 1 October 1960), for the answers put together from what it has read
+        for (ai.ibiko.ibiko1.formulas.Happenings.Happening h : ai.ibiko.ibiko1.formulas.Happenings.read(text, topic)) {
+            String subject = h.subject.replaceAll("\\s*\\([^)]*\\)", "").replaceFirst("(?i)^the\\s+", "").trim();
+            String action = h.action.replaceAll("\\s*\\([^)]*\\)", "").trim();
+            if (subject.length() < 2 || subject.length() > 60 || action.length() < 3 || action.split(" ").length > 12) {
+                continue;
+            }
+            Grammar.Triple t = new Grammar.Triple(subject, action + (h.when.full() ? " on" : " in"), h.when.said,
+                    h.sentence.length() > 300 ? h.sentence.substring(0, 300) : h.sentence);
+            int was = all.size();
+            changed |= see(t, sightings, now);
+            added += all.size() > was ? 1 : 0;
+        }
         while (all.size() > MOST) {
             changes++;
             all.remove(weakest());
@@ -162,6 +176,26 @@ public final class Facts {
             save();
         }
         return added;
+    }
+
+    /**
+     * What it has read happened to a thing (the dated facts about it), sure ones only: strength 2 or more (an
+     * encyclopedia, the pilot's own words, or seen twice). A model's word alone is not yet something to reason from.
+     */
+    public synchronized List<ai.ibiko.ibiko1.formulas.Happenings.Happening> happenings(String subject) {
+        List<ai.ibiko.ibiko1.formulas.Happenings.Happening> out = new ArrayList<ai.ibiko.ibiko1.formulas.Happenings.Happening>();
+        for (Row r : all) {
+            Grammar.Triple t = r.fact;
+            if (r.n < 2 || !same(t.subject, subject) || !t.relation.matches(".+ (on|in)$")) {
+                continue;
+            }
+            ai.ibiko.ibiko1.formulas.Happenings.When w = ai.ibiko.ibiko1.formulas.Happenings.date(t.object);
+            if (w != null) {
+                out.add(new ai.ibiko.ibiko1.formulas.Happenings.Happening(t.subject, t.relation.replaceFirst(" (on|in)$", ""), w,
+                        t.surface == null ? "" : t.surface));
+            }
+        }
+        return out;
     }
 
     /** One fact seen: C1 first sight, C2 seen again, C3 what it contradicts falls. True when anything changed. */

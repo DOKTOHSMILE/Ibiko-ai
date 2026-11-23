@@ -66,6 +66,41 @@ public class ComposerTest {
     }
 
     @Test
+    public void itRemembersWhatItReadsAndWhatItIsTold() throws Exception {
+        java.io.File dir = java.nio.file.Files.createTempDirectory("facts").toFile();
+        final Facts memory = new Facts(new java.io.File(dir, "facts.tsv"));
+        long now = System.currentTimeMillis();
+        // told by the pilot (sure): Ghana's article gives no date, so only memory can answer
+        memory.learn("Ghana became independent on 6 March 1957.", null, 2, now);
+        assertTrue(memory.happenings("Ghana").toString(), memory.happenings("Ghana").size() == 1);
+        BuiltIn b = new BuiltIn(new FileInputStream(ai.ibiko.PlainAsset.of("knowledge/wikidata_facts.tsv")));
+        final Encyclopedia e = new Encyclopedia(p -> {
+            try {
+                return new FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException x) {
+                return null;
+            }
+        });
+        Composer c = new Composer(b, e::find, memory::happenings, a -> memory.learn(a.text, a.title, 2, System.currentTimeMillis()));
+        Reasoner.Result ghana = c.answer("How old was Chinua Achebe when Ghana became independent?");
+        assertTrue(String.valueOf(ghana == null ? null : ghana.text), ghana != null && ghana.text.startsWith("Chinua Achebe was 26 when Ghana became independent"));
+        assertTrue(ghana.steps.toString(), ghana.steps.toString().contains("remembered"));
+        // read in the encyclopedia for an answer: kept in memory, so the next time it is remembered, not read again
+        assertTrue(memory.happenings("Nigeria").isEmpty());
+        Reasoner.Result nigeria = c.answer("How old was Chinua Achebe when Nigeria became independent?");
+        assertTrue(nigeria.text, nigeria.text.startsWith("Chinua Achebe was 29"));
+        assertTrue(nigeria.steps.toString().contains("read just now"));
+        assertTrue("what it read is in memory: " + memory.happenings("Nigeria"), !memory.happenings("Nigeria").isEmpty());
+        Reasoner.Result again = new Composer(b, null, memory::happenings, null).answer("How old was Achebe when Nigeria gained independence?");
+        assertTrue(String.valueOf(again == null ? null : again.text), again != null && again.text.startsWith("Chinua Achebe was 29"));
+        // a model's word alone (seen once) isn't reasoned with; said again by another source, it is
+        memory.learn("Togo became independent on 27 April 1960.", null, 1, now);
+        assertTrue(memory.happenings("Togo").isEmpty());
+        memory.learn("Togo became independent on 27 April 1960.", null, 1, now);
+        assertTrue(!memory.happenings("Togo").isEmpty());
+    }
+
+    @Test
     public void thingsAreComparedAndRanked() throws Exception {
         assertTrue(a("Which is longer, the Niger or the Nile?").startsWith("Nile is longer: Nile 6,650 km, Niger River 4,180 km"));
         assertTrue(a("Which is higher, Mount Kilimanjaro or Mount Kenya?").startsWith("Mount Kilimanjaro is higher"));
