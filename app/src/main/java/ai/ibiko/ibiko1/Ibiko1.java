@@ -1039,6 +1039,9 @@ public final class Ibiko1 {
                             learner().read(r.text, Learner.Source.RESEARCH, now);
                         }
                         final ResearchAnswer found = r != null && knowledge().rejected(t, r.shown()) ? null : r;
+                        // cross-checked against social media: a structured search (the thing, its year, the answer's own
+                        // words), posts weighed for independent accounts that state it or dispute it
+                        final ai.ibiko.ibiko1.formulas.Corroborate.Verdict social = found == null ? null : crossCheck(asked, frame, found.text);
                         host.onScreen(() -> {
                             if (mine != token) {
                                 return; // a newer message took over
@@ -1065,16 +1068,62 @@ public final class Ibiko1 {
                             }
                             final String shown = found.shown();
                             List<String> more = new ArrayList<String>();
+                            String socialSaid = social == null ? "" : social.said();
+                            if (!socialSaid.isEmpty()) {
+                                more.add("Checking it against social media");
+                                more.add(socialSaid);
+                            }
                             more.add("Writing the answer");
+                            // a single source that many independent accounts back up is as good as two; disputed, it says so
+                            final boolean backed = social != null && social.confirmed();
+                            final String note = (found.sources.isEmpty() ? "" : "Read: " + String.join(", ", found.sources))
+                                    + (socialSaid.isEmpty() ? "" : (found.sources.isEmpty() ? "" : " · ") + socialSaid);
                             think(more, () -> {
-                                saysSure(who, shown, found.sources.size() >= 2 ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
+                                saysSure(who, shown, found.sources.size() >= 2 || backed ? ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES
                                         : ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE,
-                                        found.sources.isEmpty() ? null : "Read: " + String.join(", ", found.sources)); // one block
+                                        note.isEmpty() ? null : note); // one block
                                 rateable(t, shown);
                             }, false);
                         });
                     }, "ibiko-research").start();
                 });
+    }
+
+    /**
+     * An answer held up against social media: searched with a structured query (the year, the thing asked about, and
+     * the answer's own words: "2022 world cup argentina"), never the raw question, and weighed by
+     * {@link ai.ibiko.ibiko1.formulas.Corroborate}. Null when nothing could be read. At most about 20 seconds.
+     */
+    ai.ibiko.ibiko1.formulas.Corroborate.Verdict crossCheck(String question, ai.ibiko.ibiko1.formulas.Asking.Frame frame, String answer) {
+        java.util.Set<String> key = ai.ibiko.ibiko1.formulas.Corroborate.answerWords(question, answer);
+        if (key.isEmpty() || frame.about.isEmpty()) {
+            return null; // nothing to look for: a description isn't something posts confirm
+        }
+        StringBuilder q = new StringBuilder();
+        if (frame.year > 0) {
+            q.append(frame.year).append(' ');
+        }
+        q.append(frame.about);
+        int n = 0;
+        for (String k : key) {
+            if (n++ < 3) {
+                q.append(' ').append(k);
+            }
+        }
+        final String query = q.toString();
+        java.util.concurrent.ExecutorService one = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.List<ai.ibiko.ibiko1.formulas.Corroborate.Post> posts = one.submit(() -> Plug.social.apply(query))
+                    .get(20, java.util.concurrent.TimeUnit.SECONDS);
+            if (posts == null || posts.isEmpty()) {
+                return null;
+            }
+            return ai.ibiko.ibiko1.formulas.Corroborate.weigh(question, answer, posts);
+        } catch (Exception e) {
+            return null; // slow or unreachable: the answer stands on its sources
+        } finally {
+            one.shutdownNow();
+        }
     }
 
     /** The question with a name it nearly is put right ("world up" → "World Cup"), the change said in {@code steps}. */
