@@ -26,6 +26,7 @@ import ai.ibiko.social.SocialWeb;
 import ai.ibiko.social.campaign.Campaign;
 import ai.ibiko.social.campaign.CampaignBoard;
 import ai.ibiko.social.campaign.CampaignChat;
+import ai.ibiko.social.campaign.CampaignControls;
 import ai.ibiko.social.campaign.CampaignDraft;
 import ai.ibiko.social.campaign.CampaignRunner;
 import ai.ibiko.social.campaign.CampaignStudio;
@@ -359,10 +360,14 @@ public final class CampaignChatActivity extends AppCompatActivity {
         chips.addView(chip, lp);
     }
 
-    /** Campaign ▾: what can be done with the campaign as a whole, for where it stands. */
+    /**
+     * Campaign ▾: everything that can be done with the campaign as a whole, for where it stands. The posting controls
+     * (now, skip, retry, move) act on the campaign at once, offline; the line under the title says where it stands.
+     */
     private void campaignSheet(final Campaign c, boolean planning) {
         final List<BottomSheet.Item> items = new ArrayList<BottomSheet.Item>();
         final List<Runnable> acts = new ArrayList<Runnable>();
+        final long now = System.currentTimeMillis();
         if (planning) {
             items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_stop, "Stop planning", "Keep what is planned so far"));
             acts.add(() -> CampaignDraft.stop(c.id));
@@ -374,6 +379,26 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_check, "Review and approve", "Read, change and approve each post"));
                 acts.add(() -> CampaignReview.show(this, c, () -> fill(true)));
             }
+        }
+        boolean waiting = CampaignControls.next(c) != null;
+        if (waiting && c.status != Campaign.Status.DRAFT) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_send, "Post the next one now", "Don't wait for its time"));
+            acts.add(() -> change(x -> CampaignControls.postNextNow(x, System.currentTimeMillis())));
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_close, "Skip the next post", "The others keep their times"));
+            acts.add(() -> change(CampaignControls::skipNext));
+        }
+        int failed = CampaignControls.failed(c);
+        if (failed > 0) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_retry, "Retry the failed posts (" + failed + ")",
+                    "Back in line, a quarter of an hour apart"));
+            acts.add(() -> change(x -> {
+                int n = CampaignControls.retryFailed(x, System.currentTimeMillis());
+                return n == 0 ? null : n + (n == 1 ? " failed post is" : " failed posts are") + " back in line, starting in 15 minutes.";
+            }));
+        }
+        if (waiting) {
+            items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_calendar, "Move the schedule", "Everything still to go: later or earlier"));
+            acts.add(() -> moveSheet());
         }
         if (c.status == Campaign.Status.ACTIVE) {
             items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_pause, "Pause", "Nothing more goes out until you resume"));
@@ -389,13 +414,129 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 fill(false);
             });
         }
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_settings, "What it does besides posting",
+                "Answer comments, find people, pitch, WhatsApp Status"));
+        acts.add(() -> settings(c));
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_share, "Share all the posts", "As text: to keep, check or send"));
+        acts.add(() -> startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_SUBJECT, c.name).putExtra(Intent.EXTRA_TEXT, CampaignControls.export(c)), "Share the posts")));
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_edit, "Rename", c.name.isEmpty() ? "Give it a name" : c.name));
+        acts.add(() -> rename(c));
+        items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_copy, "Run it again", "A copy with the same brief, planned fresh"));
+        acts.add(() -> duplicate(c));
         items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_set_models, "Model", "Which model plans and writes"));
         acts.add(this::pickModel);
         items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_plus, "New campaign", "Start another from a brief"));
         acts.add(() -> startActivity(new Intent(this, CampaignsActivity.class)));
         items.add(new BottomSheet.Item(ai.ibiko.R.drawable.ic_delete, "Delete the campaign", "Posts already out stay on the networks"));
         acts.add(() -> confirmDelete(c));
-        BottomSheet.show(this, "Campaign", items.toArray(new BottomSheet.Item[0]), which -> acts.get(which).run());
+        BottomSheet.show(this, "Campaign", c.items.isEmpty() ? null : CampaignControls.standing(c, now),
+                items.toArray(new BottomSheet.Item[0]), -1, which -> acts.get(which).run());
+    }
+
+    /**
+     * A change made on the campaign itself: done, saved, the runner re-armed, and said in the conversation (so the
+     * campaign's story keeps it). {@code how} says what it did, or null when there was nothing to do.
+     */
+    private void change(java.util.function.Function<Campaign, String> how) {
+        Campaign c = campaign();
+        if (c == null) {
+            return;
+        }
+        String said = how.apply(c);
+        if (said == null) {
+            android.widget.Toast.makeText(this, "Nothing to change there.", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            CampaignRunner.store(this).put(c);
+        } catch (java.io.IOException e) {
+            android.widget.Toast.makeText(this, "That couldn't be saved: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        CampaignRunner.arm(this, 0);
+        CampaignStudio.chat(this, c.id).add(CampaignChat.STUDIO, "note", said, System.currentTimeMillis());
+        fill(true);
+    }
+
+    /** Move the schedule: everything still to go, later or earlier. */
+    private void moveSheet() {
+        final String[][] moves = {
+            {"An hour later", "3600000"}, {"Three hours later", "10800000"}, {"A day later", "86400000"},
+            {"An hour earlier", "-3600000"}, {"A day earlier", "-86400000"}};
+        BottomSheet.Item[] items = new BottomSheet.Item[moves.length];
+        for (int i = 0; i < moves.length; i++) {
+            items[i] = new BottomSheet.Item(ai.ibiko.R.drawable.ic_calendar, moves[i][0],
+                    moves[i][1].startsWith("-") ? "Never into the past" : "Every post still to go");
+        }
+        BottomSheet.show(this, "Move the schedule", items, which -> change(x -> {
+            int n = CampaignControls.shift(x, Long.parseLong(moves[which][1]), System.currentTimeMillis());
+            return n == 0 ? null : "Moved " + n + (n == 1 ? " post " : " posts ") + moves[which][0].toLowerCase(java.util.Locale.ROOT) + ".";
+        }));
+    }
+
+    /** What the campaign does besides posting: each on or off. */
+    private void settings(final Campaign c) {
+        final String[] labels = {"Answer comments on its posts", "Find people who need it", "Pitch them on its own (up to 5 a day)",
+            "Offer each post for WhatsApp Status"};
+        final boolean[] on = {c.engage, c.prospect, c.autoPitch, c.whatsappShare};
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Besides posting")
+                .setMultiChoiceItems(labels, on, (d, w, checked) -> on[w] = checked)
+                .setPositiveButton("Save", (d, w) -> change(x -> {
+                    x.engage = on[0];
+                    x.prospect = on[1];
+                    x.autoPitch = on[2];
+                    x.whatsappShare = on[3];
+                    List<String> said = new ArrayList<String>();
+                    for (int i = 0; i < labels.length; i++) {
+                        said.add((on[i] ? "on: " : "off: ") + labels[i].toLowerCase(java.util.Locale.ROOT));
+                    }
+                    return "Settings changed: " + String.join("; ", said) + ".";
+                }))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void rename(final Campaign c) {
+        final EditText field = new EditText(this);
+        field.setText(c.name);
+        field.setSelection(field.getText().length());
+        field.setSingleLine(true);
+        int p = Ui.dp(this, 20);
+        android.widget.FrameLayout wrap = new android.widget.FrameLayout(this);
+        wrap.setPadding(p, Ui.dp(this, 8), p, 0);
+        wrap.addView(field);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Rename the campaign")
+                .setView(wrap)
+                .setPositiveButton("Rename", (d, w) -> {
+                    final String name = CampaignControls.name(field.getText().toString());
+                    change(x -> {
+                        if (name == null || name.equals(x.name)) {
+                            return null;
+                        }
+                        x.name = name;
+                        return "Renamed to “" + name + "”.";
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    /** Run it again: a copy, planned fresh, opened at once. */
+    private void duplicate(final Campaign c) {
+        Campaign copy = CampaignControls.duplicate(c, System.currentTimeMillis());
+        try {
+            CampaignRunner.store(this).put(copy);
+        } catch (java.io.IOException e) {
+            android.widget.Toast.makeText(this, "The copy couldn't be saved: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        CampaignStudio.chat(this, copy.id).add(CampaignChat.STUDIO, "note", "A copy of “" + c.name
+                + "”, with the same brief and accounts. Say “plan it” to plan it fresh.", System.currentTimeMillis());
+        startActivity(open(this, copy.id));
+        finish();
     }
 
     /** Edit ▾: quick changes, sent to the studio as if typed. */
@@ -406,6 +547,13 @@ public final class CampaignChatActivity extends AppCompatActivity {
             {"More about my products", "Name and show what you sell"},
             {"Post in the evenings", "Move the times to the evening"},
             {"Add 3 posts for this weekend", "More posts on Saturday and Sunday"},
+            {"Add two more days", "Keep it running longer, with new posts"},
+            {"Add a clear call to action", "Tell people what to do: message, call, buy"},
+            {"Add hashtags", "A few that fit each network"},
+            {"More emojis", "Livelier posts"},
+            {"No emojis", "Plain, professional posts"},
+            {"More professional", "Expert, confident wording"},
+            {"Write in Nigerian Pidgin", "For a local, friendly audience"},
             {"New pictures", "Draw the pictures again"}};
         BottomSheet.Item[] items = new BottomSheet.Item[edits.length];
         for (int i = 0; i < edits.length; i++) {
@@ -666,44 +814,11 @@ public final class CampaignChatActivity extends AppCompatActivity {
                 .show();
     }
 
+    /** ⋮: the same Campaign sheet as the chip, everything in one place. */
     private void menu() {
         final Campaign c = campaign();
-        if (c == null) {
-            return;
+        if (c != null) {
+            campaignSheet(c, CampaignDraft.planning(c.id) != null);
         }
-        final List<String> labels = new ArrayList<String>();
-        if (c.status == Campaign.Status.DRAFT && !c.items.isEmpty()) {
-            labels.add("Review and approve");
-        }
-        if (c.status == Campaign.Status.ACTIVE) {
-            labels.add("Pause");
-        }
-        if (c.status == Campaign.Status.PAUSED) {
-            labels.add("Resume");
-        }
-        labels.add("All posts");
-        labels.add("Delete the campaign");
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setItems(labels.toArray(new String[0]), (d, w) -> {
-                    String l = labels.get(w);
-                    if (l.equals("Review and approve")) {
-                        CampaignReview.show(this, c, () -> fill(true));
-                    } else if (l.equals("Pause") || l.equals("Resume")) {
-                        CampaignRunner.setRunning(this, c.id, l.equals("Resume"));
-                        fill(false);
-                    } else if (l.equals("All posts")) {
-                        startActivity(new Intent(this, CampaignActivity.class).putExtra(CampaignActivity.EXTRA_ID, c.id));
-                    } else {
-                        new androidx.appcompat.app.AlertDialog.Builder(this)
-                                .setMessage("Delete “" + c.name + "” and its conversation? Posts already out stay on the networks.")
-                                .setPositiveButton("Delete", (d2, w2) -> {
-                                    CampaignRunner.delete(this, c);
-                                    finish();
-                                })
-                                .setNegativeButton("Keep", null)
-                                .show();
-                    }
-                })
-                .show();
     }
 }
