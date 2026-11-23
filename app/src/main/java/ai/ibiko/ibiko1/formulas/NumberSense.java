@@ -93,7 +93,7 @@ public final class NumberSense {
     // ------------------------------------------------------------------ N1 find
 
     /** A number in figures: digits, with the separators numbers are written with, a leading + or currency sign. */
-    private static final Pattern FIGURES = Pattern.compile("(?<![\\p{L}\\d])([+]?\\d[\\d\\s().,:/-]*\\d|\\d)(?:\\s?(st|nd|rd|th)"
+    private static final Pattern FIGURES = Pattern.compile("(?<![\\p{L}\\d])([+]?\\d[\\d\\s().,:/-]*\\d|\\d)(?:\\s?(st|nd|rd|th)(?![\\p{L}])"
             + "|(k|K|m|M|bn|BN|b|B)(?![\\p{L}]))?(?![\\d])"); // 3rd, 21st; 50k, 2.5m, 1bn stuck on
     private static final String[] ONES = {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
         "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};

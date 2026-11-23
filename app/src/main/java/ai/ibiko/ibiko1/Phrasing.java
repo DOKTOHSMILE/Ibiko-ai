@@ -49,6 +49,19 @@ final class Phrasing {
         }
     }
 
+    /** A question taken back (its answer redone in place by Retry): it no longer counts as asked before. */
+    static void forget(Map<String, Integer> memory, String q) {
+        synchronized (memory) {
+            String k = key(q);
+            Integer n = memory.get(k);
+            if (n != null && n > 1) {
+                memory.put(k, n - 1);
+            } else {
+                memory.remove(k);
+            }
+        }
+    }
+
     /** The same answer to a question asked again, said as a person would. */
     static String again(String answer, int before) {
         if (before <= 0 || answer == null || answer.isEmpty()) {

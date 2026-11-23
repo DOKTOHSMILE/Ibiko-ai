@@ -55,6 +55,7 @@ public class NumberSenseTest {
         assertEquals(Kind.PERCENT, kind("Sales rose by 15 percent.", "15"));
         assertEquals(Kind.AGE, kind("She is 30 years old.", "30"));
         assertEquals(Kind.ORDINAL, kind("He came 3rd in the race.", "3"));
+        assertEquals("“36 states” is a count, not “36st”", Kind.QUANTITY, kind("Nigeria has 36 states.", "36"));
         assertEquals(Kind.QUANTITY, kind("Lagos has 15,070,000 people.", "15,070,000"));
         assertEquals(Kind.CODE, kind("Your OTP is 0451.", "0451"));
         List<NumberSense.Found> two = NumberSense.read("It gained independence in 1960 and became a republic in 1963.");

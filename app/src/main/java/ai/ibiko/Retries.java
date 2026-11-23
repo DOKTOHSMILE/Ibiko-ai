@@ -113,6 +113,11 @@ final class Retries {
         }
         a.lastAsked = null;
         a.voiceTurn = false;
+        try {
+            a.ibiko1().retrying(asked); // not "asked again": the old reply is gone, so it isn't said as a repeat
+        } catch (RuntimeException ignored) {
+            // the reply is redone all the same
+        }
         a.answer(asked); // the same message, sent again in its place: its new reply replaces the old one
         return true;
     }
