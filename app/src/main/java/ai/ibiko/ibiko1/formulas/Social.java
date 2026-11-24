@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 
 /**
  * The things people say to the one they're talking with, not about the world: asking leave ("can I ask you something
- * private?"), asking what it can do ("what can I do with you?"), and the short bits of talk ("What?", "You!", a question
+ * private?") and the short bits of talk ("What?", "You!", a question
  * cut short: "What can I?"). Each is read in the conversation: "What?" right after an answer means it wasn't followed,
  * so the answer is said again more simply; a question cut short that the last one began the same way is that question.
  * Pure Java.
@@ -17,28 +17,11 @@ public final class Social {
     private static final Pattern LEAVE = Pattern.compile("(?i)^\\s*(?:hey,?\\s+|so,?\\s+|ok(?:ay)?,?\\s+)?(?:can|may|could) i\\s+(?:please\\s+)?"
             + "(?:ask|tell|say|share|talk to|talk with|show|send|confess|run|bounce|get your)\\b.*\\?*\\s*$");
     private static final Pattern PRIVATE = Pattern.compile("(?i)\\b(private|personal|secret|confidential|sensitive|embarrassing)\\b");
-    private static final Pattern CAN_DO = Pattern.compile("(?i)^\\s*(?:so,?\\s+)?(?:what (?:can|could|do|should) (?:i|we) (?:do|use you for|ask)(?: with you| here| you)?"
-            + "|what (?:can|do|could) you do(?: for me)?|what are you (?:able to do|good at|for)|how (?:can|could|do) you help(?: me)?"
-            + "|what (?:things |kind of things )?can you help (?:me )?with|what do you know how to do|what are your (?:skills|abilities|features)"
-            + "|help|help me|what can you do for me)\\s*[?.!]*\\s*$");
     private static final Pattern HUH = Pattern.compile("(?i)^\\s*(?:what|huh|pardon|sorry|eh|come again|say that again|what do you mean|i don'?t get it)\\s*[?!.]*\\s*$");
     private static final Pattern YOU = Pattern.compile("(?i)^\\s*(?:you|yes you|hey you|you there)\\s*[!?.]*\\s*$");
     /** Nothing but question words: a question that stops before its end ("What can I?", "Can I?", "What can?"). */
     private static final Pattern CUT = Pattern.compile("(?i)^\\s*(?:(?:what|who|where|when|why|how|which|can|could|may|do|does|did|is|are|will|would|should)"
             + "(?:\\s+(?:can|could|do|does|did|is|are|will|would|should|i|you|we|they|it|he|she))*)\\s*[?!.]*\\s*$");
-
-    /** What Ibiko can do, each with a thing to try. */
-    public static String abilities() {
-        return "Quite a lot, on this phone and offline:\n\n"
-                + "• Answer questions from my encyclopedia: \"What is the capital of Kenya?\", \"Who was Nelson Mandela?\", \"What's the highest mountain in Africa?\"\n"
-                + "• Work things out step by step: sums, percentages, \"I have 12 sweets and give away 4…\", \"Ada is taller than Obi…\", \"All cats are mammals…\"\n"
-                + "• Words: meanings, spelling, opposites, and say my last answer shorter, simpler or as points\n"
-                + "• Code: write it in many languages, explain code you paste, and tell you what an error means and how to fix it\n"
-                + "• Make things: a website for your business, a small app (a calculator, a quiz, a to-do list), and change them when you ask\n"
-                + "• Remember what you tell me about you, and what we talked about\n\n"
-                + "And through the menus: pictures, voice, files, social media posts and campaigns. When I don't know something, I'll look it up"
-                + " (online) or ask your API model, check the answer, and keep it.";
-    }
 
     /** The reply to something said to Ibiko itself, or null when it isn't one of these. */
     public static String reply(String message, String lastAnswer, String lastAsked) {
@@ -52,9 +35,7 @@ public final class Social {
                     + " set one up) when I don't know the answer myself. You can turn those off in Settings › Data and privacy."
                     : "Of course, go ahead.";
         }
-        if (CAN_DO.matcher(m).matches()) {
-            return abilities();
-        }
+        // "what can I do with you?": Ibiko's own account of itself answers it (SelfModel), with its live counts
         if (YOU.matcher(m).matches()) {
             return "Yes, me! I'm Ibiko. What would you like to do? Ask me anything, or say \"what can you do?\" to see what I'm good at.";
         }
@@ -64,7 +45,7 @@ public final class Social {
             }
             return "What would you like to know? Ask me anything.";
         }
-        if (CUT.matcher(m).matches() && m.split("\\s+").length <= 4) {
+        if (CUT.matcher(m).matches() && m.split("\\s+").length <= 4 && cutShort(m)) {
             String words = m.replaceAll("[?!.]+$", "").trim();
             if (lastAsked != null && lastAsked.toLowerCase(Locale.ROOT).startsWith(words.toLowerCase(Locale.ROOT))
                     && lastAsked.trim().length() > words.length() + 2) {
@@ -73,6 +54,27 @@ public final class Social {
             return "“" + Character.toUpperCase(words.charAt(0)) + words.substring(1) + "…” what? The question stops there: finish it and I'll answer.";
         }
         return null;
+    }
+
+    private static final java.util.Set<String> MODALS = new java.util.HashSet<String>(java.util.Arrays.asList("can", "could", "may", "might", "should",
+            "would", "will", "shall", "must", "do", "does", "did"));
+    private static final java.util.Set<String> AUX = new java.util.HashSet<String>(java.util.Arrays.asList("can", "could", "may", "might", "should",
+            "would", "will", "shall", "must", "do", "does", "did", "is", "are", "was", "were"));
+
+    /**
+     * Whether question words stop before the question does: ending on a helping verb ("What can…", "Who is…"), or on
+     * I, you, we or they right after one of can, do, should… ("What can I…", "Can I…"). A lone "Why?" is a whole
+     * follow-up, and "What are you?", "Who are you?" are whole questions.
+     */
+    static boolean cutShort(String m) {
+        String[] w = m.toLowerCase(Locale.ROOT).replaceAll("[?!.]+", "").trim().split("\\s+");
+        if (w.length < 2) {
+            return false;
+        }
+        String last = w[w.length - 1], before = w[w.length - 2];
+        boolean pronoun = before.matches("i|you|we|they|he|she|it");
+        // "What can you do?": "do" after "you" is the doing itself, not a helper waiting for its verb
+        return AUX.contains(last) && !pronoun || last.matches("i|you|we|they") && MODALS.contains(before);
     }
 
     /** "What?" right after an answer: it wasn't followed. */

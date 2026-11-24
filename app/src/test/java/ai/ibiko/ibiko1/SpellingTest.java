@@ -56,6 +56,18 @@ public class SpellingTest {
     }
 
     @Test
+    public void questionsCutShort() {
+        assertTrue(ai.ibiko.ibiko1.formulas.Social.reply("What can I?", null, null).startsWith("“What can I…” what?"));
+        assertTrue(ai.ibiko.ibiko1.formulas.Social.reply("Can I?", null, null) != null);
+        assertTrue(ai.ibiko.ibiko1.formulas.Social.reply("Who is?", null, null) != null);
+        assertNull("a whole follow-up", ai.ibiko.ibiko1.formulas.Social.reply("Why?", null, "Why was the harvest poor?"));
+        assertNull("a whole question", ai.ibiko.ibiko1.formulas.Social.reply("What are you?", null, null));
+        assertNull("a whole question", ai.ibiko.ibiko1.formulas.Social.reply("Who are you?", null, null));
+        assertNull("a whole question", ai.ibiko.ibiko1.formulas.Social.reply("What can you do?", null, null));
+        assertNull("a whole question", ai.ibiko.ibiko1.formulas.Social.reply("What can I do?", null, null));
+    }
+
+    @Test
     public void questionsTypedTheWayPeopleChat() {
         assertEquals("what is the capitl of ghana?", Ibiko1.asked("whats the capitl of ghana"));
         assertEquals("who is mandela?", Ibiko1.asked("who's mandela"));
@@ -65,5 +77,6 @@ public class SpellingTest {
         assertEquals("a story ending in a question is left as typed", "I have 3 apples. how many are left",
                 Ibiko1.asked("I have 3 apples. how many are left"));
         assertEquals("Y is a letter", "Y is a letter", Ibiko1.asked("Y is a letter"));
+        assertEquals("a request isn't made a question", "Tell me about Nigeria", Ibiko1.asked("Tell me about Nigeria"));
     }
 }

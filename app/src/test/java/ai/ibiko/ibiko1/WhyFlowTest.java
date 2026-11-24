@@ -483,7 +483,7 @@ public class WhyFlowTest {
             String leave = ask(brain, chat, "Can I ask you something private?");
             assertTrue("asking leave isn't a question about them: " + leave, leave.startsWith("Of course, go ahead."));
             String can = ask(brain, chat, "What can I do with you?");
-            assertTrue("what it can do: " + can, can.startsWith("Quite a lot") && can.contains("Code:"));
+            assertTrue("what it can do: " + can, can.startsWith("Here's what I can do right now:") && can.contains("Write code in many languages"));
             String cut = ask(brain, chat, "What can I?");
             assertTrue("a question cut short, that the last one began the same way: " + cut,
                     cut.startsWith("That's how your last question began: “What can I do with you?”"));

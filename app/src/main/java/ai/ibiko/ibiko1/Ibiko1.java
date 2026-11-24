@@ -2609,7 +2609,7 @@ public final class Ibiko1 {
     private static final String[][] CHAT_SPELLINGS = {{"wats|whats|what's|watz|wots", "what is"}, {"wat|wht|wot", "what"},
         {"whos|who's|hu's|hoos", "who is"}, {"whr|wer", "where"}, {"hw", "how"}, {"wen", "when"}}; // not "y" for "why": "Y is a letter"
     private static final java.util.regex.Pattern ASKING_START = java.util.regex.Pattern.compile("(?i)^\\s*(?:what|who|where|when|why|how|which|whose|"
-            + "is|are|was|were|can|could|does|do|did|will|would|should|tell me|define|explain)\\b");
+            + "is|are|was|were|can|could|does|do|did|will|would|should)\\b"); // not "tell me", "define": asks, not questions
 
     /**
      * A question typed the way people chat: "whats the capital of ghana", "who's mandela" (no question mark, a chat
