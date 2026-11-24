@@ -1943,6 +1943,11 @@ public final class Ibiko1 {
         if (ordered != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ORDER);
         }
+        // a counting story: "I have 3 apples and eat one: how many are left?"
+        final String counted = snippet == null ? ai.ibiko.ibiko1.formulas.Counting.reply(message) : null;
+        if (counted != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.COUNT);
+        }
         // "shorter", "in one sentence", "as points", "more simply", "give me an example": the last answer, said again
         final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
         if (reshapeAsk != null) {
@@ -2008,6 +2013,12 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case COUNT:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading the story: what there is to start with", "Following each thing that happens to it",
+                            "Working out what's asked"), () -> saysExact(who, counted));
+                    return true;
                 case ORDER:
                     turnDomain = "reasons";
                     how = How.MEMORY;

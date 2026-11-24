@@ -447,6 +447,8 @@ public class WhyFlowTest {
             assertTrue("the comparisons kept for the conversation: " + later, later.startsWith("Emeka is the shortest"));
             String check = ask(brain, chat, "Is Emeka taller than Ada?");
             assertTrue(check, check.startsWith("No: it's the other way round."));
+            String apples = ask(brain, chat, "If I have 3 apples and eat one, how many are left?");
+            assertTrue("a counting story, worked through: " + apples, apples.startsWith("2 apples are left.") && apples.contains("3 − 1 = 2"));
             String world = ask(brain, chat, "Who is the tallest man in the world?");
             assertTrue("a question of its own: not from the puzzle: " + world, !world.contains("Ada") && !world.contains("Obi"));
         } finally {
