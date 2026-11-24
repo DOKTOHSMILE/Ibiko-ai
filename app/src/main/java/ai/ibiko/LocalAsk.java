@@ -122,28 +122,30 @@ final class LocalAsk {
         final boolean online = act.prefs.getBoolean("fresh_facts", true) && act.connectivity != null
                 && act.connectivity.isOnline();
         act.armThink("Thinking\u2026", "Thinking\u2026");
-        // and the way that worked before, and what this is likely to lead to (premeditation)
-        // the thought process (learn/Mind): the brain's sections read, recall, weigh and judge what was gathered about
-        // this; each says what it did, shown as the thinking, and the thought it reaches goes to the brain as Ibiko's view
-        // only for a real question: a short reply ("Start", "yes", "go on") answers the last turn, and Mind read it
-        // as a topic of its own ("Start is a money") and gave that to the model as Ibiko's view
-        final ai.ibiko.learn.Mind.Thought thought = act.brainBox().mind().think(
-                question != null && question.trim().split("\\s+").length >= 3 ? question : "");
-        // its steps are Ibiko v1's own reasoning: shown when Ibiko v1 or the device's model answers, not under an API
-        // reply, where they were noise in the steps ("Reader", "Memory", "Weigher", "Critic", "Speaker")
-        if (thought.steps.size() >= 3 && !act.model.remoteOn()) {
-            for (ai.ibiko.learn.Mind.Step st : thought.steps) {
-                act.activity(st.line());
-            }
-        }
-        final String around = act.situation(ivie) + act.ibiko1().methods().hint(question)
-                + act.ibiko1().premeditate(question, contextKey)
-                + (thought.said == null ? ""
-                        : "\nIbiko's own view from the answers it has gathered ("
-                                + ai.ibiko.ibiko1.formulas.Probability.words(thought.sure) + "): "
-                                + thought.said + " Use it if it helps; correct it if it is wrong.");
+        final String situation = act.situation(ivie);
+        final String mindQuestion = question != null && question.trim().split("\\s+").length >= 3 ? question : "";
         ai.ibiko.main.LiveWork.began(act);
         act.hub.worker.execute(() -> {
+            // off the main thread: the dictionary and the stores may still be opening (a tap must never wait on them)
+            // and the way that worked before, and what this is likely to lead to (premeditation)
+            // the thought process (learn/Mind): the brain's sections read, recall, weigh and judge what was gathered about
+            // this; each says what it did, shown as the thinking, and the thought it reaches goes to the brain as Ibiko's view
+            // only for a real question: a short reply ("Start", "yes", "go on") answers the last turn, and Mind read it
+            // as a topic of its own ("Start is a money") and gave that to the model as Ibiko's view
+            final ai.ibiko.learn.Mind.Thought thought = act.brainBox().mind().think(mindQuestion);
+            // its steps are Ibiko v1's own reasoning: shown when Ibiko v1 or the device's model answers, not under an API
+            // reply, where they were noise in the steps ("Reader", "Memory", "Weigher", "Critic", "Speaker")
+            if (thought.steps.size() >= 3 && !act.model.remoteOn()) {
+                for (ai.ibiko.learn.Mind.Step st : thought.steps) {
+                    act.activity(st.line());
+                }
+            }
+            final String around = situation + act.ibiko1().methods().hint(question)
+                    + act.ibiko1().premeditate(question, contextKey)
+                    + (thought.said == null ? ""
+                            : "\nIbiko's own view from the answers it has gathered ("
+                                    + ai.ibiko.ibiko1.formulas.Probability.words(thought.sure) + "): "
+                                    + thought.said + " Use it if it helps; correct it if it is wrong.");
             String asked = question;
             if (lang != null && act.alive(id)) {
                 act.activity("Reading your " + lang.shown + " in English");

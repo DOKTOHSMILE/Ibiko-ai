@@ -49,7 +49,7 @@ public final class Words {
      * only for matching.
      */
     public static String key(String word) {
-        String w = word == null ? "" : word.toLowerCase(Locale.ROOT).replaceAll("['’]s$", "").replaceAll("[^\\p{L}\\p{N}-]", "");
+        String w = plain(word);
         String b = BASE.get(w);
         if (b != null) {
             return b;
@@ -63,7 +63,7 @@ public final class Words {
         if (w.endsWith("ied") && w.length() > 4) {
             return w.substring(0, w.length() - 3) + "y";
         }
-        if (w.matches(".*(ss|us|is|ous)$")) {
+        if (w.endsWith("ss") || w.endsWith("us") || w.endsWith("is")) {
             return w;
         }
         if (w.endsWith("sses") || w.endsWith("shes") || w.endsWith("ches") || w.endsWith("xes")) {
@@ -94,7 +94,7 @@ public final class Words {
         Set<String> out = new LinkedHashSet<String>();
         for (String w : tokens(text)) {
             String low = w.toLowerCase(Locale.ROOT);
-            if (low.length() > 1 && !STOP.contains(low) && !low.matches("\\d+")) {
+            if (low.length() > 1 && !STOP.contains(low) && !digits(low)) {
                 out.add(key(low));
             }
         }
@@ -103,13 +103,72 @@ public final class Words {
 
     /** A text's words as written (letters, digits, inner apostrophes and hyphens). */
     public static List<String> tokens(String text) {
+        // by hand, not by regex: the dictionary's index reads every definition through here (a regex is compiled on
+        // each call, and on a phone that made building the index take minutes)
         List<String> out = new ArrayList<String>();
-        for (String w : (text == null ? "" : text).split("[^\\p{L}\\p{N}'’-]+")) {
-            String t = w.replaceAll("^['’-]+|['’-]+$", "");
-            if (!t.isEmpty()) {
-                out.add(t);
+        String t = text == null ? "" : text;
+        int n = t.length(), i = 0;
+        while (i < n) {
+            while (i < n && !inWord(t.charAt(i))) {
+                i++;
+            }
+            int start = i;
+            while (i < n && inWord(t.charAt(i))) {
+                i++;
+            }
+            int a = start, b = i;
+            while (a < b && edge(t.charAt(a))) {
+                a++;
+            }
+            while (b > a && edge(t.charAt(b - 1))) {
+                b--;
+            }
+            if (b > a) {
+                out.add(t.substring(a, b));
             }
         }
         return out;
+    }
+
+    private static boolean inWord(char c) {
+        return Character.isLetterOrDigit(c) || edge(c);
+    }
+
+    private static boolean edge(char c) {
+        return c == '\'' || c == '\u2019' || c == '-';
+    }
+
+    /** Lower case, a final 's taken off, and only letters, digits and hyphens kept. */
+    private static String plain(String word) {
+        if (word == null) {
+            return "";
+        }
+        String w = word.toLowerCase(Locale.ROOT);
+        if (w.length() >= 2 && w.charAt(w.length() - 1) == 's' && (w.charAt(w.length() - 2) == '\'' || w.charAt(w.length() - 2) == '\u2019')) {
+            w = w.substring(0, w.length() - 2);
+        }
+        StringBuilder b = null;
+        for (int i = 0; i < w.length(); i++) {
+            char c = w.charAt(i);
+            boolean keep = Character.isLetterOrDigit(c) || c == '-';
+            if (!keep && b == null) {
+                b = new StringBuilder(w.length()).append(w, 0, i);
+            } else if (keep && b != null) {
+                b.append(c);
+            }
+        }
+        return b == null ? w : b.toString();
+    }
+
+    private static boolean digits(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 }
