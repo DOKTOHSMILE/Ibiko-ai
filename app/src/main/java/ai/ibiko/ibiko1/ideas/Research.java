@@ -32,6 +32,16 @@ public final class Research {
                 "best " + subject + g + " examples"}, step);
     }
 
+    /** Research on anything to make ("business plan for a bakery", "birthday party"): its parts, its outline, tips. */
+    public static Corpus forAnything(String whole, Consumer<String> step) {
+        return gather(new String[]{"what to include in a " + whole, whole + " outline", "key parts of a " + whole, whole + " tips and examples"}, step);
+    }
+
+    /** Research for ideas on something: what people do, what works. */
+    public static Corpus forIdeas(String whole, Consumer<String> step) {
+        return gather(new String[]{whole + " ideas", "creative " + whole + " ideas", "best " + whole + " ideas that work"}, step);
+    }
+
     /** Research for a view on something: its pros and cons, benefits, risks. */
     public static Corpus forOpinion(String subject, Consumer<String> step) {
         return gather(new String[]{subject + " pros and cons", subject + " benefits", subject + " risks and problems"}, step);

@@ -101,6 +101,90 @@ public final class Maker {
         return new Made(design, said.toString(), headings);
     }
 
+    /** What was made for any request: the document, its prototype page (for an app or a platform), and the reasoning. */
+    public static final class Anything {
+        public final String said;
+        /** The prototype page, or null when what was asked is a document. */
+        public final Sites.Design prototype;
+
+        Anything(String said, Sites.Design prototype) {
+            this.said = said;
+            this.prototype = prototype;
+        }
+    }
+
+    /**
+     * Anything asked for, thought through ({@link Ambition}): ideas weighed and joined (asked for ideas), or the thing made
+     * as a document of its parts in Ibiko's own words, with a prototype page when it is an app or a platform.
+     */
+    public static Anything anything(Ideation.Plan plan, Ambition.Ask ask, Sites.Brief brief, Function<String, String> meaning, Sites.Kind look,
+            Corpus c, boolean learned) {
+        String whole = ask.whole();
+        StringBuilder said = new StringBuilder();
+        said.append(learned ? "From what I researched before on " + whole + " (I'm offline now, so I couldn't look again)"
+                : plan.sources == 0 ? "From what I already know of it (I couldn't research it just now)"
+                : "I researched " + whole + " first: " + plan.sources + " sources");
+        if (ask.kind == Ambition.Kind.IDEAS) {
+            said.append(". What comes up most, and how likely each is to work for you:\n");
+            for (Ideation.Part p : plan.parts.subList(0, Math.min(8, plan.parts.size()))) {
+                said.append("• ").append(p.title).append(" — ").append(Math.round(p.p * 100)).append("% (").append(String.join("; ", p.why)).append(")\n");
+            }
+            if (!plan.ideas.isEmpty()) {
+                said.append("\nIdeas of my own, from joining what goes together:\n");
+                for (Ideation.Idea i : plan.ideas) {
+                    said.append("• ").append(i.title).append(": ").append(i.from).append(".\n");
+                }
+            }
+            appendLater(said, plan);
+            return new Anything(said.toString().trim(), null);
+        }
+        said.append(". Here's how I weighed it, then what I made.\n\n");
+        for (Ideation.Part p : plan.parts.subList(0, Math.min(8, plan.parts.size()))) {
+            said.append("• ").append(p.title).append(" — ").append(Math.round(p.p * 100)).append("% (").append(String.join("; ", p.why)).append(")\n");
+        }
+        if (!plan.audience.isEmpty()) {
+            said.append("Who it's for: ").append(Writer.join(plan.audience)).append(".\n");
+        }
+        if (!plan.ideas.isEmpty()) {
+            said.append("My own ideas in it: ");
+            List<String> l = new ArrayList<String>();
+            for (Ideation.Idea i : plan.ideas) {
+                l.add(i.title + " (" + i.from + ")");
+            }
+            said.append(String.join("; ", l)).append(".\n");
+        }
+        String title = Writer.cap(whole);
+        if (!brief.name.isEmpty()) {
+            title = brief.name + ": " + title;
+        }
+        said.append("\n## ").append(title).append("\n");
+        for (Ideation.Part p : plan.parts) {
+            said.append("\n### ").append(p.title).append("\n").append(Writer.note(p.key, ask.goal, plan.audience, meaning, c)).append("\n");
+        }
+        for (Ideation.Idea i : plan.ideas) {
+            said.append("\n### ").append(i.title).append(" (my idea)\n").append(Writer.note(i.title, ask.goal, plan.audience, meaning, c)).append("\n");
+        }
+        appendLater(said, plan);
+        said.append("\nThe words are mine, not copied from any source; fill in your own details.");
+        Sites.Design prototype = null;
+        if (ask.page) {
+            // an app or a platform: a page to click through, its screens the parts
+            Made site = site(plan, ask.about.isEmpty() ? ask.goal : ask.about, brief, meaning, look, c, learned);
+            prototype = site.design;
+        }
+        return new Anything(said.toString().trim(), prototype);
+    }
+
+    private static void appendLater(StringBuilder said, Ideation.Plan plan) {
+        if (!plan.later.isEmpty()) {
+            List<String> l = new ArrayList<String>();
+            for (Ideation.Part p : plan.later) {
+                l.add(p.title.toLowerCase(Locale.ROOT));
+            }
+            said.append("\nWhat it could grow into (fewer have these yet): ").append(String.join(", ", l)).append(".\n");
+        }
+    }
+
     static String slug(String s, Set<String> ids) {
         String base = s.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
         if (base.isEmpty()) {

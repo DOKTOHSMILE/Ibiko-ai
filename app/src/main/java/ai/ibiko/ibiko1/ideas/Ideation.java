@@ -123,7 +123,7 @@ public final class Ideation {
                 own.add(singular(w));
             }
         }
-        own.addAll(Arrays.asList("website", "web", "site", "app", "page"));
+        own.addAll(Arrays.asList("website", "web", "site", "app", "page", "idea", "example", "template", "tip", "guide", "outline", "sample"));
         // I1: the parts, by source
         Map<String, Part> parts = new LinkedHashMap<String, Part>();
         List<Set<String>> perSource = new ArrayList<Set<String>>();
@@ -319,11 +319,13 @@ public final class Ideation {
         if (t.isEmpty() || FURNITURE_PHRASES.contains(t) || FURNITURE.contains(t)) {
             return;
         }
-        List<String> words = new ArrayList<String>();
-        for (String w : t.split(" ")) {
-            if (!own.contains(singular(w))) {
-                words.add(w);
-            }
+        // the thing's own name taken off the front only ("school calendar": calendar); "financial plan" stays whole
+        List<String> words = new ArrayList<String>(Arrays.asList(t.split(" ")));
+        while (!words.isEmpty() && own.contains(singular(words.get(0)))) {
+            words.remove(0);
+        }
+        if (words.size() == 1 && own.contains(singular(words.get(0)))) {
+            words.clear();
         }
         if (words.isEmpty() || words.size() > 3 || words.get(0).matches("and|or|of|for|to|with|in|on|is|are|be|how|why|what")) {
             return; // the thing's own name ("school website"), or a phrase rather than a part

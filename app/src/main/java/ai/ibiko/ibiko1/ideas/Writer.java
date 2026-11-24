@@ -89,6 +89,39 @@ public final class Writer {
     }
 
     /**
+     * A part of a document (a plan, a speech, a programme) in Ibiko's own words: what the part is, from what the word
+     * means to it, and what to put there for this thing; a plain prompt when the dictionary has nothing.
+     */
+    public static String note(String part, String goal, List<String> audience, Function<String, String> meaning, Corpus c) {
+        String key = part.toLowerCase(Locale.ROOT);
+        String head = key.contains(" ") ? key.substring(key.lastIndexOf(' ') + 1) : key;
+        String def = meaning == null ? null : meaning.apply(key);
+        if (def == null && meaning != null) {
+            def = meaning.apply(head);
+        }
+        String who = audience == null || audience.isEmpty() ? "the people it's for" : join(audience);
+        String text;
+        if (def != null && !def.isEmpty()) {
+            String d = def.replaceAll("\\s*\\(.*?\\)", "").replaceAll("[.;:]+$", "").trim();
+            d = Character.toUpperCase(d.charAt(0)) + d.substring(1);
+            switch (Math.floorMod(key.hashCode(), 3)) {
+                case 0:
+                    text = d + ". Set out yours for this " + goal + ": what it is, and why it matters to " + who + ".";
+                    break;
+                case 1:
+                    text = d + ". Keep this part short and concrete: " + who + " will look for it.";
+                    break;
+                default:
+                    text = d + ". Put down the numbers, dates and names that apply to you.";
+                    break;
+            }
+        } else {
+            text = "Set out the " + key + " for this " + goal + ": what it is, who it's for, and what comes next.";
+        }
+        return copies(text, c) ? "Set out the " + key + " for this " + goal + ": what it is, who it's for, and what comes next." : text;
+    }
+
+    /**
      * Which of the site builder's working blocks a part is ("contact": a form that opens WhatsApp or email), by what the
      * part's words mean; "text" when none fits (Ibiko's own paragraph).
      */

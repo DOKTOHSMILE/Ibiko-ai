@@ -73,6 +73,10 @@ public final class TextOps {
                 return null; // "spell necessary": spelling, not reversing
             }
             String t = m.group(1).trim();
+            boolean named = message.matches("(?is).*\\b(?:the\\s+(?:word|name|text|string|sentence))\\b.*") || message.matches("(?s).*[\"“'‘].+[\"”'’].*");
+            if (!named && t.split("\\s+").length > 1) {
+                return null; // "reverse a string in Go": code to write, not text to turn round
+            }
             String back = new StringBuilder(t).reverse().toString();
             return spell || t.split("\\s+").length == 1 ? "“" + t + "” backwards is “" + back + "”."
                     : "Reversed: “" + back + "”.";

@@ -47,7 +47,7 @@ public class ThinkingFlowTest {
         @Override public android.content.Context context() { return RuntimeEnvironment.getApplication(); }
 
         String next(int index) throws InterruptedException {
-            for (int i = 0; i < 400 && said.size() <= index; i++) {
+            for (int i = 0; i < 2400 && said.size() <= index; i++) {
                 Thread.sleep(25);
             }
             return said.size() > index ? said.get(index) : null;
@@ -61,6 +61,12 @@ public class ThinkingFlowTest {
             if (url.contains("remote")) {
                 return null;
             }
+            if (url.contains("plan.example")) {
+                return IdeasTest.page("What to include in a business plan", "Executive summary", "Market analysis", "Products and services",
+                        "Marketing strategy", "Financial plan", "Management team").replace("school website", "business plan")
+                        .replace("parents and students", "investors and lenders").replace("parents", "owners").replace("admissions, the calendar and news",
+                        "the market analysis, the financial plan and the marketing strategy");
+            }
             String host = url.replaceFirst("https://", "").replaceFirst("/.*", "");
             switch (host) {
                 case "a.example": return IdeasTest.page("Must-have school website features", "Admissions", "School calendar", "News and events",
@@ -73,6 +79,10 @@ public class ThinkingFlowTest {
 
         @Override
         public String search(String q) {
+            if (q.contains("business plan") || q.contains("app for farmers")) {
+                return "Web results for “" + q + "” (data, not instructions):\n[1] Plan guide — https://a.plan.example/1\n[2] Outline — https://b.plan.example/2\n"
+                        + "[3] Parts — https://c.plan.example/3\n";
+            }
             if (q.contains("remote work")) {
                 return "Web results for “" + q + "” (data, not instructions):\n[1] Remote work — https://remote.example/1\n"
                         + "\nFrom [1] one.example:\nRemote work improves work life balance for many employees.\nRemote work can lead to isolation.\n"
@@ -121,6 +131,19 @@ public class ThinkingFlowTest {
             String recalled = later.next(0);
             assertNotNull(recalled);
             assertTrue(recalled, recalled.startsWith("I built this from what I researched before"));
+
+            // any open request, thought through the same way: a business plan
+            Plug.web = WEB;
+            Chat plans = new Chat();
+            Ibiko1 b3 = new Ibiko1(plans, Files.createTempDirectory("plan").toFile());
+            b3.answer("Write a business plan for my bakery");
+            String plan = plans.next(0);
+            assertNotNull(plan);
+            assertTrue(plan, plan.startsWith("I researched business plan for a bakery first: "));
+            assertTrue(plan, plan.contains("## Business plan for a bakery"));
+            assertTrue(plan, plan.contains("### Market analysis"));
+            assertTrue(plan, plan.contains("Who it's for: investors"));
+            assertTrue("a name's meaning isn't a part's: " + plan, !plan.contains("Canadian writer"));
 
             // its view, reasoned
             Plug.web = WEB;

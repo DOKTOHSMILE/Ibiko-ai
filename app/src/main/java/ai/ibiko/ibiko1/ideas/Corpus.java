@@ -85,11 +85,21 @@ public final class Corpus {
         if (research == null) {
             return;
         }
-        Source titles = add("search results");
+        // every search's result titles are one source together, and only mentions: a title names an article, not a part
+        Source titles = null;
+        for (Source s : sources) {
+            if (s.host.equals("search results")) {
+                titles = s;
+            }
+        }
+        boolean fresh = titles == null;
+        if (fresh) {
+            titles = add("search results");
+        }
         for (String line : research.split("\n")) {
             Matcher t = Pattern.compile("^\\[\\d+\\]\\s+(.+?)\\s+—\\s+https?://").matcher(line);
             if (t.find()) {
-                titles.labels.add(t.group(1).trim());
+                titles.sentences.add(t.group(1).trim() + ".");
             }
         }
         Matcher from = Pattern.compile("(?s)\\nFrom \\[\\d+\\] ([^:\\n]+):\\n(.*?)(?=\\nFrom \\[\\d+\\]|$)").matcher(research);
@@ -102,7 +112,7 @@ public final class Corpus {
                 }
             }
         }
-        if (titles.labels.isEmpty()) {
+        if (fresh && titles.sentences.isEmpty()) {
             sources.remove(titles);
         }
     }
