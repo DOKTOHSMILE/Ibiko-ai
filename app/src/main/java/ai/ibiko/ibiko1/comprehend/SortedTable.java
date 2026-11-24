@@ -25,6 +25,29 @@ public final class SortedTable {
         return size > 0;
     }
 
+    /** Every row the test accepts, split on tabs, at most {@code most}: the whole table read once (a reverse lookup). */
+    public synchronized List<String[]> scan(java.util.function.Predicate<String> line, java.util.function.Predicate<String[]> keep, int most) {
+        List<String[]> out = new ArrayList<String[]>();
+        if (size == 0) {
+            return out;
+        }
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(file),
+                StandardCharsets.UTF_8), 1 << 16)) {
+            String l;
+            while ((l = r.readLine()) != null && out.size() < most) {
+                if (line.test(l)) {
+                    String[] cols = l.split("\t", -1);
+                    if (keep.test(cols)) {
+                        out.add(cols);
+                    }
+                }
+            }
+        } catch (java.io.IOException ignored) {
+            // what was found so far
+        }
+        return out;
+    }
+
     /** Every row whose key is exactly {@code key} (lower case is the tables' convention), split on tabs. */
     public synchronized List<String[]> rows(String key) {
         List<String[]> out = new ArrayList<String[]>();

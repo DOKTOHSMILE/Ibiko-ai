@@ -518,6 +518,8 @@ public final class Ibiko1 {
     }
 
     private ai.ibiko.ibiko1.comprehend.ConversationReading comprehensionSessions;
+    /** Common sense (ConceptNet), read in place: what things do, are for, and go with. */
+    private ai.ibiko.ibiko1.comprehend.Concepts concepts;
     private ai.ibiko.ibiko1.comprehend.Lookup lookup;
 
     /**
@@ -532,6 +534,7 @@ public final class Ibiko1 {
                     new ai.ibiko.ibiko1.comprehend.SortedTable(lex));
             ai.ibiko.ibiko1.comprehend.Concepts c = new ai.ibiko.ibiko1.comprehend.Concepts(
                     new ai.ibiko.ibiko1.comprehend.SortedTable(con));
+            concepts = c;
             comprehensionSessions = new ai.ibiko.ibiko1.comprehend.ConversationReading(d, c);
             lookup = new ai.ibiko.ibiko1.comprehend.Lookup(d, c);
         }
@@ -1211,6 +1214,16 @@ public final class Ibiko1 {
                         saysSure(who, formed, ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE);
                         rateable(t, formed);
                     });
+            return;
+        }
+        // "how many continents are there?": counted in the encyclopedia's own article, before a guess at another one
+        final String howMany = howManyThereAre(t);
+        if (howMany != null) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question: how many there are", "Counting them in what I've read"), () -> {
+                saysSure(who, howMany, ai.ibiko.ibiko1.formulas.Critical.Ground.ONE_SOURCE);
+                rateable(t, howMany);
+            });
             return;
         }
         // what shipped with the app: answered at once, offline, however the question is worded
@@ -2352,6 +2365,9 @@ public final class Ibiko1 {
         if (sum == null && snippet == null) {
             sum = yearsAgo(t); // "how many years ago was Nelson Mandela born?": the date looked up, then the years counted
         }
+        if (sum == null && snippet == null) {
+            sum = howManyThereAre(t); // "how many continents are there?": counted in the encyclopedia's own article
+        }
         final String quick = sum;
         if (quick != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.QUICK);
@@ -2925,7 +2941,11 @@ public final class Ibiko1 {
     private static final String[][] CHAT_SPELLINGS = {{"wats|whats|what's|watz|wots", "what is"}, {"wat|wht|wot", "what"},
         {"whos|who's|hu's|hoos", "who is"}, {"whr|wer", "where"}, {"hw", "how"}, {"wen", "when"}}; // not "y" for "why": "Y is a letter"
     private static final java.util.regex.Pattern ASKING_START = java.util.regex.Pattern.compile("(?i)^\\s*(?:what|who|where|when|why|how|which|whose|"
+            + "what'?s|who'?s|where'?s|how'?s|"
             + "is|are|was|were|can|could|does|do|did|will|would|should)\\b"); // not "tell me", "define": asks, not questions
+    /** A question by its first word, typed without a question mark ("whos the autor of things fall apart"). */
+    private static final java.util.regex.Pattern WH_START = java.util.regex.Pattern.compile("(?i)^\\s*(?:what|who|where|when|why|how|which|whose|"
+            + "what'?s|who'?s|where'?s|how'?s)\\b");
 
     /**
      * A question typed the way people chat: "whats the capital of ghana", "who's mandela" (no question mark, a chat
@@ -2958,7 +2978,8 @@ public final class Ibiko1 {
     private String typosFixed(String message) {
         typoStep = null;
         final ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
-        if (message == null || words == null || !ASKING_START.matcher(message).find() || !message.trim().endsWith("?")) {
+        if (message == null || words == null || !ASKING_START.matcher(message).find()
+                || !message.trim().endsWith("?") && !WH_START.matcher(message).find()) {
             return message;
         }
         ai.ibiko.ibiko1.formulas.Spelling.Fixed f;
@@ -3487,7 +3508,82 @@ public final class Ibiko1 {
             public List<String> meaning(String... holding) {
                 return words.withMeaning(holding);
             }
+
+            @Override
+            public List<String[]> links(String w) {
+                List<String[]> out = new ArrayList<String[]>();
+                try {
+                    loadComprehension();
+                    for (ai.ibiko.ibiko1.comprehend.Concepts.Link l : concepts.links(w)) {
+                        out.add(new String[]{l.relation, l.to});
+                    }
+                } catch (RuntimeException e) {
+                    // no common sense here
+                }
+                return out;
+            }
+
+            @Override
+            public boolean verb(String w) {
+                for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : words.senses(w)) {
+                    if (s.pos.toLowerCase(Locale.ROOT).startsWith("v")) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public List<String[]> linksTo(String w) {
+                List<String[]> out = new ArrayList<String[]>();
+                try {
+                    loadComprehension();
+                    for (ai.ibiko.ibiko1.comprehend.Concepts.Link l : concepts.linksTo(w, 400)) {
+                        out.add(new String[]{l.from, l.relation, l.to});
+                    }
+                } catch (RuntimeException e) {
+                    // no common sense here
+                }
+                return out;
+            }
         };
+    }
+
+    private static final java.util.regex.Pattern HOW_MANY_ARE = java.util.regex.Pattern.compile(
+            "(?i)^\\s*how many ([a-z]+(?: [a-z]+)?) (?:are there|are there in the world|exist|are in the world|does the world have)\\s*\\??\\s*$");
+    private static final String COUNT_WORDS = "\\d[\\d,]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
+            + "sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred";
+
+    /**
+     * "How many continents are there?": the encyclopedia's article on the thing, and the sentence in it that counts them
+     * ("There are seven continents"). Null when it isn't asked so, or the article doesn't count them.
+     */
+    private String howManyThereAre(String message) {
+        java.util.regex.Matcher m = message == null ? null : HOW_MANY_ARE.matcher(message.trim());
+        if (m == null || !m.matches()) {
+            return null;
+        }
+        String plural = m.group(1).toLowerCase(Locale.ROOT);
+        String one = plural.endsWith("ies") ? plural.substring(0, plural.length() - 3) + "y" : plural.replaceAll("(?<=[a-z])(es|s)$", "");
+        try {
+            for (String title : new String[]{one, plural}) {
+                Encyclopedia.Article a = encyclopedia().find(title);
+                if (a == null || a.text == null) {
+                    continue;
+                }
+                java.util.regex.Matcher c = java.util.regex.Pattern.compile("(?i)\\b(" + COUNT_WORDS + ")\\s+(?:[a-z-]+\\s+)?" + java.util.regex.Pattern.quote(plural)
+                        + "\\b").matcher(a.text);
+                if (c.find()) {
+                    int start = Math.max(0, a.text.lastIndexOf(". ", c.start()) + 1), end = a.text.indexOf(". ", c.end());
+                    String sentence = a.text.substring(start, end < 0 ? a.text.length() : end + 1).trim();
+                    String n = c.group(1);
+                    return "There are " + n + " " + plural + ", by the usual count: " + sentence + " (from “" + a.title + "”)";
+                }
+            }
+        } catch (RuntimeException e) {
+            // no article to count from
+        }
+        return null;
     }
 
     /**

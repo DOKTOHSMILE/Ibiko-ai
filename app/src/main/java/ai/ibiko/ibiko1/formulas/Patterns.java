@@ -119,6 +119,21 @@ public final class Patterns {
 
         /** Common words (nouns, verbs) whose meaning holds every given word, the commonest first. */
         List<String> meaning(String... holding);
+
+        /** Common sense (ConceptNet): a word's links, strongest first, as {relation, other end}. */
+        default List<String[]> links(String word) {
+            return new ArrayList<String[]>();
+        }
+
+        /** Whether a word can be a verb (the dictionary's parts of speech). */
+        default boolean verb(String word) {
+            return false;
+        }
+
+        /** Common sense the other way round: the links that end in a word, as {start, relation, end}. */
+        default List<String[]> linksTo(String word) {
+            return new ArrayList<String[]>();
+        }
     }
 
     /** The answer to "A is to B as C is to ?", with the relation it carries over; null when the message isn't one. */
@@ -197,7 +212,155 @@ public final class Patterns {
                 }
             }
         }
+        // A4 common sense ("a bird can fly", "a book is meant to be read", "a glove is worn on the hand"): how A and B are
+        // linked, either way round, and the word linked to C the same way
+        String sensed = commonSense(a, b, c, w);
+        if (sensed != null) {
+            return sensed;
+        }
         return null;
+    }
+
+    /** Links that say what a thing does or is for: one may stand in for another ("can fly", "meant to read", "makes you sing"). */
+    private static final java.util.Set<String> DOING = new java.util.HashSet<String>(java.util.Arrays.asList("CapableOf", "UsedFor",
+            "ReceivesAction", "CausesDesire", "Desires"));
+    /** Links that say where a thing goes or what it is used on ("worn on the hand", "protects the foot", "at the foot"). */
+    private static final java.util.Set<String> ON = new java.util.HashSet<String>(java.util.Arrays.asList("UsedFor", "ReceivesAction",
+            "AtLocation", "CapableOf", "PartOf"));
+    private static final java.util.Map<String, String> IRREGULAR = new java.util.HashMap<String, String>();
+
+    static {
+        String[] pairs = {"sung", "sing", "sang", "sing", "heard", "hear", "written", "write", "wrote", "write", "eaten", "eat", "ate", "eat",
+            "drawn", "draw", "flown", "fly", "flew", "fly", "swum", "swim", "swam", "swim", "worn", "wear", "driven", "drive", "ridden", "ride",
+            "spoken", "speak", "seen", "see", "read", "read", "drunk", "drink", "thrown", "throw", "grown", "grow", "known", "know", "taken", "take"};
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
+            IRREGULAR.put(pairs[i], pairs[i + 1]);
+        }
+    }
+
+    /** A word's plain form: "reading" read, "swimming" swim, "sung" sing, "listens" listen, "hands" hand. */
+    static String plain(String word) {
+        String x = word.toLowerCase(Locale.ROOT);
+        if (IRREGULAR.containsKey(x)) {
+            return IRREGULAR.get(x);
+        }
+        if (x.length() > 5 && x.endsWith("ing")) {
+            x = x.substring(0, x.length() - 3);
+            if (x.length() > 2 && x.charAt(x.length() - 1) == x.charAt(x.length() - 2) && !x.endsWith("ll") && !x.endsWith("ss")) {
+                x = x.substring(0, x.length() - 1); // swimm → swim
+            }
+            return x;
+        }
+        if (x.length() > 4 && x.endsWith("ies")) {
+            return x.substring(0, x.length() - 3) + "y";
+        }
+        if (x.length() > 3 && x.endsWith("s") && !x.endsWith("ss")) {
+            return x.substring(0, x.length() - 1);
+        }
+        return x;
+    }
+
+    /** Whether a phrase names a word ("protecting hand" names hand; "meant to read" names read). */
+    private static boolean names(String phrase, String word) {
+        String want = plain(word);
+        for (String t : phrase.toLowerCase(Locale.ROOT).split("[^a-z]+")) {
+            if (!t.isEmpty() && plain(t).equals(want)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final java.util.Set<String> FILLER = new java.util.HashSet<String>(java.util.Arrays.asList("to", "be", "being", "meant",
+            "intended", "a", "an", "the", "get", "make", "you", "your", "people", "someone", "something", "it", "on", "in", "of", "for"));
+
+    /** The doing word a phrase is about ("meant to read" read, "listening pleasure" listen, "swim" swim); null when none. */
+    private static String doing(String phrase) {
+        for (String t : phrase.toLowerCase(Locale.ROOT).split("[^a-z]+")) {
+            if (!t.isEmpty() && !FILLER.contains(t)) {
+                return plain(t);
+            }
+        }
+        return null;
+    }
+
+    static String commonSense(String a, String b, String c, Words w) {
+        // forward: A's link names B ("bird CapableOf fly", "book ReceivesAction meant to read")
+        String rel = null;
+        for (String[] l : w.links(a)) {
+            if (names(l[1], b)) {
+                rel = l[0];
+                break;
+            }
+        }
+        if (rel != null) {
+            String best = null;
+            // a single verb first ("swim", "sing"), the same link before one of its family; then a phrase's doing word
+            for (int round = 0; round < 4 && best == null; round++) {
+                boolean single = round < 2, same = round % 2 == 0;
+                for (String[] l : w.links(c)) {
+                    boolean fits = same ? l[0].equals(rel) : DOING.contains(rel) && DOING.contains(l[0]);
+                    if (!fits) {
+                        continue;
+                    }
+                    String to = l[1].trim().toLowerCase(Locale.ROOT);
+                    String d;
+                    if (single) {
+                        boolean one = to.matches("[a-z]+") && (to.equals(plain(to)) || to.endsWith("ing") || IRREGULAR.containsKey(to));
+                        d = one && w.verb(plain(to)) ? plain(to) : null;
+                    } else {
+                        d = doing(to);
+                    }
+                    if (d != null && d.length() > 1 && !d.equals(plain(a)) && !d.equals(plain(b)) && !d.equals(plain(c))) {
+                        best = d;
+                        break;
+                    }
+                }
+            }
+            if (best != null) {
+                return best + ": a " + a + " and “" + b + "” go together the way a " + c + " and “" + best + "” do (" + words(rel) + ").";
+            }
+        }
+        // the other way round: B's link names A ("glove UsedFor protecting hand"); then what is linked to C that way
+        String back = null;
+        for (String[] l : w.links(b)) {
+            if (names(l[1], a)) {
+                back = l[0];
+                break;
+            }
+        }
+        if (back != null) {
+            java.util.Map<String, Integer> votes = new java.util.LinkedHashMap<String, Integer>();
+            for (String[] l : w.linksTo(c)) {
+                String x = l[0].toLowerCase(Locale.ROOT);
+                if (x.contains(" ") || x.equals(plain(c)) || x.equals(b) || x.equals(a) || !(l[1].equals(back) || ON.contains(back) && ON.contains(l[1]))) {
+                    continue;
+                }
+                votes.merge(x, l[1].equals(back) ? 2 : 1, Integer::sum);
+            }
+            String best = null;
+            for (java.util.Map.Entry<String, Integer> e : votes.entrySet()) {
+                if (best == null || e.getValue() > votes.get(best)) {
+                    best = e.getKey();
+                }
+            }
+            if (best != null) {
+                return best + ": a " + b + " goes with the " + a + " the way a " + best + " goes with the " + c + " (" + words(back) + ").";
+            }
+        }
+        return null;
+    }
+
+    private static String words(String relation) {
+        switch (relation) {
+            case "CapableOf": return "what it can do";
+            case "UsedFor": return "what it is used for";
+            case "ReceivesAction": return "what is done with it";
+            case "CausesDesire": return "what it makes you want to do";
+            case "AtLocation": return "where it is found";
+            case "PartOf": return "what it is part of";
+            default: return relation;
+        }
     }
 
     private static boolean near(double a, double b) {

@@ -77,6 +77,14 @@ public final class MemoryActivity extends AppCompatActivity {
         intro.setPadding(Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6), 0);
         body.addView(intro);
 
+        // ---- what Ibiko learned, with where it came from and how sure: its own page
+        final ai.ibiko.ibiko1.cognition.LearningRecords records = ai.ibiko.ibiko1.Store.learningRecords(new File(getFilesDir(), "brain"));
+        int learnedCount = records.active(System.currentTimeMillis()).size();
+        TextView open = Ui.button(this, "What Ibiko learned, and why (" + learnedCount + ")", false);
+        open.setOnClickListener(v -> startActivity(new android.content.Intent(this, LearnedActivity.class)));
+        android.widget.LinearLayout.LayoutParams lp = Ui.wide(this, 12);
+        body.addView(open, lp);
+
         // ---- notes
         List<String> notes = chats.notes();
         LinearLayout n = section("Notes every chat sees", notes.size(), "Forget all notes?", () -> chats.forgetAllNotes());

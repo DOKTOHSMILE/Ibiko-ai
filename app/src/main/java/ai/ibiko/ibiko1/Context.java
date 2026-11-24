@@ -232,7 +232,8 @@ public final class Context {
         }
         out = swap(out, "\\b(it)\\b", thingNow, r, false);
         out = swap(out, "\\b(its)\\b", thingNow, r, true);
-        out = swap(out, "\\b(there)\\b(?!\\s+(?:is|are|was|were|be)\\b)", there, r, false);
+        // "there" as a place, not "there are", nor "are there" ("how many continents are there?")
+        out = swap(out, "(?<!\\b(?:is|are|was|were|be|any)\\s)\\b(there)\\b(?!\\s+(?:is|are|was|were|be)\\b)", there, r, false);
         // "the company", "the country", "the city", "the band", "the film": the last thing, when it is one
         Matcher d = Pattern.compile("(?i)\\bthe (company|firm|country|nation|city|town|state|band|group|team|club|movie|film|book|novel|"
                 + "song|album|game|river|mountain|lake|island|place|planet|university|school|party|show|series|man|woman|person|"
