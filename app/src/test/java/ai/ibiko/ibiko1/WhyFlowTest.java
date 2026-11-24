@@ -361,4 +361,29 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void aPastedErrorIsExplainedNotSummarised() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String tb = ask(brain, chat, "I keep getting this, what does it mean?\nTraceback (most recent call last):\n"
+                    + "  File \"shop.py\", line 4, in <module>\n    print(\"Total: \" + total)\nTypeError: can only concatenate str (not \"int\") to str");
+            assertTrue("a traceback is explained, not summarised as a text: " + tb,
+                    tb.startsWith("That's a Python error: TypeError: can only concatenate str (not \"int\") to str") && tb.contains("Where: shop.py, line 4."));
+            String fenced = ask(brain, chat, "```\nUncaught TypeError: Cannot read properties of undefined (reading 'length')\n    at count (app.js:3:17)\n```");
+            assertTrue("in fences too: an error, not code to read: " + fenced, fenced.startsWith("That's a JavaScript error:"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
