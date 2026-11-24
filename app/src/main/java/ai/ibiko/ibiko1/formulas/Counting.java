@@ -58,7 +58,7 @@ public final class Counting {
     private static final Pattern TIMES = Pattern.compile("(?i)\\b(doubles?|doubled|triples?|tripled|twice as many|three times as many)\\b");
     private static final Pattern SHARE = Pattern.compile("(?i)\\b(?:shares?|shared|divides?|divided|splits?|split) (?:them|it|the \\w+|all of them)? ?(?:equally |evenly )?"
             + "(?:among|between|with) (\\d+|" + String.join("|", WORDS) + ")(?: (?:people|friends|children|kids|students|of them))?");
-    private static final Pattern ASKED = Pattern.compile("(?i)\\bhow many\\b[^?.]*?(?:\\b(left|remain|now|in total|altogether|all together|each|does \\w+ have|do (?:i|you|we|they) have|are there)\\b|\\?)");
+    private static final Pattern ASKED = Pattern.compile("(?i)\\bhow (?:many|much)\\b[^?.]*?(?:\\b(left|remain|now|in total|altogether|all together|each|does \\w+ have|do (?:i|you|we|they) have|are there)\\b|\\?)");
 
     /** K1–K3: the story worked through, or null when it isn't a counting story. */
     public static String reply(String message) {
@@ -70,6 +70,9 @@ public final class Counting {
             return null;
         }
         String asked = ask.group(1) == null ? "" : ask.group(1).toLowerCase(Locale.ROOT);
+        if (message.substring(ask.start()).matches("(?is).*\\b(?:left|remain(?:s|ing)?)\\b.*")) {
+            asked = "left"; // "how much do I have left?": what's left, wherever "left" comes in it
+        }
         String story = message;
         List<String> steps = new ArrayList<String>();
         int total;
@@ -160,6 +163,8 @@ public final class Counting {
             int each = total / among, over = total % among;
             steps.add("Shared equally among " + among + ": " + total + " ÷ " + among + " = " + each + (over > 0 ? ", with " + over + " left over" : ""));
             answer = "Each gets " + each + things + (over > 0 ? ", and " + over + " " + (over == 1 ? "is" : "are") + " left over" : "") + ".";
+        } else if ((asked.equals("left") || asked.equals("remain")) && thing.matches("(?i)naira|dollars?|pounds?|euros?|cedis?|shillings?|rand|kobo|cents?")) {
+            answer = "You have " + total + things + " left."; // money: "you have 1250 naira left"
         } else if (asked.equals("left") || asked.equals("remain")) {
             answer = total + things + (total == 1 ? " is" : " are") + " left.";
         } else {
