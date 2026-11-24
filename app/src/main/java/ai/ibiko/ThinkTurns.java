@@ -126,7 +126,8 @@ final class ThinkTurns {
         // G8 (formulas/Truth): every reply asked "true or false?" against what is known for certain, on the device
         if (answer != null && !answer.trim().isEmpty()) {
             a.hub.worker.execute(() -> {
-                final String own = a.ibiko1().questionReply(answer);
+                // the same passes as Ibiko's own answers: the truth check, the working, consistency, causes, how sure
+                final String own = a.ibiko1().reviewReply(question, answer);
                 if (own != null && a.alive(id)) {
                     a.handler.post(() -> {
                         if (a.chatPane != null && !a.isFinishing()) {

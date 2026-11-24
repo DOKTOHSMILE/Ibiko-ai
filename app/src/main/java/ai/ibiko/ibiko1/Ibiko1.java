@@ -344,6 +344,7 @@ public final class Ibiko1 {
     public String premeditate(String request, String conversationId) {
         return foundation(request, conversationId) + foresight().hint(Methods.kind(request)) + reflection().hint(Methods.kind(request))
                 + ai.ibiko.ibiko1.formulas.Critical.brief(ai.ibiko.ibiko1.formulas.Critical.read(request))
+                + ai.ibiko.ibiko1.cognition.Cognition.plan(request) // pass 1: the plan, the same for every brain
                 + (ai.ibiko.ibiko1.formulas.Analyst.hasData(request) ? ai.ibiko.ibiko1.formulas.Analyst.BRIEF : "")
                 + (ai.ibiko.ibiko1.formulas.Probability.applies(request) ? ai.ibiko.ibiko1.formulas.Probability.BRIEF : "");
     }
@@ -394,6 +395,18 @@ public final class Ibiko1 {
         } catch (RuntimeException e) {
             // a store that can't be read leaves the rules alone
         }
+        // copies of one piece of evidence (the same words from two stores) count once, not as agreement
+        List<ai.ibiko.ibiko1.formulas.Truth.Claim> distinct = new ArrayList<ai.ibiko.ibiko1.formulas.Truth.Claim>();
+        for (ai.ibiko.ibiko1.formulas.Truth.Claim c : claims) {
+            boolean copy = false;
+            for (ai.ibiko.ibiko1.formulas.Truth.Claim d : distinct) {
+                copy |= d.source == c.source && ai.ibiko.ibiko1.cognition.Evidence.nearSame(d.says, c.says);
+            }
+            if (!copy) {
+                distinct.add(c);
+            }
+        }
+        claims = distinct;
         String checkedBefore = "";
         try {
             checkedBefore = ledger().about(request, 3); // G9: the known mistakes and checked truths about this
@@ -447,6 +460,53 @@ public final class Ibiko1 {
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    /** The calibration of how sure answers may sound, against how they turned out ({@code cognition/Calibration}). */
+    public ai.ibiko.ibiko1.cognition.Calibration calibration() {
+        return Store.calibration(dir);
+    }
+
+    /** What was learned, as records with their source and how far they are verified ({@code cognition/LearningRecords}). */
+    public ai.ibiko.ibiko1.cognition.LearningRecords learningRecords() {
+        return Store.learningRecords(dir);
+    }
+
+    /** The label each recent answer was given, for its rating to calibrate. */
+    private final java.util.Map<String, ai.ibiko.ibiko1.cognition.Calibration.Label> labelled = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<String, ai.ibiko.ibiko1.cognition.Calibration.Label>() {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, ai.ibiko.ibiko1.cognition.Calibration.Label> e) {
+                    return size() > 60;
+                }
+            });
+
+    /**
+     * Passes 2 and 3 for any brain's reply, once shown (the phone's model, an API model): its sentences asked "true or
+     * false?" (G8), its working done again, its consistency and its causes checked, how sure it may be worked out; what
+     * to say under it (a correction, a wrong step, a disagreement, a cause claimed from a link), or null.
+     */
+    public String reviewReply(String question, String reply) {
+        try {
+            long now = System.currentTimeMillis();
+            List<ai.ibiko.ibiko1.formulas.Truth.Checked> checked = ai.ibiko.ibiko1.formulas.Truth.question(reply, witnesses());
+            ledger().record(checked, "out", now);
+            String correction = ai.ibiko.ibiko1.formulas.Truth.correction(checked);
+            ai.ibiko.ibiko1.cognition.Cognition.Review r = ai.ibiko.ibiko1.cognition.Cognition.review(question, reply, checked,
+                    question == null ? null : knownLines(question), 0.4, calibration(), false);
+            labelled.put(answerKey(reply), r.label);
+            if (correction == null) {
+                return r.note;
+            }
+            return r.note == null ? correction : correction + "\n\n" + r.note;
+        } catch (RuntimeException e) {
+            return questionReply(reply);
+        }
+    }
+
+    private static String answerKey(String answer) {
+        String a = answer == null ? "" : answer.trim().replaceAll("\\s+", " ");
+        return a.length() > 200 ? a.substring(0, 200) : a;
     }
 
     /** G8 in: a text to learn from, without the sentences found false. */
@@ -535,6 +595,15 @@ public final class Ibiko1 {
         understood(said, conversationId); // references stay inside this chat, not another chat's recent objects
         foresight().heard(said, Methods.kind(said), System.currentTimeMillis()); // what this pilot asks after what
         learner().heard(ai.ibiko.ibiko1.formulas.NumberSense.redact(said), System.currentTimeMillis()); // never a PIN or a phone number
+        // "I prefer short answers": the person's preference, kept as theirs (never as a fact about the world)
+        if (said != null && said.length() < 240 && ai.ibiko.ibiko1.cognition.Evidence.type(said) == ai.ibiko.ibiko1.cognition.Evidence.Type.PREFERENCE) {
+            try {
+                learningRecords().learn(ai.ibiko.ibiko1.cognition.LearningRecords.Category.preference, said, said.trim(), "user_statement",
+                        conversationId == null ? "chat" : conversationId, 0.9, System.currentTimeMillis(), false, "preference");
+            } catch (RuntimeException e) {
+                // not kept this time
+            }
+        }
     }
 
     /**
@@ -3200,6 +3269,12 @@ public final class Ibiko1 {
                 TeacherCheck.Result r = TeacherCheck.check(answer, about, facts(), knowledge(), art == null ? null : art.text);
                 long now = System.currentTimeMillis();
                 learner().read(answer, Learner.Source.RESEARCH, now); // the language of it, learned too
+                ai.ibiko.ibiko1.cognition.LearningRecords.Record rec = learningRecords().learn(ai.ibiko.ibiko1.cognition.LearningRecords.Category.fact,
+                        question, answer, r != null && r.verdict == TeacherCheck.Verdict.CONFIRMED ? "verified_source" : "api_model", teacher(), 0.6, now,
+                        false, "learning-conversation");
+                if (rec != null && r != null && r.verdict == TeacherCheck.Verdict.CONFLICT) {
+                    rec.status = ai.ibiko.ibiko1.cognition.LearningRecords.Verification.disputed;
+                }
                 if (r == null || r.verdict == TeacherCheck.Verdict.NEW) {
                     knowledge().learnUnchecked(question, answer);
                     facts().learn(answer, about, 1, now);
@@ -4133,6 +4208,9 @@ public final class Ibiko1 {
     /** A filled gap kept everywhere a confirmed answer goes: memory, the fact store, and the language it learns from. */
     private void keepFilled(String question, String statement) {
         long now = System.currentTimeMillis();
+        // the person's own answer: a correction, which supersedes what was held about it (kept, with its history)
+        learningRecords().learn(ai.ibiko.ibiko1.cognition.LearningRecords.Category.correction, question, statement, "explicit_user_correction",
+                "conversation", 0.95, now, false, "correction");
         knowledge().confirm(question, statement);
         facts().learn(statement, null, 2, now);
         learner().read(statement, Learner.Source.PILOT, now);
@@ -4149,6 +4227,22 @@ public final class Ibiko1 {
         if (checked.step() != null) {
             host.step(checked.step());
         }
+        // passes 2 and 3 (cognition/Metacognition): its working done again, its consistency and its causes checked,
+        // and only a concrete defect put right; a clean answer is left exactly as it is
+        String asked = asking != null ? asking : current;
+        if (asked != null && text != null && !text.isEmpty()) {
+            try {
+                ai.ibiko.ibiko1.cognition.Cognition.Review r = ai.ibiko.ibiko1.cognition.Cognition.review(asked, text, null, null,
+                        how == How.MEMORY ? 0.9 : how == How.RESEARCH ? 0.75 : 0.85, calibration(), true);
+                labelled.put(answerKey(r.text), r.label);
+                if (!r.text.equals(text)) {
+                    host.step("Checked it before saying it, and put right: " + kindsPutRight(r.outcome));
+                    text = r.text;
+                }
+            } catch (RuntimeException e) {
+                // the review failed: the answer stands as drafted
+            }
+        }
         String all = (lastSaid == null ? "" : lastSaid + "\n") + text;
         lastSaid = all.length() > 6000 ? all.substring(all.length() - 6000) : all; // what was said lately
         kept(text);
@@ -4159,6 +4253,16 @@ public final class Ibiko1 {
         }
         host.say(who, text);
         answeredNow(how);
+    }
+
+    private static String kindsPutRight(ai.ibiko.ibiko1.cognition.Metacognition.Outcome o) {
+        java.util.List<String> done = new java.util.ArrayList<String>();
+        for (String l : o.log) {
+            if (l.contains("put right ")) {
+                done.add(l.replaceFirst("^.*put right ", ""));
+            }
+        }
+        return done.isEmpty() ? "what didn't hold" : String.join("; ", done);
     }
 
     /** The text the person pasted last, for questions about it ({@link Passage}). */
@@ -4630,6 +4734,18 @@ public final class Ibiko1 {
         }
         learner().judged(right, System.currentTimeMillis());
         methods().judge(question, right); // the way that reached it, too
+        try {
+            ai.ibiko.ibiko1.cognition.Calibration.Label was = labelled.remove(answerKey(answer));
+            calibration().outcome(was, right); // how sure it sounded, against how it turned out
+            if (right) {
+                learningRecords().learn(ai.ibiko.ibiko1.cognition.LearningRecords.Category.fact, question, answer, "user_confirmation", "rating",
+                        0.9, System.currentTimeMillis(), false, "rated");
+            } else {
+                learningRecords().dispute(answer);
+            }
+        } catch (RuntimeException e) {
+            // the rating still counts below
+        }
         reflection().judged(Methods.kind(question), right); // and the record of how replies like it go
         String fixed = pendingErrorFix;
         if (fixed != null && answer.contains("(not confirmed yet)")) {
