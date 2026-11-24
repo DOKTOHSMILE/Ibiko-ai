@@ -316,7 +316,7 @@ public final class Encyclopedia {
 
     private static final Pattern ASKS = Pattern.compile("(?i)^\\s*(?:please\\s+)?(?:(?:can|could) you\\s+)?(?:"
             + "what(?:'s| is| are| was| were)|who(?:'s| is| are| was| were)|where(?:'s| is| was)|"
-            + "tell me (?:about|more about)|explain|describe|what do you know about|"
+            + "tell me (?:about|more about)|explain|describe|what do you know about|what do you know of|what do you know on|what do you know regarding|"
             + "give me (?:information|info|facts) (?:on|about)|information (?:on|about)|facts about)\\s+(.+?)[?.!]*\\s*$");
 
     /** What a question asks to be explained ("what is a volcano" → "a volcano"), or null when it isn't that kind. */

@@ -294,6 +294,25 @@ public final class Sites {
         }
     }
 
+    /**
+     * A design from Ibiko's own thinking ({@code ideas/Ideation}), not from the kinds it knows: its sections are what
+     * research found and the new ideas it made, each {id, heading, block, text}: the block is which working part shows it
+     * ("contact": a form; "text": Ibiko's own paragraph), the text Ibiko's own words. The look is a kind's it knows, when
+     * one fits, for its colours only.
+     */
+    public static Design researched(String what, String purpose, List<String[]> sections, Kind look, Brief b) {
+        String colours = look == null ? "#fbfaf7,#ffffff,#1f6f5c,#1d2421" : String.join(",", look.colours);
+        StringBuilder spec = new StringBuilder();
+        for (String[] sec : sections) {
+            spec.append(spec.length() == 0 ? "" : ";").append(sec[0]).append(':').append(sec[1].replace(";", ",").replace(":", " "));
+        }
+        Kind k = new Kind(new String[]{"researched", Pattern.quote(what), what + " website", purpose, spec.toString(), "", "", "", colours});
+        Design d = new Design(k, b);
+        d.sections.clear();
+        d.sections.addAll(sections);
+        return d;
+    }
+
     /** A design for a kind and a brief, as the kind lays it out. */
     public static Design design(Kind k, Brief b) {
         return new Design(k, b);
@@ -326,7 +345,21 @@ public final class Sites {
         }
         h.append("  </nav>\n</header>\n<main id=\"top\">\n");
         for (String[] s : d.sections) {
-            h.append(block(s[0], s[1], k, b, name));
+            if (s.length < 4) {
+                h.append(block(s[0], s[1], k, b, name));
+                continue;
+            }
+            // a researched section: its working block (or Ibiko's own paragraph), under its own anchor
+            String type = s[2], text = s[3];
+            if (type.equals("text")) {
+                h.append(section(s[0], esc(s[1]), "<p>" + esc(text) + "</p>"));
+                continue;
+            }
+            String html = block(type, s[1], k, b, name).replaceFirst("id=\"" + Pattern.quote(type) + "\"", "id=\"" + s[0] + "\"");
+            if (text != null && !text.isEmpty()) {
+                html = html.replaceFirst("</h2>\n", "</h2>\n  <p>" + Matcher.quoteReplacement(esc(text)) + "</p>\n");
+            }
+            h.append(html);
         }
         h.append("</main>\n<footer>\n  <p>&copy; <span id=\"year\"></span> ").append(esc(name))
                 .append(b.place.isEmpty() ? "" : " · " + esc(b.place)).append("</p>\n</footer>\n");

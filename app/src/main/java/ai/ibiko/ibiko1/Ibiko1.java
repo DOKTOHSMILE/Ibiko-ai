@@ -575,7 +575,7 @@ public final class Ibiko1 {
     public void answer(final String typed) {
         thinkingSince = System.currentTimeMillis(); // Stop shows until it answers, or is stopped
         understood = null; // worked out again for this message
-        final String message = typosFixed(asQuestion(typed)); // "capital of france", typed as a search: "What is the capital of france?"
+        final String message = typosFixed(asQuestion(person().fillIn(typed))); // "the country I live in": the country they said // "capital of france", typed as a search: "What is the capital of france?"
         final String who = host.persona();
         long heardAt = System.currentTimeMillis();
         // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
@@ -758,6 +758,15 @@ public final class Ibiko1 {
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
         // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
         // the best taken first (not the first pattern that fits); the others kept to fall back on
+        // "what do you think about remote work?": a view of its own, reasoned from what it reads, with how sure it is
+        if (pasted == null && opinionTurn(who, message)) {
+            return;
+        }
+        // any open request to make something, or for ideas ("write a business plan for my bakery", "plan a birthday party",
+        // "give me ideas for a fundraiser"): researched, weighed, joined into new ideas and made in its own words
+        if (pasted == null && snippet == null && ambitionTurn(who, t)) {
+            return;
+        }
         // a saying, before the word-by-word readers ("me, myself and I", "break a leg", "no wahala"): what it means, and what it implies
         final String saying = pasted == null ? expressions().explain(message, previous) : null;
         if (saying != null) {
@@ -1807,6 +1816,13 @@ public final class Ibiko1 {
             return Phrasing.cantYet(online, times);
         }
         Encyclopedia.Article a = subject == null ? null : encyclopedia().find(subject);
+        if (a == null && subject != null) {
+            // no article, but the dictionary knows the word ("okada": a motorcycle taxi, in Nigeria): that, plainly
+            String meant = dictionaryMeaning(subject);
+            if (meant != null) {
+                return meant;
+            }
+        }
         if (a == null) {
             java.util.List<Object[]> subs = new EncyclopediaQA(encyclopedia()).subjects(t, 1);
             a = subs.isEmpty() ? null : (Encyclopedia.Article) subs.get(0)[0];
@@ -2216,6 +2232,9 @@ public final class Ibiko1 {
         }
         // everyday sums in words: "half of 250", "20% off 5000", "is 97 prime?", "what day is 10 days after Monday?"
         String sum = snippet == null ? ai.ibiko.ibiko1.formulas.Quick.reply(message) : null;
+        if (sum == null && snippet == null) {
+            sum = ai.ibiko.ibiko1.formulas.TextOps.reply(message); // "how many letters in Nigeria?", "reverse hello", "sort … alphabetically"
+        }
         if (sum == null && snippet == null) {
             sum = yearsAgo(t); // "how many years ago was Nelson Mandela born?": the date looked up, then the years counted
         }
@@ -3048,6 +3067,317 @@ public final class Ibiko1 {
      * place and number put in, one responsive HTML file given whole. Explained or compared: from what it knows of each
      * kind. False when it names no kind it knows (the rest of Ibiko, or the coding agent, takes it).
      */
+    private static final java.util.regex.Pattern OPINION_ASK = java.util.regex.Pattern.compile("(?i)^\\s*(?:so\\s+|and\\s+|ok(?:ay)?,?\\s+)?(?:what do you think (?:about|of)|"
+            + "what are your thoughts (?:on|about)|what(?:'s| is) your (?:opinion|view|take) (?:on|of|about)|your thoughts on|how do you feel about|"
+            + "do you think (?:that )?(.{2,60}?) is (?:good|bad|worth it|a good idea)|is (.{2,60}?) (?:good or bad|a good idea|worth it))(?:\\s*(.{2,80}?))?\\s*[?.!]*\\s*$");
+
+    /**
+     * A view of its own: what it reads about the thing (the web, when online, and its encyclopedia) weighed for and
+     * against, a probability that it's good on balance, what it could lead to, and what would change its mind
+     * ({@code ideas/Opinion}). False when it isn't asked for a view, or the view is about Ibiko or the person.
+     */
+    private boolean opinionTurn(final String who, String message) {
+        java.util.regex.Matcher m = OPINION_ASK.matcher(message == null ? "" : message.trim());
+        if (!m.matches()) {
+            return false;
+        }
+        String raw = m.group(1) != null ? m.group(1) : m.group(2) != null ? m.group(2) : m.group(3);
+        if (raw == null) {
+            return false;
+        }
+        String s0 = raw.trim();
+        // "my idea: selling zobo online", "my plan to open a bakery": the idea itself is what's weighed
+        java.util.regex.Matcher theirs = java.util.regex.Pattern.compile("(?i)^(?:my|our) (?:business )?(?:idea|plan|proposal|project|dream)(?:\\s+(?:of|to|for|about))?\\s*[:,-]?\\s*(.{3,80})$").matcher(s0);
+        if (theirs.matches()) {
+            s0 = theirs.group(1).replaceFirst("(?i)^(?:to\\s+)", "");
+        }
+        final String subject = s0.replaceFirst("(?i)^(?:the|a|an)\\s+", "").replaceAll("[?.!]+$", "");
+        if (subject.isEmpty() || subject.matches("(?i).*\\b(?:you|yourself|me|myself|i|my|ibiko|this|that|it)\\b.*")) {
+            return false; // about Ibiko, the person, or what was just said: its own readers answer those
+        }
+        final boolean online = host.online() && Plug.web != Plug.NONE;
+        how = online ? How.RESEARCH : How.MEMORY;
+        think(Arrays.asList("Reading your question: you want my view of " + subject, online ? "Reading what's said for and against it"
+                : "Weighing what I already know of it"), () -> {
+                    final int mine = token;
+                    new Thread(() -> {
+                        ai.ibiko.ibiko1.ideas.Corpus c = online ? ai.ibiko.ibiko1.ideas.Research.forOpinion(subject, step -> host.onScreen(() -> {
+                            if (mine == token) {
+                                host.step(step);
+                            }
+                        })) : new ai.ibiko.ibiko1.ideas.Corpus();
+                        String article = articleText(subject);
+                        if (!article.isEmpty()) {
+                            ai.ibiko.ibiko1.ideas.Corpus.Source own = c.add("my encyclopedia");
+                            for (String sentence : article.split("(?<=[.!?])\\s+")) {
+                                own.sentences.add(sentence);
+                            }
+                        }
+                        final String view = ai.ibiko.ibiko1.ideas.Opinion.form(subject, c);
+                        host.onScreen(() -> {
+                            if (mine != token) {
+                                return;
+                            }
+                            host.step("Counting the sources for and against, and how sure that makes me");
+                            String known = article.isEmpty() ? "" : " What I know of it: " + String.join(" ",
+                                    java.util.Arrays.asList(article.split("(?<=[.!?])\\s+")).subList(0, Math.min(2, article.split("(?<=[.!?])\\s+").length)));
+                            saysPlain(who, view != null ? view : "I don't have a view of my own on " + subject + " yet: what I've read doesn't weigh for or against it."
+                                    + known + (online ? "" : " When you're online, ask again and I'll read what's said for and against it."));
+                        });
+                    }, "ibiko1-opinion").start();
+                });
+        return true;
+    }
+
+    /**
+     * The general rule for open requests ({@code ideas/}): what is asked to be made (or ideas for) is researched (or
+     * recalled, or thought from its own encyclopedia offline), each part weighed by how many sources share it, parts
+     * said together joined into new ideas, and the result written in its own words: a document, with a prototype page
+     * for an app or a platform. Websites, the apps it builds and code have their own readers and keep them.
+     */
+    private boolean ambitionTurn(final String who, final String t) {
+        final ai.ibiko.ibiko1.ideas.Ambition.Ask ask = ai.ibiko.ibiko1.ideas.Ambition.read(t);
+        if (ask == null || ai.ibiko.ibiko1.formulas.Sites.read(t) != null || ai.ibiko.ibiko1.formulas.Sites.loose(t) != null
+                || apps().asked(t) != null || ai.ibiko.ibiko1.formulas.Recipes.read(t) != null) {
+            return false;
+        }
+        final String whole = ask.whole();
+        final String key = (ask.kind == ai.ibiko.ibiko1.ideas.Ambition.Kind.IDEAS ? "ideas " : "") + whole;
+        final boolean online = host.online() && Plug.web != Plug.NONE;
+        final ai.ibiko.ibiko1.ideas.Ideation.Plan before = ai.ibiko.ibiko1.ideas.Research.recall(dir, key);
+        final java.util.function.Function<String, String> meaning = this::nounMeaning;
+        final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
+        how = online ? How.RESEARCH : How.MEMORY;
+        think(Arrays.asList("Reading your request: " + (ask.kind == ai.ibiko.ibiko1.ideas.Ambition.Kind.IDEAS ? "ideas for " : "to make ") + whole,
+                online ? "Researching what goes into " + whole + ", before deciding anything" : before != null
+                        ? "I'm offline: thinking from what I researched before" : "I'm offline: thinking from what I already know"), () -> {
+                    final int mine = token;
+                    new Thread(() -> {
+                        ai.ibiko.ibiko1.ideas.Corpus corpus;
+                        java.util.function.Consumer<String> step = x -> host.onScreen(() -> {
+                            if (mine == token) {
+                                host.step(x);
+                            }
+                        });
+                        if (online) {
+                            corpus = ask.kind == ai.ibiko.ibiko1.ideas.Ambition.Kind.IDEAS ? ai.ibiko.ibiko1.ideas.Research.forIdeas(whole, step)
+                                    : ai.ibiko.ibiko1.ideas.Research.forAnything(whole, step);
+                        } else {
+                            corpus = new ai.ibiko.ibiko1.ideas.Corpus();
+                        }
+                        wordTalk(); // the dictionary open: what words mean, who counts as a person
+                        // offline, what it already knows is the source: its encyclopedia's articles on the thing and what it's for
+                        // (online, those articles are evidence for the parts, not sources to count)
+                        for (String subject : corpus.size() >= 2 ? new String[0] : new String[]{ask.goal, ask.about}) {
+                            String article = subject.isEmpty() ? "" : articleText(subject.replaceFirst("^(?:my|our|your|a|an|the)\\s+", ""));
+                            if (!article.isEmpty()) {
+                                ai.ibiko.ibiko1.ideas.Corpus.Source own = corpus.add("my encyclopedia: " + subject);
+                                for (String sentence : article.split("(?<=[.!?])\\s+")) {
+                                    own.sentences.add(sentence);
+                                }
+                            }
+                        }
+                        String aboutText = (articleText(ask.goal) + " " + articleText(ask.about)).toLowerCase(Locale.ROOT);
+                        ai.ibiko.ibiko1.ideas.Ideation.Plan plan = ai.ibiko.ibiko1.ideas.Ideation.think(corpus, ask.about.isEmpty() ? ask.goal : ask.about,
+                                ask.goal, t, w -> aboutText.contains(w.toLowerCase(Locale.ROOT)), this::isPerson);
+                        boolean learned = false;
+                        if (plan.parts.size() >= 3 && online) {
+                            ai.ibiko.ibiko1.ideas.Research.keep(dir, key, plan); // learned: next time, and offline, it starts here
+                        } else if (plan.parts.size() < 3 && before != null) {
+                            plan = before;
+                            learned = true;
+                        }
+                        final ai.ibiko.ibiko1.ideas.Ideation.Plan thought = plan;
+                        final ai.ibiko.ibiko1.ideas.Corpus read = corpus;
+                        final boolean fromBefore = learned;
+                        host.onScreen(() -> {
+                            if (mine != token) {
+                                return;
+                            }
+                            if (thought.parts.size() < 2) {
+                                saysPlain(who, (online ? "I couldn't find enough about " + whole + " to think it through just now."
+                                        : "I'm offline and haven't researched " + whole + " before, so I don't have enough to think it through yet.")
+                                        + " Tell me the parts you want in it, or ask again " + (online ? "in a moment" : "when you're online") + ".");
+                                return;
+                            }
+                            host.step("Weighing how likely each part is needed, from how many sources have it");
+                            if (!thought.ideas.isEmpty()) {
+                                host.step("Joining parts that go together into ideas no source has");
+                            }
+                            host.step("Writing it in my own words, checked against the sources");
+                            ai.ibiko.ibiko1.ideas.Maker.Anything made = ai.ibiko.ibiko1.ideas.Maker.anything(thought, ask, brief, meaning, null, read, fromBefore);
+                            String out = made.said;
+                            if (made.prototype != null) {
+                                lastDesign = made.prototype;
+                                lastMade = null;
+                                String html = ai.ibiko.ibiko1.formulas.Sites.build(made.prototype);
+                                lastSnippet = new ai.ibiko.ibiko1.formulas.CodeReader.Snippet(html, "html", "");
+                                out += "\n\nA prototype to click through (each part a screen):\n\n```html\n" + html + "```";
+                            }
+                            saysExact(who, out);
+                        });
+                    }, "ibiko1-ambition").start();
+                });
+        return true;
+    }
+
+    /** A noun's first meaning in the dictionary, or null. */
+    private String nounMeaning(String w) {
+        ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (words == null) {
+            return null;
+        }
+        for (ai.ibiko.ibiko1.words.MeaningIndex.Sense sense : words.senses(w)) {
+            // a common noun's meaning, not a name's ("Service": a Canadian writer)
+            // (the dictionary says a common noun in lower case; a person's starts "Canadian writer…", "English poet…")
+            if (sense.pos.equals("noun") && !sense.definition.isEmpty() && !Character.isUpperCase(sense.definition.charAt(0))) {
+                return sense.definition.split(";")[0];
+            }
+        }
+        return null;
+    }
+
+    /** "a school website", "website for my bakery": what the site is of. */
+    static String siteSubject(String t, ai.ibiko.ibiko1.formulas.Sites.Brief brief) {
+        if (brief != null && !brief.trade.isEmpty()) {
+            return brief.trade.trim().toLowerCase(Locale.ROOT);
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)\\b(?:a|an|my|our|the|me a|us a)\\s+((?:[a-z]+\\s+){0,2}?[a-z]+)\\s+(?:web ?site|site|web ?page|landing page)\\b")
+                .matcher(t);
+        if (m.find()) {
+            String s = m.group(1).toLowerCase(Locale.ROOT).replaceAll("^(?:new|simple|nice|good|modern|beautiful|professional|small|basic|great|cool)\\s+", "");
+            return s.matches("(?:new|simple|nice|good|modern|beautiful|professional|small|basic|great|cool|web|my|our)") ? null : s;
+        }
+        return null;
+    }
+
+    /**
+     * A site thought through instead of laid out from a stored kind: what such sites have is researched (or recalled from
+     * the last research, offline), each part given a probability, related parts joined into new ideas, and the page
+     * written in Ibiko's own words ({@code ideas/}). False when there is nothing to think from (offline, never researched).
+     */
+    private boolean thinkThenBuild(final String who, final String t, final ai.ibiko.ibiko1.formulas.Sites book) {
+        final ai.ibiko.ibiko1.formulas.Sites.Brief brief = ai.ibiko.ibiko1.formulas.Sites.brief(t);
+        final String what = siteSubject(t, brief);
+        if (what == null) {
+            return false;
+        }
+        final String key = what + " website";
+        final boolean online = host.online() && Plug.web != Plug.NONE;
+        final ai.ibiko.ibiko1.ideas.Ideation.Plan before = ai.ibiko.ibiko1.ideas.Research.recall(dir, key);
+        if (!online && before == null) {
+            return false; // nothing researched yet, and no way to look: the kinds it knows
+        }
+        final ai.ibiko.ibiko1.formulas.Sites.Kind look = book.kind(t);
+        final ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        final java.util.function.Function<String, String> meaning = this::nounMeaning;
+        how = How.RESEARCH;
+        think(Arrays.asList("Reading your request: a " + key + " to make", online ? "Researching what " + what + " websites have, before deciding anything"
+                : "I'm offline: thinking from what I researched before on " + key + "s"), () -> {
+                    final int mine = token;
+                    new Thread(() -> {
+                        wordTalk(); // the dictionary open: what words mean, who counts as a person
+                        ai.ibiko.ibiko1.ideas.Corpus corpus = new ai.ibiko.ibiko1.ideas.Corpus();
+                        ai.ibiko.ibiko1.ideas.Ideation.Plan plan = null;
+                        if (online) {
+                            corpus = ai.ibiko.ibiko1.ideas.Research.forMaking(what, "website", step -> host.onScreen(() -> {
+                                if (mine == token) {
+                                    host.step(step);
+                                }
+                            }));
+                            String about = (meaning.apply(what) == null ? "" : meaning.apply(what)) + " " + articleText(what);
+                            final String aboutLow = about.toLowerCase(Locale.ROOT);
+                            plan = ai.ibiko.ibiko1.ideas.Ideation.think(corpus, what, "website", t,
+                                    w -> aboutLow.contains(w.toLowerCase(Locale.ROOT)), this::isPerson);
+                            if (plan.parts.size() >= 3) {
+                                ai.ibiko.ibiko1.ideas.Research.keep(dir, key, plan); // learned: next time, and offline, it starts here
+                            } else {
+                                plan = before; // the web gave too little: what was learned before, if anything
+                            }
+                        } else {
+                            plan = before;
+                        }
+                        final ai.ibiko.ibiko1.ideas.Ideation.Plan thought = plan;
+                        final ai.ibiko.ibiko1.ideas.Corpus read = corpus;
+                        host.onScreen(() -> {
+                            if (mine != token) {
+                                return;
+                            }
+                            if (thought == null) {
+                                saysPlain(who, "I couldn't find enough about " + what + " websites to think it through just now. Ask again in a moment, "
+                                        + "or tell me the sections you want and I'll build them.");
+                                return;
+                            }
+                            host.step("Weighing how likely each part is needed, from how many sources have it");
+                            if (!thought.ideas.isEmpty()) {
+                                host.step("Joining parts that go together into ideas no source has");
+                            }
+                            host.step("Writing every section in my own words, checked against the sources");
+                            ai.ibiko.ibiko1.ideas.Maker.Made made = ai.ibiko.ibiko1.ideas.Maker.site(thought, what, brief, meaning, look, read, !online || thought == before);
+                            lastDesign = made.design;
+                            lastMade = null;
+                            String html = ai.ibiko.ibiko1.formulas.Sites.build(made.design);
+                            lastSnippet = new ai.ibiko.ibiko1.formulas.CodeReader.Snippet(html, "html", "");
+                            saysExact(who, made.said + "\n\n```html\n" + html + "```\n\nSave it as index.html and open it in a browser.");
+                        });
+                    }, "ibiko1-think-build").start();
+                });
+        return true;
+    }
+
+    /** The subject's article in the encyclopedia, as plain text (what Ibiko already knows of it); empty when none. */
+    private String articleText(String subject) {
+        try {
+            Encyclopedia.Article a = encyclopedia().find(subject);
+            return a == null || a.text == null ? "" : a.text;
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** "An okada is a motorcycle taxi (Nigeria)." from the dictionary's first meanings of a word; null when it has none. */
+    String dictionaryMeaning(String subject) {
+        ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        String w = subject.trim().toLowerCase(Locale.ROOT).replaceFirst("^(?:a|an|the)\\s+", "");
+        if (words == null || w.isEmpty() || w.split("\\s+").length > 3) {
+            return null;
+        }
+        java.util.List<ai.ibiko.ibiko1.words.MeaningIndex.Sense> senses = words.senses(w);
+        if (senses.isEmpty()) {
+            return null;
+        }
+        String def = senses.get(0).definition.trim();
+        String region = "";
+        java.util.regex.Matcher tag = java.util.regex.Pattern.compile("^\\(([^)]{2,40})\\)\\s*").matcher(def);
+        if (tag.find()) {
+            region = " (" + tag.group(1) + ")";
+            def = def.substring(tag.end());
+        }
+        def = def.replaceAll("[.;]+$", "");
+        String article = w.matches("[aeiou].*") ? "An " : "A ";
+        boolean thing = senses.get(0).pos.equals("noun");
+        String said = thing ? article + w + " is " + def + region + "."
+                : "“" + w + "” means " + def + region + ".";
+        if (senses.size() > 1 && !senses.get(1).definition.isEmpty()) {
+            said += " It can also mean " + senses.get(1).definition.replaceAll("^\\([^)]*\\)\\s*", "").replaceAll("[.;]+$", "") + ".";
+        }
+        return said + " (From my dictionary.)";
+    }
+
+    /** Whether a word names a kind of person ("parent", "student"), from what it means in the dictionary. */
+    boolean isPerson(String w) {
+        ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (words == null) {
+            return false;
+        }
+        for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : words.senses(w)) {
+            if (s.pos.equals("noun") && s.definition.matches("(?i).*\\b(a person|someone|one who|people|a member of|an adult|a child|a man or woman|an individual)\\b.*")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean siteTurn(final String who, final String t, ai.ibiko.ibiko1.formulas.Sites.Ask ask) {
         final ai.ibiko.ibiko1.formulas.Sites book = sites();
         if (book.size() == 0) {
@@ -3080,6 +3410,9 @@ public final class Ibiko1 {
                 return true;
             }
             default: {
+                if (thinkThenBuild(who, t, book)) {
+                    return true; // researched and thought through: Ibiko's own site, not a stored layout
+                }
                 ai.ibiko.ibiko1.formulas.Sites.Kind found = book.kind(t);
                 final ai.ibiko.ibiko1.formulas.Sites.Kind k = found != null ? found : book.kind("business");
                 if (k == null) {
@@ -3822,8 +4155,10 @@ public final class Ibiko1 {
     public String aboutMe(String t) {
         String q = t.toLowerCase(Locale.US);
         // "what do you know about shoes" is a question about shoes, not about its memory
-        if (q.matches("(?s).*\\bwhat (have|did) you (learn|learned|learnt)\\b(?!.*\\babout\\b).*"
-                + "|.*\\bwhat do you (know|remember)\\b(?!.*\\babout\\b).*|.*\\bwhat have you (remembered|saved|kept)\\b(?!.*\\babout\\b).*")) {
+        // and "what do you know of coca-cola?", "…on football", "…regarding taxes": questions about those
+        String on = "(?!.*\\b(?:about|of|on|regarding|concerning|re)\\b)";
+        if (q.matches("(?s).*\\bwhat (have|did) you (learn|learned|learnt)\\b" + on + ".*"
+                + "|.*\\bwhat do you (know|remember)\\b" + on + ".*|.*\\bwhat have you (remembered|saved|kept)\\b" + on + ".*")) {
             List<Knowledge.Fact> sure = knowledge().confirmed();
             List<String> me = host.aboutPilot();
             StringBuilder b = new StringBuilder();

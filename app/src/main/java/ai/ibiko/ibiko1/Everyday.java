@@ -154,6 +154,9 @@ public final class Everyday {
     private static final Pattern CONVERT = Pattern.compile("(?i)^(?:convert |change |turn |what is |what's |how much is |how many is )?"
             + NUM + " ?" + U + " (?:to|in|into|in to|as|equals how many|is how many|=) " + U + "$");
     private static final Pattern HOW_MANY = Pattern.compile("(?i)^how (?:many|much) " + U + " (?:are |is )?(?:there )?(?:in|make|makes|to|per) " + NUM + " ?" + U + "$");
+    /** "How many pounds is 10 kg?", "how many miles are 5 km". */
+    private static final Pattern HOW_MANY_IS = Pattern.compile("(?i)^how (?:many|much) " + U + " (?:is|are|would be|will be|does|do|makes?) " + NUM + " ?" + U
+            + "(?: make| equal| come to| be)?$");
     private static final Pattern HOW_MANY_ONE = Pattern.compile("(?i)^how (?:many|much) " + U + " (?:are |is )?(?:there )?(?:in|make|makes|to) (?:a|an|one) " + U + "$");
 
     static String units(String q) {
@@ -168,6 +171,10 @@ public final class Everyday {
         m = CONVERT.matcher(q);
         if (m.matches()) {
             return convert(number(m.group(1)), m.group(2), m.group(3));
+        }
+        m = HOW_MANY_IS.matcher(q);
+        if (m.matches()) {
+            return convert(number(m.group(2)), m.group(3), m.group(1));
         }
         return null;
     }

@@ -91,7 +91,8 @@ public final class Expressions {
             if (!asks && extra > 1) {
                 return null; // a saying used in a sentence ("how far is Lagos"): not asked about
             }
-        } else if (asks && previous != null && plain(message).trim().split(" ").length <= 8) {
+        } else if (asks && previous != null && plain(message).trim().split(" ").length <= 8
+                && message.matches("(?is).*\\b(?:this|that|it|the saying|the phrase|the expression|the idiom)\\b.*")) {
             s = find(previous); // "what does that mean?" after the saying
         }
         if (s == null) {

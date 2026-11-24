@@ -18,6 +18,11 @@ public final class Social {
             + "(?:ask|tell|say|share|talk to|talk with|show|send|confess|run|bounce|get your)\\b.*\\?*\\s*$");
     private static final Pattern PRIVATE = Pattern.compile("(?i)\\b(private|personal|secret|confidential|sensitive|embarrassing)\\b");
     private static final Pattern HUH = Pattern.compile("(?i)^\\s*(?:what|huh|pardon|sorry|eh|come again|say that again|what do you mean|i don'?t get it)\\s*[?!.]*\\s*$");
+    private static final Pattern FINE = Pattern.compile("(?i)^\\s*(?:very |so |really |pretty |all )?(?:good|great|fine|nice|cool|awesome|perfect|excellent|"
+            + "wonderful|amazing|fantastic|brilliant|lovely|ok|okay|alright|all right|sure|good good|i'?m good|i am good|i'?m fine|i am fine|"
+            + "doing (?:well|good|fine)|not bad)\\s*(?:thanks|thank you)?\\s*[!.]*\\s*$");
+    private static final Pattern NOT_FINE = Pattern.compile("(?i)^\\s*(?:not (?:good|great|fine|so good|well)|bad|terrible|awful|"
+            + "i'?m not (?:good|fine|ok|okay|well)|feeling (?:bad|low|down))\\s*[!.]*\\s*$");
     private static final Pattern YOU = Pattern.compile("(?i)^\\s*(?:you|yes you|hey you|you there)\\s*[!?.]*\\s*$");
     /** Nothing but question words: a question that stops before its end ("What can I?", "Can I?", "What can?"). */
     private static final Pattern CUT = Pattern.compile("(?i)^\\s*(?:(?:what|who|where|when|why|how|which|can|could|may|do|does|did|is|are|will|would|should)"
@@ -39,6 +44,16 @@ public final class Social {
                     ? "Of course, go ahead. I answer here on your phone; a question only goes out (to the web, or your API model if you've"
                     + " set one up) when I don't know the answer myself. You can turn those off in Settings › Data and privacy."
                     : "Of course, go ahead.";
+        }
+        // "Good", "Great!", "Okay": an answer or an acknowledgement, never a fact to note
+        if (FINE.matcher(m).matches()) {
+            boolean askedHow = lastAnswer != null && lastAnswer.toLowerCase(Locale.ROOT).matches("(?s).*\\bhow (are|is|have) (you|things|your|it)\\b.*\\?.*");
+            return askedHow ? "Glad to hear you're doing well! What would you like to do today?"
+                    : m.toLowerCase(Locale.ROOT).matches("(?:ok|okay|alright|all right|sure|fine)\\W*") ? "Alright. What would you like to do next?"
+                    : "Glad to hear it! What would you like to do next?";
+        }
+        if (NOT_FINE.matcher(m).matches()) {
+            return "Sorry to hear that. Do you want to tell me what's wrong? I'm listening.";
         }
         // "what can I do with you?": Ibiko's own account of itself answers it (SelfModel), with its live counts
         if (YOU.matcher(m).matches()) {
