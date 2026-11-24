@@ -2027,6 +2027,12 @@ public final class Ibiko1 {
         if (ordered != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ORDER);
         }
+        // "what is the highest mountain in the world?": a record, found by what it is
+        final String[] recordAsk = snippet == null ? ai.ibiko.ibiko1.formulas.Records.asked(t) : null;
+        final String record = recordAsk == null ? null : records().answer(recordAsk);
+        if (record != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.RECORD);
+        }
         // "how do you spell necessary?": spelled out, or the real word it's nearest to
         final String spellWord = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.asked(message) : null;
         final String spelled = spellWord == null ? null : ai.ibiko.ibiko1.formulas.Spelling.reply(spellWord,
@@ -2110,6 +2116,12 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case RECORD:
+                    turnDomain = "facts";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading your question: the " + recordAsk[0] + "est " + recordAsk[1] + " in " + recordAsk[2],
+                            "Looking it up among the records my encyclopedia names"), () -> saysPlain(who, record));
+                    return true;
                 case SPELL:
                     turnDomain = "language";
                     how = How.MEMORY;
@@ -2441,6 +2453,22 @@ public final class Ibiko1 {
     }
 
     private ai.ibiko.ibiko1.formulas.Sites sites;
+
+    private ai.ibiko.ibiko1.formulas.Records records;
+
+    /** The records the encyclopedia names (knowledge/records.tsv: a newer one downloaded to the phone first). */
+    public synchronized ai.ibiko.ibiko1.formulas.Records records() {
+        if (records == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/records.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            records = new ai.ibiko.ibiko1.formulas.Records(in);
+        }
+        return records;
+    }
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
 

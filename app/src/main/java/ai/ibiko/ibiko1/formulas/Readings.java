@@ -35,7 +35,7 @@ public final class Readings {
     public enum Kind {
         CODE("code to explain", "code"), ERROR("an error to explain", "code"), RESHAPE("my last answer, said another way", "talk"),
         ORDER("a puzzle about who is more", "reasons"), COUNT("a counting story", "reasons"),
-        SPELL("how a word is spelled", "language"), FUTURE("what hasn't happened yet", "reasons"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
+        SPELL("how a word is spelled", "language"), RECORD("a record: the most of something", "facts"), FUTURE("what hasn't happened yet", "reasons"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
         WORD("a word's meaning", "language"), SYNTAX("a sentence's structure", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
         CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
         KINDQ("whether one thing is a kind of another", "kinds"), AHEAD("what something leads to", "reasons"), WHY("a reason", "reasons");
@@ -119,6 +119,7 @@ public final class Readings {
     /** How surely each reader takes a message when it recognises it (before the words and the context). */
     private static double base(Kind k) {
         switch (k) {
+            case RECORD: return 0.85; // "the highest mountain in the world": found by what it is
             case SPELL: return 0.9; // "how do you spell X": the word, not a question about me
             case FUTURE: return 0.85; // what hasn't happened yet: said plainly, not looked up
             case COUNT: return 0.9; // the numbers and what happens to them are all in the message

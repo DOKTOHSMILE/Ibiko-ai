@@ -7,6 +7,8 @@ fact.mandela.born
 fact.mandela.who
 fact.nigeria.currency
 fact.ghana.currency
+fact.everest
+fact.nile
 fact.sun.star
 fact.photosynthesis
 fact.dna

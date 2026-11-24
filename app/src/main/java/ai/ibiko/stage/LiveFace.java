@@ -23,6 +23,12 @@ public final class LiveFace extends View {
     public enum Mood { THINKING, READING, WRITING, WORKING, REPLYING }
 
     private final Random random = new Random();
+
+    /** Tests only: the same blinks and glances every run, so a check on them can't pass or fail by chance. */
+    void seed(long s) {
+        random.setSeed(s);
+        nextBlink = start + 900 + random.nextInt(2500); // the first blink, as the constructor plans it, from the seed
+    }
     private final Paint face = new Paint(Paint.ANTI_ALIAS_FLAG), rim = new Paint(Paint.ANTI_ALIAS_FLAG),
             trace = new Paint(Paint.ANTI_ALIAS_FLAG), eye = new Paint(Paint.ANTI_ALIAS_FLAG),
             core = new Paint(Paint.ANTI_ALIAS_FLAG), glow = new Paint(Paint.ANTI_ALIAS_FLAG);
