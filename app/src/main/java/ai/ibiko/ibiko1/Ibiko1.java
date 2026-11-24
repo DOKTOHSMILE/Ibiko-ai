@@ -769,6 +769,10 @@ public final class Ibiko1 {
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
         // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
         // the best taken first (not the first pattern that fits); the others kept to fall back on
+        // a learning conversation with the pilot's API model: started, or stopped, when asked
+        if (pasted == null && learningTurn(who, message)) {
+            return;
+        }
         // "what do you think about remote work?": a view of its own, reasoned from what it reads, with how sure it is
         if (pasted == null && opinionTurn(who, message)) {
             return;
@@ -3087,6 +3091,106 @@ public final class Ibiko1 {
      * place and number put in, one responsive HTML file given whole. Explained or compared: from what it knows of each
      * kind. False when it names no kind it knows (the rest of Ibiko, or the coding agent, takes it).
      */
+    private volatile LearningTalk learningTalk;
+
+    /** Whether Ibiko is in a learning conversation with the API model now. */
+    public boolean learning() {
+        LearningTalk l = learningTalk;
+        return l != null && l.going();
+    }
+
+    /**
+     * "Start a learning conversation with my API model", "go and learn 20 things", "stop learning": Ibiko asks the API
+     * model what it doesn't know, checks each answer against what it holds, keeps it by the verdict, and shows every
+     * exchange ({@link LearningTalk}). False when the message isn't about one.
+     */
+    private boolean learningTurn(final String who, String message) {
+        if (LearningTalk.stops(message)) {
+            LearningTalk l = learningTalk;
+            if (l == null || !l.going()) {
+                return false;
+            }
+            l.stop();
+            think(Arrays.asList("Reading your message", "Ending the learning conversation"),
+                    () -> saysPlain(who, "Stopped. What I learned so far is kept; ask me about any of it."));
+            return true;
+        }
+        final int count = LearningTalk.asked(message);
+        if (count == 0) {
+            return false;
+        }
+        if (!host.teacherReady()) {
+            think(Arrays.asList("Reading your message: a learning conversation with your API model"), () -> saysPlain(who,
+                    "I need an API model to learn from: add one in Settings › Models (your API key), then ask me again. Each question I ask it "
+                            + "uses your tokens, so I'll ask " + count + " and stop."));
+            return true;
+        }
+        if (learning()) {
+            think(Arrays.asList("Reading your message"), () -> saysPlain(who, "I'm already in a learning conversation. Say “stop learning” to end it."));
+            return true;
+        }
+        final String teacher = host.teacherName();
+        learningTalk = new LearningTalk(new LearningTalk.Brain() {
+            @Override
+            public String ask(String question) {
+                String a = host.askTeacher(TEACHER_SYSTEM, "Question: " + PromptReader.guard(question));
+                return a == null ? null : ai.ibiko.suit.FunctionCode.withoutCode(a).trim();
+            }
+
+            @Override
+            public String teacher() {
+                return teacher;
+            }
+
+            @Override
+            public String checkAndKeep(String question, String answer, String subject) {
+                if (ai.ibiko.learn.Corroborate.failure(answer)) {
+                    return "Not kept: that isn't an answer.";
+                }
+                String about = subject != null ? subject : ResearchAnswer.subject(question);
+                Encyclopedia.Article art = about == null ? null : encyclopedia().find(about);
+                TeacherCheck.Result r = TeacherCheck.check(answer, about, facts(), knowledge(), art == null ? null : art.text);
+                long now = System.currentTimeMillis();
+                learner().read(answer, Learner.Source.RESEARCH, now); // the language of it, learned too
+                if (r == null || r.verdict == TeacherCheck.Verdict.NEW) {
+                    knowledge().learnUnchecked(question, answer);
+                    facts().learn(answer, about, 1, now);
+                    return "Kept as unsure: it's new to me, so I'll hold it until you confirm it.";
+                }
+                if (r.verdict == TeacherCheck.Verdict.CONFIRMED) {
+                    knowledge().confirm(question, answer);
+                    facts().learn(answer, about, 2, now);
+                    return "Kept as known: it agrees with " + r.because + ".";
+                }
+                return "Set aside: it goes against what I hold (" + r.because + "). Tell me which is right.";
+            }
+
+            @Override
+            public List<String> open() {
+                return learner().openQuestions();
+            }
+
+            @Override
+            public String randomSubject(java.util.Random r) {
+                return encyclopedia().randomSubject(r);
+            }
+
+            @Override
+            public boolean knows(String name) {
+                return encyclopedia().find(name) != null;
+            }
+        }, text -> host.onScreen(() -> host.say(host.persona(), text)));
+        how = How.OTHER;
+        think(Arrays.asList("Reading your message: a learning conversation with " + teacher, "Picking what I don't know yet"), () -> {
+            saysPlain(who, "Starting a learning conversation with " + teacher + ": I'll ask " + count + (count == 1 ? " question" : " questions")
+                    + " about what I don't know: first what I couldn't answer before, then what each answer makes me curious about, then "
+                    + "random subjects. I'll check every answer against what I hold before I keep it. Each question uses your API tokens; "
+                    + "say “stop learning” to end it.");
+            learningTalk.start(count);
+        });
+        return true;
+    }
+
     private static final java.util.regex.Pattern OPINION_ASK = java.util.regex.Pattern.compile("(?i)^\\s*(?:so\\s+|and\\s+|ok(?:ay)?,?\\s+)?(?:what do you think (?:about|of)|"
             + "what are your thoughts (?:on|about)|what(?:'s| is) your (?:opinion|view|take) (?:on|of|about)|your thoughts on|how do you feel about|"
             + "do you think (?:that )?(.{2,60}?) is (?:good|bad|worth it|a good idea)|is (.{2,60}?) (?:good or bad|a good idea|worth it))(?:\\s*(.{2,80}?))?\\s*[?.!]*\\s*$");

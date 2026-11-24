@@ -95,6 +95,7 @@ public class RoutingAuditTest {
         {"error", "TypeError: 'NoneType' object is not subscriptable", "(?i)none"},
         {"site", "Build me a website for my shop called Ada Stores in Kano", "<!doctype html>"},
         {"honest", "What will the weather be tomorrow?", "(?i)(forecast|online|can't|cannot)"},
+        {"learning-talk", "Start a learning conversation with my API model", "(?i)API model"},
         {"memory", "What have you learned so far?", "(?i)(confirm|learned|answers)"},
     };
 

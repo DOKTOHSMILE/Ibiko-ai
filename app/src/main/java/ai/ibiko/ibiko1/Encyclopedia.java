@@ -90,6 +90,43 @@ public final class Encyclopedia {
         return null;
     }
 
+    /**
+     * A subject chosen at random from the encyclopedia's articles (not its other names for them), for curiosity: what to
+     * learn about next. Null when there are none.
+     */
+    public synchronized String randomSubject(java.util.Random r) {
+        for (int tries = 0; tries < 8; tries++) {
+            byte[] shard = load(r.nextInt(SHARDS));
+            if (shard.length < 4 || shard[0] != 'I' || shard[3] != '1') {
+                continue;
+            }
+            int[] p = {4};
+            int count = varint(shard, p);
+            if (count == 0) {
+                continue;
+            }
+            int want = r.nextInt(count);
+            for (int e = 0; e < count && p[0] < shard.length; e++) {
+                int kl = varint(shard, p), ks = p[0];
+                p[0] += kl;
+                int kind = shard[p[0]++] & 0xff;
+                int tl = 0, ts = p[0];
+                if (((kind >> 1) & 3) == 0) {
+                    tl = varint(shard, p);
+                    ts = p[0];
+                    p[0] += tl;
+                }
+                int pl = varint(shard, p);
+                p[0] += pl;
+                if (e >= want && (kind & 1) == 0) {
+                    String k = new String(shard, ks, kl, StandardCharsets.UTF_8);
+                    return title(shard, new int[]{ts, tl, kind, 0, 0}, k);
+                }
+            }
+        }
+        return null;
+    }
+
     /** A varint at {@code p[0]} in {@code b}; {@code p[0]} moves past it. */
     static int varint(byte[] b, int[] p) {
         int n = 0, shift = 0;
