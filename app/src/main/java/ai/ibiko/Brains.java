@@ -211,6 +211,11 @@ final class Brains {
      */
     /** Which brain the user picked: "ibiko" (Ibiko's own), "device" (the offline model) or "api" (the default). */
     String brainPick() {
+        // a chat with its own brain: the Learning chat is answered by the API model ("Ibiko, …" there: by Ibiko)
+        String own = a.learningRoom == null ? null : a.learningRoom.brain();
+        if (own != null) {
+            return own;
+        }
         return a.prefs == null ? "api" : a.prefs.getString("brain_pick", "api");
     }
 

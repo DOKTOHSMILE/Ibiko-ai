@@ -151,6 +151,55 @@ public final class LearningTalk {
         going = false;
     }
 
+    // ------------------------------------------------------------------ one step at a time (the Learning chat)
+
+    private final Deque<String> wonder = new ArrayDeque<String>();
+    private final Set<String> askedOnce = new LinkedHashSet<String>();
+    private List<String> openOnes;
+
+    /**
+     * The next question to ask, and the subject it is about (null for a question it couldn't answer before): what it
+     * couldn't answer first, then what the last answer made it curious about, then a random subject. Null when it has
+     * nothing to ask. For a chat that sends each question the way a person sends a message.
+     */
+    public synchronized String[] next() {
+        if (openOnes == null) {
+            openOnes = new ArrayList<String>(brain.open());
+        }
+        while (!openOnes.isEmpty()) {
+            String q = openOnes.remove(0);
+            if (askedOnce.add(q.toLowerCase(Locale.ROOT))) {
+                return new String[]{q, null};
+            }
+        }
+        while (!wonder.isEmpty()) {
+            String c = wonder.poll();
+            if (askedOnce.add(c.toLowerCase(Locale.ROOT))) {
+                return new String[]{"Tell me about " + c + ".", c};
+            }
+        }
+        for (int tries = 0; tries < 6; tries++) {
+            String s = brain.randomSubject(random);
+            if (s != null && askedOnce.add(s.toLowerCase(Locale.ROOT))) {
+                return new String[]{pick(s), s};
+            }
+        }
+        return null;
+    }
+
+    /** An answer heard (to Ibiko's question or to the person's): the names in it it doesn't know become questions. */
+    public synchronized void heard(String answer, String subject) {
+        if (answer == null) {
+            return;
+        }
+        for (String name : names(answer)) {
+            if (wonder.size() < 6 && !name.equalsIgnoreCase(subject == null ? "" : subject) && !brain.knows(name)
+                    && !askedOnce.contains(name.toLowerCase(Locale.ROOT))) {
+                wonder.add(name);
+            }
+        }
+    }
+
     /** Starts a learning conversation of {@code count} questions, in the background. */
     public void start(final int count) {
         final int mine = ++run;
@@ -268,7 +317,7 @@ public final class LearningTalk {
             + "please (?:clarify|provide)|that (?:isn't|is not) a (?:complete )?question)");
 
     /** "The question is incomplete…", "Could you clarify…": the model couldn't answer, so there's nothing to keep. */
-    static boolean notAnAnswer(String a) {
+    public static boolean notAnAnswer(String a) {
         return a == null || NO_ANSWER.matcher(a).find();
     }
 

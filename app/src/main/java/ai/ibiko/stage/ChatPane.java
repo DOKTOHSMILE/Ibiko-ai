@@ -1917,7 +1917,7 @@ public final class ChatPane extends LinearLayout {
             row.setContentDescription("Campaign " + x.name + ", " + state);
             row.setOnClickListener(v -> {
                 closeDrawer();
-                c.startActivity(ai.ibiko.chat.ui.CampaignChatActivity.open(c, x.id));
+                c.startActivity(ai.ibiko.CampaignRoom.intent(c, x.id));
             });
             list.addView(row);
         }

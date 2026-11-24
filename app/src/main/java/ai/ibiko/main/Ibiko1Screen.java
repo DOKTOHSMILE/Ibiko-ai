@@ -61,6 +61,16 @@ public final class Ibiko1Screen implements Ibiko1.Host {
         default String teacherName() {
             return "the API model";
         }
+
+        /** Opens the Learning chat; false where there is none. */
+        default boolean openLearningChat() {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean openLearningChat() {
+        return parts.openLearningChat();
     }
 
     @Override

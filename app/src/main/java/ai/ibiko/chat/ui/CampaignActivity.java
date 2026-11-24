@@ -29,7 +29,7 @@ import ai.ibiko.social.campaign.Results;
  * to see its picture, edit it, take it out, share it or try it again.
  */
 public final class CampaignActivity extends AppCompatActivity {
-    static final String EXTRA_ID = "campaign";
+    public static final String EXTRA_ID = "campaign";
     private LinearLayout body;
     private TextView title;
     private String id;
@@ -109,7 +109,7 @@ public final class CampaignActivity extends AppCompatActivity {
                 fill();
             }), grow(0));
         }
-        acts.addView(action("Studio chat", false, v -> startActivity(CampaignChatActivity.open(this, c.id))),
+        acts.addView(action("Studio chat", false, v -> startActivity(ai.ibiko.CampaignRoom.intent(this, c.id))),
                 grow(acts.getChildCount() > 0 ? 8 : 0));
         acts.addView(action("Delete", false, v -> new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setMessage("Delete “" + c.name + "”? Posts already out stay on the networks; the rest won't go out.")

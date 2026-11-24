@@ -21,7 +21,7 @@ import ai.ibiko.social.campaign.CampaignChat;
 import ai.ibiko.social.campaign.CampaignRunner;
 import ai.ibiko.social.campaign.CampaignStudio;
 
-/** A campaign's studio conversation: its brief, its posts as feed cards with links, and the next steps as chips. */
+/** A campaign's studio conversation, a page of the one chat screen: its brief, the plan, and its posts with their links. */
 @RunWith(RobolectricTestRunner.class)
 @Config(qualifiers = "w320dp-h640dp-xhdpi")
 public class CampaignStudioScreenTest {
@@ -52,28 +52,33 @@ public class CampaignStudioScreenTest {
         CampaignChat chat = CampaignStudio.chat(app, c.id);
         chat.add(CampaignChat.YOU, "brief", "New social media campaign\n\nBusiness: Valineto3 Enterprises", now - 86_000_000L);
         chat.add(CampaignChat.STUDIO, "plan", "Your campaign is planned: 3 posts.", now - 85_000_000L);
-        ActivityController<CampaignChatActivity> a = Robolectric.buildActivity(CampaignChatActivity.class,
-                CampaignChatActivity.open(app, c.id)).create().start().resume().visible();
-        ShadowLooper.idleMainLooper();
-        View root = a.get().getWindow().getDecorView();
-        assertNotNull(byText(root, "Campaign brief"));
-        assertNotNull(byText(root, "Post number 0"));
-        assertNotNull("a post that went out links to itself", byText(root, "Open the post on Facebook"));
-        assertNotNull(byText(root, "Coming up"));
-        assertNotNull("the next step for a running campaign, one tap", byText(root, "How is it doing?"));
-        // the tools over the message box, as in the chat; pausing is in the Campaign sheet
-        for (String tool : new String[] {"Campaign", "Posts", "Media", "Edit"}) {
-            assertNotNull(tool, byText(root, tool));
-        }
-        assertNotNull("the model, chosen in the message box", byText(root, "Choose a model"));
-        // no control twice: the Campaign chip is the only way to its sheet, the Media chip the only way to add files
-        assertNull("no ⋮ that opens the same sheet as the Campaign chip", byDescription(root, "Campaign options"));
-        assertNull("no attach button beside the Media chip", byDescription(root, "Add your pictures"));
-        java.util.List<String> labels = new java.util.ArrayList<String>();
-        chipLabels(root, labels);
-        assertEquals("each control once: " + labels, new java.util.HashSet<String>(labels).size(), labels.size());
+        // the conversation opens as a page of the one chat screen: no screen of its own
+        ActivityController<ai.ibiko.MainActivity> a = Robolectric.buildActivity(ai.ibiko.MainActivity.class,
+                ai.ibiko.CampaignRoom.intent(app, c.id)).create().start().resume().visible();
+        ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS);
+        ai.ibiko.chat.ChatBook.Section page = a.get().chatsForTest().current();
+        assertEquals("Gas week", page.title);
+        String all = text(page);
+        assertNotNull(all, all.contains("Campaign brief") ? all : null);
+        assertNotNull(all, all.contains("The plan is ready") ? all : null);
+        // what the owner sends takes the same way as any message: it shows as theirs, and the reply comes back in the chat
+        a.get().answerForTest("Show the posts");
+        ShadowLooper.idleMainLooper(3, java.util.concurrent.TimeUnit.SECONDS);
+        all = text(a.get().chatsForTest().current());
+        assertNotNull(all, all.contains("user: Show the posts") ? all : null);
+        assertNotNull(all, all.contains("Post number 0") ? all : null);
+        assertNotNull("a post that went out links to itself: " + all, all.contains("Open the post on Facebook") ? all : null);
+        assertNotNull(all, all.contains("Coming up") ? all : null);
         a.pause().stop().destroy();
         CampaignRunner.delete(app, c);
+    }
+
+    private static String text(ai.ibiko.chat.ChatBook.Section s) {
+        StringBuilder b = new StringBuilder();
+        for (ai.ibiko.chat.ChatBook.Message m : s.messages) {
+            b.append(m.role).append(": ").append(m.body).append('\n');
+        }
+        return b.toString();
     }
 
     private static View byDescription(View v, String what) {

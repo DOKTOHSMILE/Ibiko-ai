@@ -119,6 +119,11 @@ public final class Ibiko1 {
             return "the API model";
         }
 
+        /** Opens the Learning chat, where the learning conversation happens; false where there is none (no screen). */
+        default boolean openLearningChat() {
+            return false;
+        }
+
         /** Carries out a function code line ("§SR weather in Lagos") through the app's gate for every model. */
         default void act(String message, String codeLine) {
         }
@@ -3145,6 +3150,14 @@ public final class Ibiko1 {
         }
         if (learning()) {
             think(Arrays.asList("Reading your message"), () -> saysPlain(who, "I'm already in a learning conversation. Say “stop learning” to end it."));
+            return true;
+        }
+        if (host.openLearningChat()) {
+            // the conversation happens in its own chat, through the same way as every message
+            think(Arrays.asList("Reading your message: a learning conversation with " + host.teacherName(), "Opening the Learning chat"),
+                    () -> saysPlain(who, "Opening the Learning chat: I'll type my questions to " + host.teacherName() + " there and send them the way"
+                            + " you send yours, check every answer before I keep it, and you can join in. Each question uses your API tokens;"
+                            + " say “stop learning” there to end it."));
             return true;
         }
         final String teacher = host.teacherName();

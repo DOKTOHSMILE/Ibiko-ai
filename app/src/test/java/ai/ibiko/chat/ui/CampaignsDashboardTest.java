@@ -90,8 +90,9 @@ public class CampaignsDashboardTest {
         View card = (View) byText(root, "Gas week").getParent().getParent();
         card.performClick();
         android.content.Intent next = Shadows.shadowOf(c.get()).getNextStartedActivity();
-        assertEquals("a card opens the campaign's studio conversation", CampaignChatActivity.class.getName(),
+        assertEquals("a card opens the campaign's conversation on the chat screen", ai.ibiko.MainActivity.class.getName(),
                 next.getComponent().getClassName());
+        assertEquals("r1", next.getStringExtra(ai.ibiko.CampaignRoom.EXTRA));
         c.pause().stop().destroy();
 
         android.content.Intent all = new android.content.Intent(app, CampaignActivity.class).putExtra(CampaignActivity.EXTRA_ID, "r1");
