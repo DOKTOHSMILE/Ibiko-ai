@@ -380,6 +380,11 @@ public class WhyFlowTest {
                     + "  File \"shop.py\", line 4, in <module>\n    print(\"Total: \" + total)\nTypeError: can only concatenate str (not \"int\") to str");
             assertTrue("a traceback is explained, not summarised as a text: " + tb,
                     tb.startsWith("That's a Python error: TypeError: can only concatenate str (not \"int\") to str") && tb.contains("Where: shop.py, line 4."));
+            String fix = ask(brain, chat, "How do I fix it?");
+            assertTrue("a follow-up about the error just explained: " + fix, fix.startsWith("To fix it: turn the number into text with str()"));
+            String both = ask(brain, chat, "My code:\n```python\nprices = {'tea': 2}\nprint(prices['coffee'])\n```\nand I get KeyError: 'coffee'");
+            assertTrue("the error, pointed at the code that came with it: " + both, both.startsWith("That's a Python error: KeyError: 'coffee'")
+                    && both.contains("In your code: line 2: print(prices['coffee'])"));
             String fenced = ask(brain, chat, "```\nUncaught TypeError: Cannot read properties of undefined (reading 'length')\n    at count (app.js:3:17)\n```");
             assertTrue("in fences too: an error, not code to read: " + fenced, fenced.startsWith("That's a JavaScript error:"));
         } finally {

@@ -1872,7 +1872,11 @@ public final class Ibiko1 {
         }
         // an error message pasted (on its own, or with the code that gave it): what it means and the fix
         final ai.ibiko.ibiko1.formulas.ErrorTalk.Found error = runIt ? null : errors().find(message);
-        if (error != null) {
+        // or a follow-up about the error just explained: "how do I fix it?", "why?"
+        final ai.ibiko.ibiko1.formulas.ErrorTalk.Found errorBefore = lastError;
+        final ai.ibiko.ibiko1.formulas.ErrorTalk.Ask errorAsk = error == null && snippet == null && errorBefore != null
+                ? ai.ibiko.ibiko1.formulas.ErrorTalk.followUp(message) : null;
+        if (error != null || errorAsk != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ERROR);
         }
         // a follow-up about the code just read: convert it, one line of it, a mistake in it
@@ -1977,7 +1981,17 @@ public final class Ibiko1 {
                     break;
                 case ERROR:
                     turnDomain = "code";
-                    final String fixIt = ai.ibiko.ibiko1.formulas.ErrorTalk.explain(error);
+                    if (error == null) {
+                        final String more = ai.ibiko.ibiko1.formulas.ErrorTalk.followed(errorBefore, errorAsk, lastErrorCode);
+                        how = How.MEMORY;
+                        think(Arrays.asList("Reading your question about the error we're on: " + errorBefore.line),
+                                () -> saysExact(who, more));
+                        return true;
+                    }
+                    // the code pasted with it (in fences, or the error's own message when it's all one paste)
+                    lastError = error;
+                    lastErrorCode = snippet != null && !snippet.code.contains(error.line) ? snippet.code : null; // the error itself isn't "your code"
+                    final String fixIt = ai.ibiko.ibiko1.formulas.ErrorTalk.explain(error, lastErrorCode);
                     how = How.MEMORY;
                     List<String> reading = new ArrayList<String>(Arrays.asList("Reading what you pasted: an error message",
                             "Recognising it: " + error.known.seen.replaceAll("'[^']*'|\"[^\"]*\"|`[^`]*`", "…")));
@@ -2228,6 +2242,10 @@ public final class Ibiko1 {
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
 
+    /** The error last explained, and the code that came with it, for "how do I fix it?" and "why?". */
+    private volatile ai.ibiko.ibiko1.formulas.ErrorTalk.Found lastError;
+    private volatile String lastErrorCode;
+
     /** The programming errors it explains (knowledge/code/errors.tsv: a newer one downloaded to the phone first). */
     public synchronized ai.ibiko.ibiko1.formulas.ErrorTalk errors() {
         if (errors == null) {
@@ -2391,6 +2409,10 @@ public final class Ibiko1 {
             }
         }
         readingContext.said(domain);
+        if (!"code".equals(domain)) {
+            lastError = null; // "how do I fix it?" is about the error only while we're still on it
+            lastErrorCode = null;
+        }
         // a turn about code or websites makes computing the subject, as naming a computing word does: "what is a bug?"
         // next means the programming one
         String subject = domain == null ? null : SUBJECT_OF.get(domain);
