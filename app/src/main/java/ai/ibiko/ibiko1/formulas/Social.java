@@ -25,6 +25,11 @@ public final class Social {
 
     /** The reply to something said to Ibiko itself, or null when it isn't one of these. */
     public static String reply(String message, String lastAnswer, String lastAsked) {
+        return reply(message, lastAnswer, lastAsked, null);
+    }
+
+    /** As {@link #reply(String, String, String)}, a question cut short answered with {@code cutShort} when one is given (its kind's own reply). */
+    public static String reply(String message, String lastAnswer, String lastAsked, String cutShortReply) {
         if (message == null) {
             return null;
         }
@@ -51,7 +56,8 @@ public final class Social {
                     && lastAsked.trim().length() > words.length() + 2) {
                 return "That's how your last question began: “" + lastAsked.trim() + "” Did you want to ask it again, or ask something else?";
             }
-            return "“" + Character.toUpperCase(words.charAt(0)) + words.substring(1) + "…” what? The question stops there: finish it and I'll answer.";
+            return cutShortReply != null ? cutShortReply
+                    : "“" + Character.toUpperCase(words.charAt(0)) + words.substring(1) + "…” what? The question stops there: finish it and I'll answer.";
         }
         return null;
     }

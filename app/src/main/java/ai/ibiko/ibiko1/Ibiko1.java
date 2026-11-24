@@ -2050,8 +2050,24 @@ public final class Ibiko1 {
         if (notHappened != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.FUTURE);
         }
-        // said to Ibiko itself: "can I ask you something private?", "what can I do with you?", "You!", a question cut short
-        final String social = snippet == null ? ai.ibiko.ibiko1.formulas.Social.reply(message, lastAnswer, previous) : null;
+        // the kind of question, by how it starts ("why": a reason; "what was": the past; "what happened": an event…), said in
+        // the thinking; a question that is only its opening ("What was?") answered from its kind and the subject we're on
+        final ai.ibiko.ibiko1.formulas.QuestionTypes.Kind qkind = snippet == null ? questionTypes().of(message) : null;
+        if (qkind != null) {
+            String kindStep = "It's " + qkind.said();
+            contextStep = contextStep == null ? kindStep : contextStep + "; " + kindStep;
+        }
+        Context.Focus onNow = context.focus(System.currentTimeMillis());
+        boolean followsAnswer = lastAnswer != null && (ai.ibiko.ibiko1.formulas.Social.huh(message)
+                || qkind != null && qkind.row.type.equals("REASON")); // "Why?" / "What?" just after an answer: the follow-ups do those
+        final String openingOnly = qkind == null || followsAnswer ? null
+                : ai.ibiko.ibiko1.formulas.QuestionTypes.alone(qkind, onNow == null ? null : onNow.name);
+        // said to Ibiko itself: "can I ask you something private?", "You!", a question cut short
+        String toMe = snippet == null ? ai.ibiko.ibiko1.formulas.Social.reply(message, lastAnswer, previous, openingOnly) : null;
+        if (toMe == null) {
+            toMe = openingOnly;
+        }
+        final String social = toMe;
         if (social != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SOCIAL);
         }
@@ -2499,6 +2515,22 @@ public final class Ibiko1 {
     }
 
     private ai.ibiko.ibiko1.formulas.Sites sites;
+
+    private ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes;
+
+    /** The kinds of question by how they start (knowledge/language/question_types.tsv: a newer one downloaded first). */
+    public synchronized ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes() {
+        if (questionTypes == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/language/question_types.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            questionTypes = new ai.ibiko.ibiko1.formulas.QuestionTypes(in);
+        }
+        return questionTypes;
+    }
 
     private ai.ibiko.ibiko1.formulas.Records records;
 

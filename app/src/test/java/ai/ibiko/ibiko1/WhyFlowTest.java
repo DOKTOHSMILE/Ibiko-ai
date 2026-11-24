@@ -488,7 +488,16 @@ public class WhyFlowTest {
             assertTrue("a question cut short, that the last one began the same way: " + cut,
                     cut.startsWith("That's how your last question began: “What can I do with you?”"));
             String bare = ask(brain, chat, "Can I?");
-            assertTrue(bare, bare.startsWith("“Can I…” what?"));
+            assertTrue("its kind's own reply: " + bare, bare.startsWith("Can you what? Go ahead"));
+            ask(brain, chat, "Tell me about Nigeria");
+            String wasAlone = ask(brain, chat, "What was?");
+            assertTrue("an opening alone, with the subject we're on: " + wasAlone, wasAlone.startsWith("‘What was…’ asks about something in the past")
+                    && wasAlone.contains("About Nigeria"));
+            boolean kindSaid = false;
+            for (String st : new ArrayList<String>(chat.steps)) {
+                kindSaid |= st.contains("It's a what-was question, about the past");
+            }
+            assertTrue("the kind is in the thinking: " + chat.steps, kindSaid);
             String you = ask(brain, chat, "You!");
             assertTrue(you, you.startsWith("Yes, me!"));
             ask(brain, chat, "What is photosynthesis?");
