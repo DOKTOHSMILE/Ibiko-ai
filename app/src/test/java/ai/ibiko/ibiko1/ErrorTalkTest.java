@@ -66,5 +66,34 @@ public class ErrorTalkTest {
         assertNull(e.find("throw new NullPointerException();"));
         assertNull(e.find("if (err instanceof TypeError) { console.log('TypeError: Cannot read properties of undefined (reading \\'x\\')'); }"));
         assertNull(e.find("What is a segmentation of the market?"));
+        assertNull("talk about one, not one seen", e.find("Tell me about KeyError: what is it?"));
+        assertEquals("said in words", "KeyError: 'b'", e.find("when I run it I get KeyError: 'b'").line);
+    }
+
+    @Test
+    public void theLineOfYourCodeItIsAbout() {
+        ErrorTalk e = errors();
+        String code = "prices = {'tea': 2}\nqty = 3\nprint('Total: ' + qty)\nprint(prices['coffee'])";
+        ErrorTalk.Found byLine = e.find("Traceback (most recent call last):\n  File \"shop.py\", line 3, in <module>\n"
+                + "TypeError: can only concatenate str (not \"int\") to str");
+        assertEquals("3", ErrorTalk.inCode(byLine, code)[0]);
+        assertTrue(ErrorTalk.explain(byLine, code).contains("In your code: line 3: print('Total: ' + qty)"));
+        ErrorTalk.Found byName = e.find("KeyError: 'coffee'");
+        assertEquals("by the name it's about", "print(prices['coffee'])", ErrorTalk.inCode(byName, code)[1]);
+        assertNull(ErrorTalk.inCode(byName, null));
+    }
+
+    @Test
+    public void followUpsAboutTheErrorJustExplained() {
+        ErrorTalk.Found f = errors().find("NameError: name 'total' is not defined");
+        assertEquals(ErrorTalk.Ask.FIX, ErrorTalk.followUp("How do I fix it?"));
+        assertEquals(ErrorTalk.Ask.FIX, ErrorTalk.followUp("so what should I do"));
+        assertEquals(ErrorTalk.Ask.WHY, ErrorTalk.followUp("Why does this happen?"));
+        assertEquals(ErrorTalk.Ask.EXAMPLE, ErrorTalk.followUp("Show me an example"));
+        assertNull(ErrorTalk.followUp("How do I fix my bike?"));
+        String fix = ErrorTalk.followed(f, ErrorTalk.Ask.FIX, "x = 1\nprint(total)");
+        assertTrue(fix, fix.startsWith("To fix it: make total before you use it") && fix.contains("Start at line 2 of your code: print(total)")
+                && fix.contains("```python\ntotal = 0"));
+        assertTrue(ErrorTalk.followed(f, ErrorTalk.Ask.WHY, null).startsWith("It happens because the code uses the name total"));
     }
 }

@@ -92,6 +92,11 @@ public final class ErrorTalk {
             + "|\\[[^\\]]*\\]\\s*|\\$\\s*"
             + ")?$");
 
+    /** E1: or said in words before it: "and I get KeyError: 'coffee'", "it says: …", "the error is …". */
+    private static final Pattern SAID = Pattern.compile("(?i)^.*\\b(?:i (?:get|got|keep getting|am getting|see|saw)|i'm getting|getting|"
+            + "it (?:says|said|gives|gave|shows|showed|throws|threw|returns)|(?:the |this |an? )?error(?: message)?(?: is| says| was)?|says|shows)"
+            + "\\s*(?:this|the error|an error|that)?\\s*:?\\s*[\"“'`]?$");
+
     /** E1–E2: the first known error printed in the message, or null. */
     public Found find(String message) {
         if (message == null || known.isEmpty()) {
@@ -104,10 +109,13 @@ public final class ErrorTalk {
             while (m.find()) {
                 int start = message.lastIndexOf('\n', m.start()) + 1;
                 String before = message.substring(start, m.start());
-                if (PRINTED.matcher(before).matches()) {
+                boolean printed = PRINTED.matcher(before).matches();
+                if (printed || SAID.matcher(before).matches()) {
                     if (m.start() < bestAt) {
                         int end = message.indexOf('\n', m.end());
-                        best = new Found(k, message.substring(start, end < 0 ? message.length() : end).trim(), m);
+                        // printed: the whole line, as the tool wrote it; said: the error from where it starts
+                        String line = message.substring(printed ? start : m.start(), end < 0 ? message.length() : end).trim();
+                        best = new Found(k, line, m);
                         bestAt = m.start();
                     }
                     break;
@@ -154,10 +162,44 @@ public final class ErrorTalk {
 
     /** E3: the error explained, with its names filled in. */
     public static String explain(Found f) {
+        return explain(f, null);
+    }
+
+    /**
+     * E4: the line of the person's own code the error is about: the line the error names, when the code has it; else the
+     * first line that uses the name the error is about (the missing module, the undefined variable, the key). Null: none.
+     */
+    public static String[] inCode(Found f, String code) {
+        if (code == null || code.trim().isEmpty()) {
+            return null;
+        }
+        String[] lines = code.split("\n", -1);
+        if (f.at > 0 && f.at <= lines.length && !lines[f.at - 1].trim().isEmpty()) {
+            return new String[]{String.valueOf(f.at), lines[f.at - 1].trim()};
+        }
+        for (String g : f.groups) {
+            if (g == null || g.length() < 2 || !g.matches("[\\w.$]+")) {
+                continue;
+            }
+            Pattern word = Pattern.compile("(?<![\\w$])" + Pattern.quote(g) + "(?![\\w$])");
+            for (int i = 0; i < lines.length; i++) {
+                if (word.matcher(lines[i]).find()) {
+                    return new String[]{String.valueOf(i + 1), lines[i].trim()};
+                }
+            }
+        }
+        return null;
+    }
+
+    /** E3–E4: the error explained, pointing at the line of the code pasted with it, when there is one. */
+    public static String explain(Found f, String code) {
         Known k = f.known;
         StringBuilder b = new StringBuilder("That's ").append(article(lang(k.lang))).append(" error: ").append(f.line).append("\n\n");
         b.append("What it means: ").append(fill(k.means, f)).append(".\n\n");
-        if (f.file != null) {
+        String[] mine = inCode(f, code);
+        if (mine != null) {
+            b.append("In your code: line ").append(mine[0]).append(": ").append(mine[1]).append("\n\n");
+        } else if (f.file != null) {
             b.append("Where: ").append(f.file).append(f.at > 0 ? ", line " + f.at : "").append(". Look there first.\n\n");
         }
         b.append("Usually because: ").append(fill(k.causes, f)).append(".\n\n");
@@ -204,5 +246,39 @@ public final class ErrorTalk {
 
     private static String fence(String id) {
         return id.equals("shell") ? "bash" : id;
+    }
+
+    // ------------------------------------------------------------------------------------------------- follow-ups
+
+    /** What a follow-up about the error just explained asks for. */
+    public enum Ask { FIX, WHY, EXAMPLE }
+
+    private static final Pattern FIX = Pattern.compile("(?i)^\\s*(?:so |ok,? |okay,? )?(?:how (?:do|can|should) i (?:fix|solve|sort out|get rid of|stop) (?:it|this|that)"
+            + "|what (?:do|should) i do(?: now| about it)?|how to fix (?:it|this|that)|fix (?:it|this|that)(?: for me)?|what'?s the fix)\\s*[?.!]*$");
+    private static final Pattern WHY = Pattern.compile("(?i)^\\s*(?:but )?(?:why(?: does| did| is)? (?:it|this|that)(?: happen(?:ing)?)?|why|what causes? (?:it|this|that)"
+            + "|what(?:'s| is) causing (?:it|this|that)|how did (?:it|this|that) happen)\\s*[?.!]*$");
+    private static final Pattern EXAMPLE = Pattern.compile("(?i)^\\s*(?:can you )?(?:show me|give me)? ?(?:an |the )?(?:example|code)(?: of the fix| for (?:it|the fix))?\\s*[?.!]*$");
+
+    /** A follow-up about the error just explained ("how do I fix it?", "why?"), or null. */
+    public static Ask followUp(String message) {
+        String m = message == null ? "" : message.trim();
+        return FIX.matcher(m).matches() ? Ask.FIX : WHY.matcher(m).matches() ? Ask.WHY : EXAMPLE.matcher(m).matches() ? Ask.EXAMPLE : null;
+    }
+
+    /** The answer to a follow-up: the part of the explanation asked for, said on its own. */
+    public static String followed(Found f, Ask ask, String code) {
+        Known k = f.known;
+        String example = "```" + fence(k.lang) + "\n" + fill(k.example, f) + "\n```";
+        String[] mine = inCode(f, code);
+        String at = mine == null ? "" : " Start at line " + mine[0] + " of your code: " + mine[1];
+        switch (ask) {
+            case WHY:
+                return "It happens because " + fill(k.means, f) + ". The usual reasons: " + fill(k.causes, f) + "." + at;
+            case EXAMPLE:
+                return "Here's the fix in code:\n\n" + example;
+            default:
+                return "To fix it: " + fill(k.fix, f) + "." + at + "\n\n" + example + "\n\nRun it again after: if a new error comes up, "
+                        + "paste it and I'll read that one too.";
+        }
     }
 }
