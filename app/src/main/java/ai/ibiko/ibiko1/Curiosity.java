@@ -108,7 +108,10 @@ final class Curiosity {
             return true;
         }
         // "I have 3 apples" after "what is the capital of Nigeria?": about the person, sharing no word with the question
-        if (low.matches("^(i|i'm|i am|i've|my|we|we're|our)\\b.*") && low.split("\\s+").length >= 3) {
+        // (not when the question was about them, "what is my favourite colour?", nor a hedged answer, "I think it's blue")
+        if (low.matches("^(i|i'm|i am|i've|my|we|we're|our)\\b.*") && low.split("\\s+").length >= 3
+                && !g.question.toLowerCase(Locale.US).matches("(?s).*\\b(my|me|i|mine|myself)\\b.*")
+                && !low.matches("^(i think|i guess|i believe|i'd say|i would say|i suppose|i reckon|i'm not sure|i am not sure|i heard|i read)\\b.*")) {
             boolean shares = false;
             String q = " " + g.question.toLowerCase(Locale.US).replaceAll("[^\\p{L}\\p{N} ]", " ") + " ";
             for (String w : low.replaceAll("[^\\p{L}\\p{N} ]", " ").split("\\s+")) {
