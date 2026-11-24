@@ -96,4 +96,26 @@ public class LearningTalkTest {
         assertFalse(talk.going());
         assertTrue("nothing kept or shown after stopping: " + shown, shown.isEmpty());
     }
+
+    @Test
+    public void showsEachStepInOrderForTheLearningChat() throws Exception {
+        final List<String> seen = Collections.synchronizedList(new ArrayList<String>());
+        final CountDownLatch done = new CountDownLatch(1);
+        LearningTalk talk = new LearningTalk(new LearningTalk.Brain() {
+            @Override public String ask(String q) { return "Lake Chad is a lake in West Africa."; }
+            @Override public String teacher() { return "Claude"; }
+            @Override public String checkAndKeep(String q, String a, String s) { return "Kept as unsure: new to me."; }
+            @Override public List<String> open() { return new ArrayList<String>(Arrays.asList("What is Lake Chad?")); }
+            @Override public String randomSubject(Random r) { return null; }
+            @Override public boolean knows(String name) { return true; }
+        }, new LearningTalk.Events() {
+            @Override public void asking(String q) { seen.add("asking " + q); }
+            @Override public void answered(String q, String a) { seen.add("answered " + a); }
+            @Override public void kept(String v) { seen.add("kept " + v); }
+            @Override public void done(String s) { seen.add("done"); done.countDown(); }
+        });
+        talk.start(1);
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        assertEquals(Arrays.asList("asking What is Lake Chad?", "answered Lake Chad is a lake in West Africa.", "kept Kept as unsure: new to me.", "done"), seen);
+    }
 }

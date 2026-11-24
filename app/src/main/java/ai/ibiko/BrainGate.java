@@ -47,6 +47,9 @@ final class BrainGate {
         if (ai.ibiko.social.SocialPage.cleared(text)) {
             ai.ibiko.social.SocialWeb.resumePaused(a); // the site's check is done: the 24-hour pause comes off
         }
+        if (a.learningRoom.join(text)) {
+            return; // written in the Learning chat: to the API model and Ibiko there
+        }
         answer(text, false);
     }
 

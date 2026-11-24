@@ -3133,7 +3133,24 @@ public final class Ibiko1 {
             return true;
         }
         final String teacher = host.teacherName();
-        learningTalk = new LearningTalk(new LearningTalk.Brain() {
+        learningTalk = new LearningTalk(learningBrain(), text -> host.onScreen(() -> host.say(host.persona(), text)));
+        how = How.OTHER;
+        think(Arrays.asList("Reading your message: a learning conversation with " + teacher, "Picking what I don't know yet"), () -> {
+            saysPlain(who, "Starting a learning conversation with " + teacher + ": I'll ask " + count + (count == 1 ? " question" : " questions")
+                    + " about what I don't know: first what I couldn't answer before, then what each answer makes me curious about, then "
+                    + "random subjects. I'll check every answer against what I hold before I keep it. Each question uses your API tokens; "
+                    + "say “stop learning” to end it.");
+            learningTalk.start(count);
+        });
+        return true;
+    }
+
+    /**
+     * What a learning conversation is given of this brain: the API model to ask, and the check and keep every answer
+     * goes through ({@link TeacherCheck}), so what is learned in the Learning chat is learned the same way as here.
+     */
+    public LearningTalk.Brain learningBrain() {
+        return new LearningTalk.Brain() {
             @Override
             public String ask(String question) {
                 String a = host.askTeacher(TEACHER_SYSTEM, "Question: " + PromptReader.guard(question));
@@ -3142,7 +3159,7 @@ public final class Ibiko1 {
 
             @Override
             public String teacher() {
-                return teacher;
+                return host.teacherName();
             }
 
             @Override
@@ -3182,16 +3199,7 @@ public final class Ibiko1 {
             public boolean knows(String name) {
                 return encyclopedia().find(name) != null;
             }
-        }, text -> host.onScreen(() -> host.say(host.persona(), text)));
-        how = How.OTHER;
-        think(Arrays.asList("Reading your message: a learning conversation with " + teacher, "Picking what I don't know yet"), () -> {
-            saysPlain(who, "Starting a learning conversation with " + teacher + ": I'll ask " + count + (count == 1 ? " question" : " questions")
-                    + " about what I don't know: first what I couldn't answer before, then what each answer makes me curious about, then "
-                    + "random subjects. I'll check every answer against what I hold before I keep it. Each question uses your API tokens; "
-                    + "say “stop learning” to end it.");
-            learningTalk.start(count);
-        });
-        return true;
+        };
     }
 
     private static final java.util.regex.Pattern OPINION_ASK = java.util.regex.Pattern.compile("(?i)^\\s*(?:so\\s+|and\\s+|ok(?:ay)?,?\\s+)?(?:what do you think (?:about|of)|"

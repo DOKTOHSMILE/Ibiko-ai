@@ -41,7 +41,33 @@ public final class LearningTalk {
 
         /** Whether it already knows about a name (its encyclopedia or its facts). */
         boolean knows(String name);
+
+        /** While true, nothing new is asked (the person is talking in the learning chat). */
+        default boolean holding() {
+            return false;
+        }
     }
+
+    /**
+     * Each step of an exchange, for a chat that shows it as it happens: Ibiko typing its question, the model's answer,
+     * what Ibiko kept. Called on the talk's own thread.
+     */
+    public interface Events {
+        /** Ibiko is about to send {@code question}: shown being typed. */
+        void asking(String question);
+
+        /** The model answered (null: no answer). */
+        void answered(String question, String answer);
+
+        /** What Ibiko did with the answer ("Kept as known: …"). */
+        void kept(String verdict);
+
+        /** The talk ended: what it learned, in a line. */
+        void done(String summary);
+    }
+
+    /** The pauses that let a person watch: typing a question, reading an answer, between exchanges. 0 in tests. */
+    public long typeMsPerChar, readMsPerChar, betweenMs;
 
     private static final Pattern START = Pattern.compile("(?i)\\b(?:start|begin|have|enter|open|do|run)s?\\s+(?:into\\s+|in\\s+)?(?:a|an|the|your)?\\s*learning\\s+(?:conversation|session|chat|talk)\\b"
             + "|\\blearn(?:ing)?\\s+(?:(\\d{1,2})\\s+)?(?:some\\s+|random\\s+|new\\s+|more\\s+)*(?:things|knowledge|facts|stuff)\\s+(?:from|with)\\s+(?:my|the)\\s+(?:api\\s+)?(?:model|teacher|ai|llm|claude|gpt|gemini)\\b"
@@ -56,14 +82,48 @@ public final class LearningTalk {
     public static final int MOST = 50, USUAL = 10;
 
     private final Brain brain;
-    private final Consumer<String> show;
+    private final Events events;
     private final Random random = new Random();
     private volatile int run;
     private volatile boolean going;
 
-    public LearningTalk(Brain brain, Consumer<String> show) {
+    /** A talk shown as one block per exchange (in the chat it was asked from). */
+    public LearningTalk(final Brain brain, final Consumer<String> show) {
+        this(brain, new Events() {
+            private String asked;
+
+            @Override
+            public void asking(String question) {
+                asked = question;
+            }
+
+            @Override
+            public void answered(String question, String answer) {
+                if (answer == null) {
+                    show.accept("Ibiko → " + brain.teacher() + ": " + question + "\n" + brain.teacher() + ": (no answer)");
+                    asked = null;
+                } else {
+                    asked = "Ibiko → " + brain.teacher() + ": " + question + "\n" + brain.teacher() + ": " + clip(answer, 420);
+                }
+            }
+
+            @Override
+            public void kept(String verdict) {
+                show.accept((asked == null ? "" : asked + "\n") + "Ibiko: " + verdict);
+                asked = null;
+            }
+
+            @Override
+            public void done(String summary) {
+                show.accept(summary);
+            }
+        });
+    }
+
+    /** A talk shown step by step ({@link Events}), as a chat of its own. */
+    public LearningTalk(Brain brain, Events events) {
         this.brain = brain;
-        this.show = show;
+        this.events = events;
     }
 
     /** How many questions a message asks to learn, or 0 when it doesn't ask for a learning conversation. */
@@ -101,6 +161,12 @@ public final class LearningTalk {
             List<String> open = new ArrayList<String>(brain.open());
             int known = 0, unsure = 0, setAside = 0, none = 0;
             for (int i = 0; i < count && mine == run; i++) {
+                while (brain.holding() && mine == run) {
+                    nap(400); // the person is talking: the talk waits its turn
+                }
+                if (i > 0 && !nap(betweenMs) || mine != run) {
+                    return;
+                }
                 String subject = null, question = null;
                 while (question == null && !open.isEmpty()) {
                     String q = open.remove(0);
@@ -125,6 +191,10 @@ public final class LearningTalk {
                 if (question == null) {
                     break;
                 }
+                events.asking(question);
+                if (!nap(typeMsPerChar * question.length()) || mine != run) {
+                    return;
+                }
                 String answer;
                 try {
                     answer = brain.ask(question);
@@ -136,10 +206,14 @@ public final class LearningTalk {
                 }
                 if (answer == null || answer.trim().isEmpty()) {
                     none++;
-                    show.accept("Ibiko → " + brain.teacher() + ": " + question + "\n" + brain.teacher() + ": (no answer)");
+                    events.answered(question, null);
                     continue;
                 }
                 String a = answer.trim();
+                events.answered(question, a);
+                if (!nap(Math.min(9000, readMsPerChar * a.length())) || mine != run) {
+                    return;
+                }
                 String verdict = brain.checkAndKeep(question, a, subject);
                 if (verdict.startsWith("Kept as known")) {
                     known++;
@@ -148,7 +222,7 @@ public final class LearningTalk {
                 } else {
                     unsure++;
                 }
-                show.accept("Ibiko → " + brain.teacher() + ": " + question + "\n" + brain.teacher() + ": " + clip(a, 420) + "\nIbiko: " + verdict);
+                events.kept(verdict);
                 // what the answer named that Ibiko doesn't know yet: the next questions
                 for (String name : names(a)) {
                     if (curious.size() < 6 && !name.equalsIgnoreCase(subject == null ? "" : subject) && !brain.knows(name)
@@ -159,12 +233,26 @@ public final class LearningTalk {
             }
             if (mine == run) {
                 going = false;
-                show.accept("Learning conversation done: " + (known + unsure + setAside) + " answers learned from " + brain.teacher() + ". " + known
+                events.done("Learning conversation done: " + (known + unsure + setAside) + " answers learned from " + brain.teacher() + ". " + known
                         + " agreed with what I know and are kept as known; " + unsure + " are new to me, kept as unsure until you confirm them"
                         + (setAside > 0 ? "; " + setAside + " went against facts I hold, so I set them aside" : "")
                         + (none > 0 ? "; " + none + " got no answer" : "") + ". Ask me about any of it.");
             }
         }, "ibiko1-learning-talk").start();
+    }
+
+    /** Waits {@code ms}; false when the wait was cut short. */
+    private static boolean nap(long ms) {
+        if (ms <= 0) {
+            return true;
+        }
+        try {
+            Thread.sleep(ms);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     /** A question about a subject, in one of the ways a curious person asks. */
@@ -191,7 +279,7 @@ public final class LearningTalk {
         return out;
     }
 
-    private static String clip(String s, int n) {
+    static String clip(String s, int n) {
         String t = s.replaceAll("\\s+", " ");
         return t.length() <= n ? t : t.substring(0, n) + "…";
     }

@@ -2010,6 +2010,11 @@ public final class ChatPane extends LinearLayout {
         return row;
     }
 
+    /** Opens a chat by its id, as a tap on it in the list does (the Learning chat, when it is turned on). */
+    public void openChatById(String id) {
+        openChat(id);
+    }
+
     private void openChat(String id) {
         book.use(id);
         host.onSection(book.current());

@@ -51,6 +51,8 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     final InternetWait internetWait = new InternetWait(this);
     final Steering steering = new Steering(this);
     final BrainGate gates = new BrainGate(this);
+    /** The Learning chat: Ibiko and the API model talking, the pilot welcome to join. */
+    final LearningRoom learningRoom = new LearningRoom(this);
     final Pages pageTurns = new Pages(this);
     final Generation generationTurns = new Generation(this);
     final ComposerRow composerRow = new ComposerRow(this);
@@ -3295,6 +3297,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
         handler.removeCallbacks(engineTick);
         super.onPause();
+        learningRoom.pause(); // the talk with the API model uses the pilot's tokens: only while Ibiko is open
     }
 
     /** Unsent words, kept in a file. The message box is not saved with the activity: a long draft crashed the app when the screen was left (the binder parcel was about 700 KB). */
@@ -3367,6 +3370,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
         applyProvider(); // back from the AI providers sheet: the brain the user chose answers
         applySettings(); // back from Settings: name, voice speed, Enter key, deleted chats
+        handler.postDelayed(learningRoom::sync, 700); // the Learning chat: opened when just turned on, and its talk goes on
         meanings = null; // back from "What Ibiko remembers": phrasings it forgot are read again from the phone
         if (!carryOnOffered) {
             carryOnOffered = true; // once a start: work cut off by a crash or a close can carry on
