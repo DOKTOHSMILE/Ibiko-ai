@@ -59,8 +59,17 @@ public final class ErrorTalk {
     }
 
     private final List<Known> known = new ArrayList<Known>();
+    /** Fixes found for errors it didn't know (signature → confirmed, the error, the fix), kept on the phone. */
+    private final java.util.Map<String, String[]> learned = new java.util.LinkedHashMap<String, String[]>();
+    private final java.io.File learnedFile;
 
     public ErrorTalk(InputStream tsv) {
+        this(tsv, null);
+    }
+
+    public ErrorTalk(InputStream tsv, java.io.File learnedFile) {
+        this.learnedFile = learnedFile;
+        load();
         if (tsv == null) {
             return;
         }
@@ -279,6 +288,252 @@ public final class ErrorTalk {
             default:
                 return "To fix it: " + fill(k.fix, f) + "." + at + "\n\n" + example + "\n\nRun it again after: if a new error comes up, "
                         + "paste it and I'll read that one too.";
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------- not known yet
+
+    /** An error it doesn't know by heart: the line, the kind of fix it needs, its language when the message shows it. */
+    public static final class Unknown {
+        public final String line, lang, signature;
+        public final ai.ibiko.agent.ErrorReader.Kind kind;
+
+        Unknown(String line, String lang) {
+            this.line = line;
+            this.lang = lang;
+            this.kind = ai.ibiko.agent.ErrorReader.kindOf(line);
+            this.signature = signature(line);
+        }
+    }
+
+    /** E5: what an error line looks like when it's surely one: an exception's name, a panic, a compiler's error at a file and line. */
+    private static final Pattern ERROR_LINE = Pattern.compile("(?m)^[ \\t>|]*(?:(?:Uncaught |Caused by: |Exception in thread \"[^\"]*\" )?"
+            + "(?:[a-z]\\w*\\.)*[A-Z]\\w*(?:Error|Exception)(?::[^\\n]*)?|panic: [^\\n]+|\\S+\\.\\w{1,5}:\\d+(?::\\d+)?: (?:fatal )?error: [^\\n]+"
+            + "|error\\[E\\d{4}\\]: [^\\n]+|(?:PHP )?Fatal error: [^\\n]+)\\s*$");
+
+    /** E5: an error in the message that isn't one it knows, or null (the last error line: the one a traceback ends on). */
+    public Unknown unknown(String message) {
+        if (message == null || find(message) != null) {
+            return null;
+        }
+        Matcher m = ERROR_LINE.matcher(message);
+        String line = null;
+        while (m.find()) {
+            line = m.group().trim();
+        }
+        return line == null ? null : new Unknown(line, langOf(message));
+    }
+
+    /** Whether the message carries an error, known or not (then it's read as one, not as prose). */
+    public boolean carries(String message) {
+        return find(message) != null || unknown(message) != null;
+    }
+
+    private static String langOf(String m) {
+        if (m.contains("Traceback (most recent call last)") || m.matches("(?s).*File \"[^\"]+\\.py\".*")) {
+            return "python";
+        }
+        if (m.matches("(?s).*(?:Uncaught |\\.(?:m?js|ts|jsx|tsx):\\d+).*")) {
+            return "javascript";
+        }
+        if (m.matches("(?s).*(?:Exception in thread|\\.java:\\d+|\\bjava\\.\\w+\\.).*")) {
+            return "java";
+        }
+        if (m.matches("(?s).*(?:panic: |\\.go:\\d+).*")) {
+            return "go";
+        }
+        if (m.matches("(?s).*(?:error\\[E\\d{4}\\]|\\.rs:\\d+).*")) {
+            return "rust";
+        }
+        if (m.matches("(?s).*(?:Fatal error: |\\.php).*")) {
+            return "php";
+        }
+        return null;
+    }
+
+    /** The same error seen again, whatever its names, numbers and paths: what a learned fix is filed under. */
+    static String signature(String line) {
+        return line.toLowerCase(java.util.Locale.ROOT).replaceAll("'[^']*'|\"[^\"]*\"|`[^`]*`", "q").replaceAll("(?:[\\w.-]*/)+[\\w.-]+", "p")
+                .replaceAll("\\b0x[0-9a-f]+\\b", "n").replaceAll("\\d+", "n").replaceAll("\\s+", " ").trim();
+    }
+
+    /** E5: the kind of error, in plain words, from what kind of fix it needs; null when it can't tell. */
+    public static String kindSaid(Unknown u) {
+        switch (u.kind) {
+            case SYMBOL: return "a name the code uses isn't known where it's used: a typo, a missing import, or something never declared";
+            case IMPORT: return "a module or package can't be found: not installed, or known by another name";
+            case SYNTAX: return "the code can't be read as written: a bracket, quote, colon or comma missing or extra, at or just before the line named";
+            case TYPE: return "a value is the wrong type for what's done with it, or a function got the wrong number of arguments";
+            case NULL: return "something is null, None or undefined where a value is needed";
+            case INDEX: return "a list was read past its end, or a key isn't in the map";
+            case FILE: return "a file or folder isn't where the program looks for it";
+            case PERMISSION: return "the program isn't allowed to read, write or run something";
+            case COMMAND: return "a program isn't installed, or isn't on the PATH";
+            case DEPENDENCY: return "a package or version can't be found, or versions don't fit together";
+            case TEST: return "the code gave a different result from what was expected";
+            case MEMORY: return "it ran out of memory";
+            case TIMEOUT: return "it took too long and was stopped";
+            default: return null;
+        }
+    }
+
+    /** What to search for: the error without the person's own names, paths and numbers. */
+    public static String query(Unknown u) {
+        String q = u.line.replaceAll("(?:[\\w.-]*[/\\\\])+[\\w.-]+", " ").replaceAll("(?<![\\w-])\\d+(?![\\w-])", " ")
+                .replaceAll("^(?:Uncaught |Caused by: |Exception in thread \"[^\"]*\" )", "").replaceAll("\\s+", " ").trim();
+        return (u.lang == null ? "" : u.lang + " ") + q + " fix";
+    }
+
+    private static final Pattern FIX_WORDS = Pattern.compile("(?i)\\b(?:install|add|change|use|replace|check|make sure|set|remove|rename|declare"
+            + "|import|update|upgrade|downgrade|call|pass|wrap|move|convert|initiali[sz]e|define|run|restart|delete|enable|disable|fix|solution|solved)\\b");
+    private static final Pattern BLOCK = Pattern.compile("```[\\w+#.-]*\\s*\\n(.*?)```|<pre[^>]*>(?:\\s*<code[^>]*>)?(.*?)(?:</code>\\s*)?</pre>", Pattern.DOTALL);
+
+    /**
+     * E6: a fix found in web text for the error: the sentences that say what to do about it (a doing word, and the
+     * error's own words), in the page's order, and the first code block. Null when nothing in it says what to do.
+     */
+    public static String fixFrom(String page, Unknown u) {
+        if (page == null || page.trim().isEmpty()) {
+            return null;
+        }
+        java.util.Set<String> words = new java.util.HashSet<String>();
+        for (String w : u.line.toLowerCase(java.util.Locale.ROOT).split("[^a-z]+")) {
+            if (w.length() > 3 && !w.matches("error|exception|uncaught|caused|thread|main")) {
+                words.add(w);
+            }
+        }
+        String text = BLOCK.matcher(page).replaceAll(" ");
+        List<String> picked = new ArrayList<String>();
+        String before = null; // the sentence before, when it names the error ("the codec can't decode…", then "pass the encoding…")
+        for (String sentence : text.split("(?<=[.!?])\\s+|\\n+")) {
+            String t = sentence.trim();
+            int hits = 0;
+            for (String w : t.toLowerCase(java.util.Locale.ROOT).split("[^a-z]+")) {
+                hits += words.contains(w) ? 1 : 0;
+            }
+            boolean usable = t.length() >= 25 && t.length() <= 300 && !t.startsWith("http") && !t.matches("(?i).*\\b(?:i get|i'm getting|i keep getting|help)\\b.*");
+            if (usable && FIX_WORDS.matcher(t).find() && (hits > 0 || before != null || !picked.isEmpty())) {
+                if (before != null && picked.isEmpty()) {
+                    picked.add(before); // what causes it, then what to do
+                }
+                picked.add(t);
+            }
+            before = usable && hits > 0 && picked.isEmpty() ? t : null;
+            if (picked.size() >= 3) {
+                break;
+            }
+        }
+        if (picked.isEmpty()) {
+            return null;
+        }
+        StringBuilder b = new StringBuilder(String.join(" ", picked));
+        Matcher c = BLOCK.matcher(page);
+        if (c.find()) {
+            String code = (c.group(1) != null ? c.group(1) : c.group(2)).replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'")
+                    .replace("&#x27;", "'").replace("&amp;", "&").trim();
+            if (!code.isEmpty() && code.length() < 1200) {
+                b.append("\n\n```").append(u.lang == null ? "" : fence(u.lang)).append("\n").append(code).append("\n```");
+            }
+        }
+        return b.toString();
+    }
+
+    /** E7: a fix learned for this error before: {confirmed "1" or "0", the fix}; null when none. */
+    public synchronized String[] learned(Unknown u) {
+        String[] had = learned.get(u.signature);
+        return had == null ? null : new String[]{had[0], had[2]};
+    }
+
+    /** E7: a fix found for an error, kept unconfirmed until it's said to work. */
+    public synchronized void found(Unknown u, String fix) {
+        String[] had = learned.get(u.signature);
+        if (had == null || !"1".equals(had[0])) {
+            learned.put(u.signature, new String[]{"0", u.line, fix});
+            save();
+        }
+    }
+
+    /** E7: it worked: known from now on. */
+    public synchronized void confirm(String signature) {
+        String[] had = learned.get(signature);
+        if (had != null) {
+            had[0] = "1";
+            save();
+        }
+    }
+
+    /** E7: it didn't: forgotten, so it's looked up afresh next time. */
+    public synchronized void wrong(String signature) {
+        if (learned.remove(signature) != null) {
+            save();
+        }
+    }
+
+    private void load() {
+        if (learnedFile == null || !learnedFile.isFile()) {
+            return;
+        }
+        try {
+            String all = new String(java.nio.file.Files.readAllBytes(learnedFile.toPath()), StandardCharsets.UTF_8);
+            for (String line : all.split("\n")) {
+                String[] f = line.split("\t", 4);
+                if (f.length == 4) {
+                    learned.put(f[0], new String[]{f[1], f[2], unescape(f[3])});
+                }
+            }
+        } catch (IOException ignored) {
+            // nothing learned yet
+        }
+    }
+
+    private static String unescape(String s) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char n = s.charAt(++i);
+                b.append(n == 'n' ? '\n' : n);
+            } else {
+                b.append(c);
+            }
+        }
+        return b.toString();
+    }
+
+    private static final Pattern WORKED = Pattern.compile("(?i)^\\s*(?:yes,? |yay,? |great,? |thanks,? )?(?:that |it |this )?(?:fixed it|worked|works(?: now)?|did it|solved it"
+            + "|did the trick|is fixed|runs now)(?: now)?(?:,? thanks?(?: you)?)?\\s*[.!]*$");
+    private static final Pattern FAILED = Pattern.compile("(?i)^\\s*(?:no,? |nope,? )?(?:that |it |this )?(?:didn'?t work|did not work|doesn'?t work|still (?:fails|"
+            + "doesn'?t work|not working|broken|the same(?: error)?)|same error|not fixed|made it worse)\\s*[.!]*$");
+
+    /** E7: whether a message says the fix worked (true), didn't (false), or is about something else (null). */
+    public static Boolean worked(String message) {
+        String m = message == null ? "" : message.trim();
+        return WORKED.matcher(m).matches() ? Boolean.TRUE : FAILED.matcher(m).matches() ? Boolean.FALSE : null;
+    }
+
+    private void save() {
+        if (learnedFile == null) {
+            return;
+        }
+        StringBuilder b = new StringBuilder();
+        for (java.util.Map.Entry<String, String[]> e : learned.entrySet()) {
+            String[] v = e.getValue();
+            b.append(e.getKey().replace('\t', ' ')).append('\t').append(v[0]).append('\t').append(v[1].replace('\t', ' ').replace('\n', ' '))
+                    .append('\t').append(v[2].replace("\\", "\\\\").replace("\n", "\\n").replace('\t', ' ')).append('\n');
+        }
+        try {
+            java.io.File dir = learnedFile.getParentFile();
+            if (dir != null && !dir.isDirectory()) {
+                dir.mkdirs();
+            }
+            java.io.File tmp = new java.io.File(learnedFile.getPath() + ".part");
+            java.nio.file.Files.write(tmp.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
+            if (!tmp.renameTo(learnedFile)) {
+                java.nio.file.Files.write(learnedFile.toPath(), b.toString().getBytes(StandardCharsets.UTF_8));
+                tmp.delete();
+            }
+        } catch (IOException ignored) {
+            // kept for this session only
         }
     }
 }

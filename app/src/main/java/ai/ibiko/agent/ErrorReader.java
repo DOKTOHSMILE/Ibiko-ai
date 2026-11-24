@@ -197,7 +197,7 @@ public final class ErrorReader {
         return "";
     }
 
-    static Kind kindOf(String message) {
+    public static Kind kindOf(String message) {
         String m = message.toLowerCase(Locale.US);
         if (m.matches(".*(no module named|modulenotfounderror|cannot find module|package .* does not exist|unresolved import|could not find package|importerror|cannot import name).*")) {
             return Kind.IMPORT;

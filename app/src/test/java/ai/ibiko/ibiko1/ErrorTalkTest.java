@@ -96,4 +96,47 @@ public class ErrorTalkTest {
                 && fix.contains("```python\ntotal = 0"));
         assertTrue(ErrorTalk.followed(f, ErrorTalk.Ask.WHY, null).startsWith("It happens because the code uses the name total"));
     }
+
+    @Test
+    public void anErrorItDoesntKnowByHeart() throws Exception {
+        ErrorTalk e = errors();
+        assertNull("known ones aren't unknown", e.unknown("KeyError: 'b'"));
+        ErrorTalk.Unknown u = e.unknown("Traceback (most recent call last):\n  File \"x.py\", line 2, in <module>\n"
+                + "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe9 in position 41: invalid continuation byte");
+        assertEquals("python", u.lang);
+        assertTrue(u.line.startsWith("UnicodeDecodeError:"));
+        assertEquals("python UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe9 in position : invalid continuation byte fix", ErrorTalk.query(u));
+        assertTrue("a question someone asked isn't a fix", ErrorTalk.fixFrom("I get UnicodeDecodeError, please help me fix it.", u) == null);
+        assertEquals("the same error, other names and numbers", u.signature,
+                e.unknown("UnicodeDecodeError: 'ascii' codec can't decode byte 0x92 in position 7: invalid continuation byte").signature);
+        ErrorTalk.Unknown missing = e.unknown("ImportError: cannot import name 'soft_unicode' from 'markupsafe'");
+        assertEquals("a module or package can't be found: not installed, or known by another name", ErrorTalk.kindSaid(missing));
+        assertNull("chat isn't an error", e.unknown("Error: my phone won't charge"));
+        assertNull(e.unknown("I think there's an error in my essay"));
+        assertTrue(e.carries("panic: runtime error: invalid memory address or nil pointer dereference"));
+    }
+
+    @Test
+    public void aFixFromWebTextKeptUntilConfirmed() throws Exception {
+        java.io.File file = java.nio.file.Files.createTempFile("learned", ".tsv").toFile();
+        file.delete();
+        ErrorTalk e = new ErrorTalk(null, file);
+        ErrorTalk.Unknown u = errors().unknown("UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe9 in position 41: invalid continuation byte");
+        String fix = ErrorTalk.fixFrom("Some intro about computers that has nothing to do with it at all.\nThe file isn't UTF-8, so the codec can't decode"
+                + " it. Pass the real encoding when you open it.\n<pre><code>open(p, encoding=&quot;latin-1&quot;)</code></pre>", u);
+        assertTrue(fix, fix.startsWith("The file isn't UTF-8, so the codec can't decode it. Pass the real encoding when you open it."));
+        assertTrue("a bare error line names no language; the page's code, decoded: " + fix, fix.contains("```\nopen(p, encoding=\"latin-1\")\n```"));
+        assertNull("nothing that says what to do", ErrorTalk.fixFrom("UnicodeDecodeError is a Python exception.", u));
+        e.found(u, "Use the right encoding.\nLike this: \\n stays as written");
+        assertEquals("0", e.learned(u)[0]);
+        e.confirm(u.signature);
+        ErrorTalk reloaded = new ErrorTalk(null, file);
+        assertEquals("1", reloaded.learned(u)[0]);
+        assertEquals("kept as written, line breaks and backslashes too", "Use the right encoding.\nLike this: \\n stays as written", reloaded.learned(u)[1]);
+        reloaded.wrong(u.signature);
+        assertNull(new ErrorTalk(null, file).learned(u));
+        assertEquals(Boolean.TRUE, ErrorTalk.worked("That fixed it, thanks!"));
+        assertEquals(Boolean.FALSE, ErrorTalk.worked("still the same error"));
+        assertNull(ErrorTalk.worked("How do I fix it?"));
+    }
 }
