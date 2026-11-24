@@ -64,6 +64,12 @@ public final class Expressions {
                 .replaceAll("\\s+", " ").trim() + " ";
     }
 
+    /** The longest saying in a text as {phrase, meaning, note}; null when none. */
+    public String[] sayingIn(String text) {
+        Saying s = text == null ? null : find(text);
+        return s == null ? null : new String[]{s.phrase, s.meaning, s.note};
+    }
+
     /** The longest saying in a text, as whole words; null when none. */
     Saying find(String text) {
         String t = plain(text);

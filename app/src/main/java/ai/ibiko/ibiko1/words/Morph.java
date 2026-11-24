@@ -121,6 +121,34 @@ public final class Morph {
         return verb + "ed";
     }
 
+    /** The base of an irregular past ("went" → "go"), or null when it isn't one. */
+    public static String irregularPast(String w) {
+        return baseOf(PAST, w);
+    }
+
+    /** The base of an irregular past participle ("written" → "write"), or null when it isn't one. */
+    public static String irregularParticiple(String w) {
+        return baseOf(PARTICIPLE, w);
+    }
+
+    /** Whether it is an irregular verb's base form ("go", "write"). */
+    public static boolean irregularBase(String w) {
+        return w != null && PAST.containsKey(w.toLowerCase(Locale.ROOT));
+    }
+
+    private static String baseOf(Map<String, String> forms, String w) {
+        if (w == null) {
+            return null;
+        }
+        String l = w.toLowerCase(Locale.ROOT);
+        for (Map.Entry<String, String> e : forms.entrySet()) {
+            if (e.getValue().equals(l)) {
+                return e.getKey();
+            }
+        }
+        return null;
+    }
+
     /** A verb's past participle ("written", "walked"). */
     public static String participle(String verb) {
         String irregular = PARTICIPLE.get(verb.toLowerCase(Locale.ROOT));

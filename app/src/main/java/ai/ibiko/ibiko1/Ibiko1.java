@@ -346,6 +346,7 @@ public final class Ibiko1 {
         return foundation(request, conversationId) + foresight().hint(Methods.kind(request)) + reflection().hint(Methods.kind(request))
                 + ai.ibiko.ibiko1.formulas.Critical.brief(ai.ibiko.ibiko1.formulas.Critical.read(request))
                 + ai.ibiko.ibiko1.cognition.Cognition.plan(request) // pass 1: the plan, the same for every brain
+                + language().brief(request, null) // the language read the same for every brain: idioms, intent, tone
                 + (ai.ibiko.ibiko1.formulas.Analyst.hasData(request) ? ai.ibiko.ibiko1.formulas.Analyst.BRIEF : "")
                 + (ai.ibiko.ibiko1.formulas.Probability.applies(request) ? ai.ibiko.ibiko1.formulas.Probability.BRIEF : "");
     }
@@ -515,6 +516,104 @@ public final class Ibiko1 {
         List<ai.ibiko.ibiko1.formulas.Truth.Checked> checked = ai.ibiko.ibiko1.formulas.Truth.question(text, witnesses());
         ledger().record(checked, "in", System.currentTimeMillis());
         return ai.ibiko.ibiko1.formulas.Truth.trueOnly(checked);
+    }
+
+    private volatile ai.ibiko.ibiko1.language.Language language;
+    private final Object languageLock = new Object();
+
+    /**
+     * The language intelligence engine (ibiko1/language, docs/IBIKO_LINGUISTIC_INTELLIGENCE.md): sentence form, figures of
+     * speech, what is meant in context, how words relate. Built on first use from the dictionary and ConceptNet when
+     * they are open; it never waits for them (a word they can't answer yet is read by its form).
+     */
+    public ai.ibiko.ibiko1.language.Language language() {
+        ai.ibiko.ibiko1.language.Language l = language;
+        if (l != null) {
+            return l;
+        }
+        synchronized (languageLock) {
+            if (language == null) {
+                final ai.ibiko.ibiko1.language.Relations.Source source = new ai.ibiko.ibiko1.language.Relations.Source() {
+                    @Override
+                    public List<String[]> senses(String word) {
+                        List<String[]> out = new ArrayList<String[]>();
+                        ai.ibiko.ibiko1.words.Meanings m = ai.ibiko.ibiko1.words.Meanings.shared();
+                        if (m == null) {
+                            return out;
+                        }
+                        for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : m.index().senses(word.toLowerCase(Locale.ROOT))) {
+                            out.add(new String[]{s.pos, s.definition, s.broader, String.join(",", s.synonyms), String.join(",", s.opposites)});
+                        }
+                        return out;
+                    }
+
+                    @Override
+                    public List<String> linked(String word, String relation) {
+                        ai.ibiko.ibiko1.comprehend.Concepts c = concepts;
+                        return c == null ? new ArrayList<String>() : c.of(word, relation, 12);
+                    }
+
+                    @Override
+                    public List<String> linkedTo(String word, String relation) {
+                        List<String> out = new ArrayList<String>();
+                        ai.ibiko.ibiko1.comprehend.Concepts c = concepts;
+                        if (c == null) {
+                            return out;
+                        }
+                        for (ai.ibiko.ibiko1.comprehend.Concepts.Link k : c.linksTo(word, 400)) {
+                            if (k.relation.equals(relation) && !out.contains(k.from) && out.size() < 12) {
+                                out.add(k.from.replace('_', ' '));
+                            }
+                        }
+                        return out;
+                    }
+                };
+                ai.ibiko.ibiko1.language.Figures.Lexicon kinds = new ai.ibiko.ibiko1.language.Figures.Lexicon() {
+                    @Override
+                    public String kindOf(String noun) {
+                        final ai.ibiko.ibiko1.words.Meanings m = ai.ibiko.ibiko1.words.Meanings.shared();
+                        return m == null ? null : ai.ibiko.ibiko1.language.NounKinds.of(noun, w -> {
+                            List<String> up = new ArrayList<String>();
+                            for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : m.index().senses(w)) {
+                                if (s.pos.equals("noun") && !s.broader.isEmpty()) {
+                                    up.add(s.broader.split(",")[0].trim());
+                                }
+                            }
+                            return up;
+                        });
+                    }
+
+                    @Override
+                    public boolean opposite(String a, String b) {
+                        ai.ibiko.ibiko1.words.Meanings m = ai.ibiko.ibiko1.words.Meanings.shared();
+                        return m != null && m.opposites(a).contains(b);
+                    }
+                };
+                java.util.function.Predicate<String> verb = w -> {
+                    if (ai.ibiko.ibiko1.language.SentenceForm.COMMON.test(w)) {
+                        return true;
+                    }
+                    ai.ibiko.ibiko1.words.Meanings m = ai.ibiko.ibiko1.words.Meanings.shared();
+                    if (m == null) {
+                        return false;
+                    }
+                    for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : m.index().senses(w)) {
+                        if (s.pos.equals("verb")) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+                ai.ibiko.ibiko1.formulas.Expressions sayings = expressions;
+                if (sayings == null) {
+                    sayings = new ai.ibiko.ibiko1.formulas.Expressions(TextCode.open(Plug.asset, "knowledge/language/expressions.tsv"));
+                }
+                ai.ibiko.ibiko1.language.Figures figures = new ai.ibiko.ibiko1.language.Figures(
+                        TextCode.open(Plug.asset, "knowledge/language/figures.tsv"), sayings, kinds);
+                language = new ai.ibiko.ibiko1.language.Language(figures, null, source, verb);
+            }
+            return language;
+        }
     }
 
     private ai.ibiko.ibiko1.comprehend.ConversationReading comprehensionSessions;
@@ -874,6 +973,16 @@ public final class Ibiko1 {
         // "give me ideas for a fundraiser"): researched, weighed, joined into new ideas and made in its own words
         if (pasted == null && snippet == null && ambitionTurn(who, t)) {
             return;
+        }
+        // a question about language itself ("what tense is …", "is that sarcastic?", "what figure of speech is …"):
+        // the language engine reads the sentence at its three levels (ibiko1/language)
+        if (pasted == null && snippet == null && ai.ibiko.ibiko1.language.Language.asks(message)) {
+            final String read = language().reply(message, previous);
+            if (read != null) {
+                think(Arrays.asList("Reading your question", "Reading the sentence: its words, its form, and what it means in context"),
+                        () -> saysPlain(who, read));
+                return;
+            }
         }
         // a saying, before the word-by-word readers ("me, myself and I", "break a leg", "no wahala"): what it means, and what it implies
         final String saying = pasted == null ? expressions().explain(message, previous) : null;
