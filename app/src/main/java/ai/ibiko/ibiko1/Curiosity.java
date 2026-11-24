@@ -107,6 +107,17 @@ final class Curiosity {
         if (r.endsWith("?") && !low.matches("^(is it|isn'?t it|maybe|perhaps)\\b.*")) {
             return true;
         }
+        // "I have 3 apples" after "what is the capital of Nigeria?": about the person, sharing no word with the question
+        if (low.matches("^(i|i'm|i am|i've|my|we|we're|our)\\b.*") && low.split("\\s+").length >= 3) {
+            boolean shares = false;
+            String q = " " + g.question.toLowerCase(Locale.US).replaceAll("[^\\p{L}\\p{N} ]", " ") + " ";
+            for (String w : low.replaceAll("[^\\p{L}\\p{N} ]", " ").split("\\s+")) {
+                shares |= w.length() > 3 && q.contains(" " + w + " ");
+            }
+            if (!shares) {
+                return true;
+            }
+        }
         return low.matches("^(what|who|where|when|why|how|which|can you|could you|will you|would you|please|tell me|"
                 + "write|make|show|give|sing|play|draw|open|send|call|find|search|translate|explain|calculate|solve)\\b.*")
                 && !low.matches("^(what|who|where|when|which)\\b.*\\b(is|was|are|were)\\b.*\\b(called|named)\\b.*");

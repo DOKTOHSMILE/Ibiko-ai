@@ -84,4 +84,41 @@ public class ScreenshotTwoTest {
             Plug.asset = was;
         }
     }
+
+    /** The demo run on the build machine: a saying, then a word; a question asked back, then talk about something else. */
+    @Test(timeout = 300000)
+    public void theDemoConversation() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        Plug.web = Plug.NONE;
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            File files = Files.createTempDirectory("demo").toFile();
+            Ibiko1.warm(files); // as the app does at start: the dictionary open
+            Ibiko1 brain = new Ibiko1(chat, files);
+            String riddle = ask(brain, chat, "Me myself and I\nJust the 3 of us\n🤔 What does this implicate?");
+            assertTrue(riddle, riddle.contains("only you"));
+            String wahala = ask(brain, chat, "What does wahala mean?");
+            assertNotNull(wahala);
+            assertFalse("its own word, not the saying again: " + wahala, wahala.contains("myself"));
+            assertTrue(wahala, wahala.toLowerCase().contains("trouble"));
+            String capital = ask(brain, chat, "wat is the captal of nigeria");
+            assertTrue(capital, capital.contains("Abuja"));
+            ask(brain, chat, "Who invented the zorbanian flute?"); // unknown: asked back
+            String apples = ask(brain, chat, "I have 3 apples.");
+            assertFalse("not taken as the answer to what it asked: " + apples, apples.contains("fills a gap") || apples.contains("kept it as"));
+            ask(brain, chat, "I buy 4 more apples.");
+            String count = ask(brain, chat, "How many apples do I have now?");
+            assertTrue(count, count.startsWith("You have 7 apples"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }
