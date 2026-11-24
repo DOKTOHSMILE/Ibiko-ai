@@ -49,6 +49,9 @@ public class SettingsChatActivity extends SettingsActivity {
                     + " Pidgin, code and words you use often are left alone.", ai.ibiko.AutoCorrect.TYPOS, true, null));
             chat.addView(toggle("Show the working steps", "What Ibiko is doing while it answers: searches, sources, models.", "show_steps", true, null),
                     Ui.wide(this, 10));
+            chat.addView(action("My voice", ai.ibiko.voice.MyVoice.chosen(getFilesDir()) ? "Ibiko speaks with your own voice. Record more, or switch back."
+                    : "Record yourself reading, train a voice of your own from it, and Ibiko speaks with your voice: fast, and yours.",
+                    () -> startActivity(new android.content.Intent(this, MyVoiceActivity.class))), Ui.wide(this, 6));
 
     }
 }
