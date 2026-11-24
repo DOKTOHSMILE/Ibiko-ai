@@ -59,6 +59,7 @@ public class LiveFaceTest {
         int size = 240;
         f.measure(size, size);
         f.layout(0, 0, size, size);
+        f.seed(20261124); // its blinks and glances are random: the same ones every run, so the check isn't left to chance
         File out = new File("build/face");
         out.mkdirs();
         Set<String> where = new HashSet<String>();
