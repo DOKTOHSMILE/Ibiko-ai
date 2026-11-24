@@ -2882,6 +2882,9 @@ public final class Ibiko1 {
             }
             for (String w : talked.toString().toLowerCase(Locale.ROOT).split("[^\\p{L}']+")) {
                 said.add(w);
+                if (w.length() > 3 && w.endsWith("s")) {
+                    said.add(w.substring(0, w.length() - 1)); // "flarns" said: "flarn" is theirs too
+                }
             }
             // a word is known when the dictionary has it, the encyclopedia uses it ("became", "took"), or it was said here
             f = ai.ibiko.ibiko1.formulas.Spelling.fix(message, w -> words.headword(w) != null || said.contains(w) || book.uses(w),
@@ -3663,6 +3666,33 @@ public final class Ibiko1 {
     }
 
     /** Keeps the turn just answered: what was asked, what it was about, and what was said. */
+    private static final java.util.regex.Pattern WHO_ASKED = java.util.regex.Pattern.compile("(?i)^\\s*who\\b(?!\\s+(?:am|are)\\s+(?:i|you)\\b)");
+    private static final java.util.regex.Pattern FULL_NAME = java.util.regex.Pattern.compile("\\b([A-Z][a-z]+(?:\\s+[A-Z]\\.?)?(?:\\s+[A-Z][a-z]+){1,2})\\b");
+
+    /** "Who wrote Things Fall Apart?" answered "Chinua Achebe": the person "he" means in the next question. */
+    private void personInAnswer(String asked, String said) {
+        if (asked == null || said == null || !WHO_ASKED.matcher(asked).find()) {
+            return;
+        }
+        try {
+            java.util.regex.Matcher m = FULL_NAME.matcher(said.length() > 400 ? said.substring(0, 400) : said);
+            for (int tries = 0; m.find() && tries < 4; tries++) {
+                String name = m.group(1);
+                if (asked.contains(name)) {
+                    continue; // the thing asked about ("Things Fall Apart"), not who did it
+                }
+                Encyclopedia.Article a = encyclopedia().find(name);
+                Context.Kind kind = a == null ? null : Context.kindOf(a, encyclopedia().facts(a.title));
+                if (kind == Context.Kind.MAN || kind == Context.Kind.WOMAN || kind == Context.Kind.PERSON) {
+                    context.answerNamed(a.title, kind, System.currentTimeMillis());
+                    return;
+                }
+            }
+        } catch (RuntimeException e) {
+            // no person read: "he" stays as it was
+        }
+    }
+
     private void kept(String said) {
         Context.Focus f = context.focus(System.currentTimeMillis());
         if (!reshaping && said != null && !said.trim().isEmpty()) {
@@ -3670,6 +3700,7 @@ public final class Ibiko1 {
             lastAnswerAbout = f == null ? null : f.name;
         }
         talk.add(asking, f == null ? null : f.name, said);
+        personInAnswer(asking, said);
         // what this turn was about, for reading the next one with the conversation
         String domain = turnDomain;
         if (domain == null && asking != null) {

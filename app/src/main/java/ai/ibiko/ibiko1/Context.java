@@ -111,6 +111,16 @@ public final class Context {
         lastAt = now;
     }
 
+    /**
+     * The person an answer named ("Chinua Achebe" for "who wrote Things Fall Apart?"): who "he" or "she" means next,
+     * while the thing asked about stays the subject.
+     */
+    public synchronized void answerNamed(String name, Kind kind, long now) {
+        if (name != null && !name.trim().isEmpty() && (kind == Kind.MAN || kind == Kind.WOMAN || kind == Kind.PERSON)) {
+            person = new Focus(name.replaceFirst("\\s*\\([^()]+\\)$", "").trim(), kind, now);
+        }
+    }
+
     private Focus fresh(Focus f, long now) {
         return f != null && now - f.at <= FRESH_MS ? f : null;
     }
