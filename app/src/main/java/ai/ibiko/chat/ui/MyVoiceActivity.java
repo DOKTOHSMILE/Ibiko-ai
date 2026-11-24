@@ -148,6 +148,11 @@ public class MyVoiceActivity extends AppCompatActivity {
     }
 
     private void start() {
+        // checked here, where the microphone is opened: the permission can be taken back at any time in Settings
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, ASK_MIC);
+            return;
+        }
         final MyVoice.Line line = lines.get(at);
         final int rate = MyVoice.RATE;
         int min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
@@ -160,6 +165,9 @@ public class MyVoiceActivity extends AppCompatActivity {
                 verdict.setText("The microphone couldn't be opened. Is another app using it?");
                 return;
             }
+        } catch (SecurityException e) {
+            verdict.setText("Ibiko needs the microphone to record you. Allow it, then tap Record again.");
+            return;
         } catch (RuntimeException e) {
             verdict.setText("The microphone couldn't be opened.");
             return;
