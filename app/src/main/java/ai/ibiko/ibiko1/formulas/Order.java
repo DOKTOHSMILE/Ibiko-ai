@@ -76,6 +76,8 @@ public final class Order {
     private static final String NAME = "((?:the )?[A-Z][\\p{L}'-]*(?: [A-Z][\\p{L}'-]*)?|[a-z]+)";
     private static final Pattern THAN = Pattern.compile("\\b" + NAME + " (?:is|was|are|were|'s) (?:a (?:bit|little|lot) |much |far |slightly )?"
             + "(?:(more|less) (\\p{L}+)|(\\p{L}+er)) than " + NAME + "\\b");
+    private static final Pattern ALSO = Pattern.compile("\\b(?:but|and|yet|while)\\s+(?:is\\s+|also\\s+|is also\\s+)?(?:a (?:bit|little|lot) |much |far |slightly )?"
+            + "(?:(more|less) (\\p{L}+)|(\\p{L}+er)) than " + NAME + "\\b");
     private static final Pattern NOT_AS = Pattern.compile("\\b" + NAME + " (?:is|was|are|were) not as (\\p{L}+) as " + NAME + "\\b");
 
     /** O1: the comparisons a text states (not the ones it asks about). */
@@ -91,8 +93,10 @@ public final class Order {
                 continue; // a question, not a statement
             }
             Matcher m = THAN.matcher(s);
+            String subject = null; // the one the sentence is about, for "… but younger than Bisi"
             while (m.find()) {
                 String a = name(m.group(1)), b = name(m.group(5));
+                subject = a;
                 String[] sc;
                 if (m.group(2) != null) {
                     sc = new String[]{m.group(3).toLowerCase(Locale.ROOT), m.group(2).equalsIgnoreCase("more") ? "1" : "-1"};
@@ -102,6 +106,17 @@ public final class Order {
                 if (sc != null && !a.equalsIgnoreCase(b)) {
                     scales.add(sc[0]);
                     out.add(sc[1].equals("1") ? new Fact(sc[0], a, b, s) : new Fact(sc[0], b, a, s));
+                }
+            }
+            // "Ada is older than Obi but younger than Bisi": the second comparison is Ada's too
+            Matcher e = subject == null ? null : ALSO.matcher(s);
+            while (e != null && e.find()) {
+                String b = name(e.group(4));
+                String[] sc = e.group(1) != null ? new String[]{e.group(2).toLowerCase(Locale.ROOT), e.group(1).equalsIgnoreCase("more") ? "1" : "-1"}
+                        : scaleOf(e.group(3), false, scales);
+                if (sc != null && !subject.equalsIgnoreCase(b)) {
+                    scales.add(sc[0]);
+                    out.add(sc[1].equals("1") ? new Fact(sc[0], subject, b, s) : new Fact(sc[0], b, subject, s));
                 }
             }
             Matcher n = NOT_AS.matcher(s);

@@ -140,4 +140,15 @@ public final class Spelling {
         return "No one can know that yet: it hasn't happened. I can tell you what has happened (past results, who's done well"
                 + " lately), which is what forecasts are built on, but anyone who says they know for sure is guessing.";
     }
+
+    private static final Pattern WEATHER = Pattern.compile("(?i)^\\s*(?:what(?:'s| is| will)? (?:the )?weather(?: be)?(?: like)?|will it (?:rain|be sunny|be hot|be cold|snow)|"
+            + "is it going to (?:rain|be sunny|be hot|be cold))\\b.*\\b(?:tomorrow|today|tonight|this (?:week|weekend|evening|afternoon)|next (?:week|weekend)|later)\\b.*");
+
+    /** A forecast asked for while offline: said plainly that it needs one, or null. */
+    public static String weather(String message) {
+        if (message == null || !WEATHER.matcher(message.trim()).matches()) {
+            return null;
+        }
+        return "I can't know that without a forecast, and I'm offline. When you're online, ask again and I'll look up the forecast for where you are.";
+    }
 }

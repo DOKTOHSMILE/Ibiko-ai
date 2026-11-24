@@ -104,3 +104,47 @@ talk.name	talk	My name is Ada. || What is my name?	\bAda\b
 honest.unknown	honest	What did I eat for breakfast this morning?	(don't|can't|not sure|no way|couldn't|haven't)
 honest.future	honest	Who will win the next World Cup?	(can't|don't|no one|not|impossible)
 honest.made.up	honest	What is a zorblatic flux capacitor?	(don't|couldn't|not sure|can't|no )
+# ---- round 2: harder (multi-step, typos and casual wording, follow-ups that leave words out, logic)
+h.chain.kilimanjaro	chains	What is the capital of the country where Kilimanjaro is?	\bDodoma\b
+h.chain.accra	chains	What currency is used in the country whose capital is Accra?	\bcedi
+h.chain.mandela.died	chains	How old was Nelson Mandela when he died?	\b95\b
+h.chain.mandela.ago	chains	How many years ago was Nelson Mandela born?	\b10[78]\b
+h.chain.first.president	chains	Who was the first president of Nigeria?	Azikiwe
+h.chain.independence	chains	When did Nigeria become independent?	1960
+h.typo.capital	typos	whats the capitl of ghana	\bAccra\b
+h.typo.casual	typos	tell me the capital city of kenya pls	\bNairobi\b
+h.typo.whos	typos	who's mandela	South Africa
+h.typo.wat	typos	wat is photosynthesis	(light|sun)
+h.typo.math	typos	wats 12 x 12	\b144\b
+h.ellipsis.and	follow-ups	What is the capital of Ghana? || And Kenya?	\bNairobi\b
+h.ellipsis.what.about	follow-ups	What is the currency of Nigeria? || What about Ghana?	\bcedi
+h.ellipsis.name	follow-ups	My name is Ada. || What's my name again?	\bAda\b
+h.ellipsis.live	follow-ups	I live in Lagos. || Where do I live?	\bLagos\b
+h.ellipsis.it	follow-ups	Tell me about the Nile || How long is it?	\b6,?[56]\d\d\b
+h.logic.syllogism	logic	All cats are mammals. Tom is a cat. Is Tom a mammal?	^Yes
+h.logic.syllogism.no	logic	All birds have feathers. A bat has no feathers. Is a bat a bird?	^No
+h.logic.ifthen	logic	If it rains, the ground gets wet. It rained. Is the ground wet?	^Yes
+h.logic.mixed	logic	Ada is older than Obi but younger than Bisi. Who is the oldest?	^Bisi\b
+h.logic.even	logic	Is 97 a prime number?	\byes\b
+h.math.shop	maths2	A shirt costs 2500 naira. How much do 3 shirts cost?	7,?500
+h.math.discount	maths2	What is 20% off 5000?	\b4,?000\b
+h.math.half	maths2	What is half of 250?	\b125\b
+h.math.squared	maths2	What is 17 squared?	\b289\b
+h.math.average	maths2	What is the average of 4, 8 and 12?	\b8\b
+h.unit.seconds	units	How many seconds are in an hour?	3,?600
+h.unit.minutes	units	How many minutes are in 2.5 hours?	\b150\b
+h.unit.miles	units	Convert 5 miles to km	\b8\.0?\d*
+h.unit.weekday	units	What day is 10 days after Monday?	Thursday
+h.lang.past	language2	What is the past tense of go?	\bwent\b
+h.lang.plural.mouse	language2	What is the plural of mouse?	\bmice\b
+h.lang.rhyme	language2	Give me a word that rhymes with cat	\b(hat|bat|mat|rat|sat|fat|pat|vat|chat|that|flat)\b
+h.lang.define	language2	Define resilient	(recover|withstand|tough|spring back|difficult)
+h.rec.desert	records	What is the largest desert in the world?	\bSahara\b
+h.rec.planet	records	What is the largest planet in the solar system?	\bJupiter\b
+h.rec.ocean	records	What is the biggest ocean?	\bPacific\b
+h.rec.lake	records	What is the largest lake in the world?	\bCaspian\b
+h.honest.bank	honest2	What is my bank balance?	(can't|don't|no way|not able|haven't)
+h.honest.weather	honest2	What will the weather be tomorrow?	(can't|don't|not|online|forecast)
+h.err.index	errors2	IndexError: list index out of range	(length|len\(|position)
+h.code.even	code2	Write a function to check if a number is even in Python	```python
+h.code.js	code2	how do i reverse a string in javascript	```javascript

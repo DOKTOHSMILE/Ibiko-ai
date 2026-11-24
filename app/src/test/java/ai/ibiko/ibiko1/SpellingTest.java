@@ -54,4 +54,16 @@ public class SpellingTest {
         assertEquals(Conversation.Ask.Kind.FIRST, Conversation.read("what was my first question").kind);
         assertEquals(Conversation.Ask.Kind.LAST, Conversation.read("What did I ask before that?").kind);
     }
+
+    @Test
+    public void questionsTypedTheWayPeopleChat() {
+        assertEquals("what is the capitl of ghana?", Ibiko1.asked("whats the capitl of ghana"));
+        assertEquals("who is mandela?", Ibiko1.asked("who's mandela"));
+        assertEquals("what is photosynthesis?", Ibiko1.asked("wat is photosynthesis"));
+        assertEquals("is 97 a prime number?", Ibiko1.asked("is 97 a prime number"));
+        assertEquals("said, not asked", "My name is Ada.", Ibiko1.asked("My name is Ada."));
+        assertEquals("a story ending in a question is left as typed", "I have 3 apples. how many are left",
+                Ibiko1.asked("I have 3 apples. how many are left"));
+        assertEquals("Y is a letter", "Y is a letter", Ibiko1.asked("Y is a letter"));
+    }
 }

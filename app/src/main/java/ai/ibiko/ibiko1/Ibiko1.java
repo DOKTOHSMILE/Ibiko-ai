@@ -2042,9 +2042,35 @@ public final class Ibiko1 {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SPELL);
         }
         // "who will win the next World Cup?": what hasn't happened, said plainly
-        final String notHappened = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.future(message) : null;
+        String future = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.future(message) : null;
+        if (future == null && snippet == null && !host.online()) {
+            future = ai.ibiko.ibiko1.formulas.Spelling.weather(message); // a forecast it can't see offline (online, it's looked up)
+        }
+        final String notHappened = future;
         if (notHappened != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.FUTURE);
+        }
+        // said to Ibiko itself: "can I ask you something private?", "what can I do with you?", "You!", a question cut short
+        final String social = snippet == null ? ai.ibiko.ibiko1.formulas.Social.reply(message, lastAnswer, previous) : null;
+        if (social != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SOCIAL);
+        }
+        // logic from what was said: "All cats are mammals. Tom is a cat. Is Tom a mammal?"
+        final String reasoned = snippet == null ? ai.ibiko.ibiko1.formulas.Logic.answer(message, logicKnown) : null;
+        if (snippet == null) {
+            logicKnown.addAll(ai.ibiko.ibiko1.formulas.Logic.read(message)); // kept for the conversation's later questions
+        }
+        if (reasoned != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.LOGIC);
+        }
+        // everyday sums in words: "half of 250", "20% off 5000", "is 97 prime?", "what day is 10 days after Monday?"
+        String sum = snippet == null ? ai.ibiko.ibiko1.formulas.Quick.reply(message) : null;
+        if (sum == null && snippet == null) {
+            sum = yearsAgo(t); // "how many years ago was Nelson Mandela born?": the date looked up, then the years counted
+        }
+        final String quick = sum;
+        if (quick != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.QUICK);
         }
         // a counting story: "I have 3 apples and eat one: how many are left?"
         final String counted = snippet == null ? ai.ibiko.ibiko1.formulas.Counting.reply(message) : null;
@@ -2052,7 +2078,11 @@ public final class Ibiko1 {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.COUNT);
         }
         // "shorter", "in one sentence", "as points", "more simply", "give me an example": the last answer, said again
-        final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
+        ai.ibiko.ibiko1.formulas.Reshape.Ask reshaped = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
+        if (reshaped == null && snippet == null && lastAnswer != null && ai.ibiko.ibiko1.formulas.Social.huh(message)) {
+            reshaped = ai.ibiko.ibiko1.formulas.Reshape.Ask.SIMPLER; // "What?" just after an answer: it wasn't followed, so said again more simply
+        }
+        final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = reshaped;
         if (reshapeAsk != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.RESHAPE);
         }
@@ -2138,6 +2168,22 @@ public final class Ibiko1 {
                     how = How.MEMORY;
                     think(Arrays.asList("Reading the story: what there is to start with", "Following each thing that happens to it",
                             "Working out what's asked"), () -> saysExact(who, counted));
+                    return true;
+                case QUICK:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading the sum in your words", "Working it out exactly"), () -> saysExact(who, quick));
+                    return true;
+                case SOCIAL:
+                    turnDomain = "talk";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading what you said to me"), () -> saysPlain(who, social));
+                    return true;
+                case LOGIC:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading what you said as rules and facts", "Following them to your question",
+                            "Saying only what follows from them"), () -> saysExact(who, reasoned));
                     return true;
                 case ORDER:
                     turnDomain = "reasons";
@@ -2472,6 +2518,41 @@ public final class Ibiko1 {
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
 
+    /** The rules and facts said in this conversation ("all cats are mammals"), for questions about them later. */
+    private final ai.ibiko.ibiko1.formulas.Logic.Known logicKnown = new ai.ibiko.ibiko1.formulas.Logic.Known();
+
+    private static final java.util.regex.Pattern YEARS_AGO = java.util.regex.Pattern.compile("(?i)^\\s*how (?:many years ago|long ago) "
+            + "(?:was|did|were)\\s+(.{2,60}?)\\s+(born|die|pass away)\\s*[?.!]*\\s*$");
+
+    /** Two steps: the date it happened, from the facts; then the whole years from it to today. Null when not asked or not known. */
+    String yearsAgo(String t) {
+        java.util.regex.Matcher m = YEARS_AGO.matcher(t);
+        if (!m.matches()) {
+            return null;
+        }
+        String who = m.group(1).trim(), relation = m.group(2).equalsIgnoreCase("born") ? "born" : "died";
+        String when = fact(who, relation);
+        if (when == null) {
+            return null;
+        }
+        java.util.regex.Matcher d = java.util.regex.Pattern.compile("(?:(\\d{1,2}) (January|February|March|April|May|June|July|August|September|October"
+                + "|November|December) )?(\\d{3,4})").matcher(when);
+        if (!d.find()) {
+            return null;
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int year = Integer.parseInt(d.group(3));
+        int years = today.getYear() - year;
+        if (d.group(1) != null) {
+            java.time.LocalDate then = java.time.LocalDate.of(year, java.time.Month.valueOf(d.group(2).toUpperCase(Locale.ROOT)), Integer.parseInt(d.group(1)));
+            years = java.time.Period.between(then, today).getYears(); // whole years, counting the day
+        }
+        String name = who.replaceFirst("(?i)^(the )", "");
+        return years + " years ago. " + Character.toUpperCase(name.charAt(0)) + name.substring(1) + " " + (relation.equals("born") ? "was born" : "died")
+                + " on " + d.group() + ", and today is " + today.getDayOfMonth() + " " + today.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)
+                + " " + today.getYear() + ".";
+    }
+
     /** The comparisons said in this conversation ("Ada is taller than Obi"), for "who is the tallest?" later. */
     private final List<ai.ibiko.ibiko1.formulas.Order.Fact> orderFacts = new ArrayList<ai.ibiko.ibiko1.formulas.Order.Fact>();
 
@@ -2525,11 +2606,38 @@ public final class Ibiko1 {
             + "president|prime minister|leader|king|queen|official language|languages?|area|size|height|length|founder|flag|anthem|"
             + "dialling code|dialing code|time zone|motto)\\s+of\\s+([\\p{L}][\\p{L} .'-]{1,40}?)\\s*[.!]*$");
 
+    private static final String[][] CHAT_SPELLINGS = {{"wats|whats|what's|watz|wots", "what is"}, {"wat|wht|wot", "what"},
+        {"whos|who's|hu's|hoos", "who is"}, {"whr|wer", "where"}, {"hw", "how"}, {"wen", "when"}}; // not "y" for "why": "Y is a letter"
+    private static final java.util.regex.Pattern ASKING_START = java.util.regex.Pattern.compile("(?i)^\\s*(?:what|who|where|when|why|how|which|whose|"
+            + "is|are|was|were|can|could|does|do|did|will|would|should|tell me|define|explain)\\b");
+
+    /**
+     * A question typed the way people chat: "whats the capital of ghana", "who's mandela" (no question mark, a chat
+     * spelling for the question word). Its first word put right and a question mark added, so it's read as asked, not
+     * as something said ("Noted."). Only the first word: names and the rest stay as typed.
+     */
+    static String asked(String message) {
+        String m = message.trim();
+        for (String[] c : CHAT_SPELLINGS) {
+            java.util.regex.Matcher x = java.util.regex.Pattern.compile("(?i)^(?:" + c[0] + ")\\b(?=\\s+\\S)").matcher(m);
+            if (x.find()) {
+                m = c[1] + m.substring(x.end());
+                break;
+            }
+        }
+        if (!m.endsWith("?") && !m.contains("\n") && m.length() < 160 && ASKING_START.matcher(m).find()
+                && !m.matches("(?is).*[.!]\\s+\\S.*")) { // one sentence, asked: not a story that ends with a question
+            m = m.replaceAll("[.!]+$", "") + "?";
+        }
+        return m.equals(message.trim()) ? message : m;
+    }
+
     /** A bare phrase typed as a search ("capital of france", "population of Kano"): the question it stands for. */
     static String asQuestion(String message) {
         if (message == null) {
             return null;
         }
+        message = asked(message);
         java.util.regex.Matcher m = BARE.matcher(message);
         // a sentence about it ("the capital of France is lovely") isn't a search: the name runs into a verb
         if (!m.matches() || m.group(2).matches("(?i).*\\b(?:is|are|was|were|has|have|had|does|do|did|looks?|seems?|and|but|because)\\b.*")) {
@@ -3222,8 +3330,9 @@ public final class Ibiko1 {
     /** A question about the person asking it ("what's my…", "where do I…", "am I…"), not about the world. */
     static boolean aboutThePerson(String t) {
         String q = Paraphrase.normalize(t);
-        return EncyclopediaQA.question(q) && (q.matches(".*\\bmy\\b.*") || q.matches("^(where|what|who|when|how|why|which) (am|do|did|was|will|should|can) i\\b.*")
-                || q.matches("^(am|do|did|was|should|can) i\\b.*")) && !q.matches(".*\\b(tell|show|give|teach|help|let) me\\b.*")
+        // "can I …" and "should I …" ask leave or advice ("can I ask you something?", "what can I do with you?"), not about the person
+        return EncyclopediaQA.question(q) && (q.matches(".*\\bmy\\b.*") || q.matches("^(where|what|who|when|how|why|which) (am|do|did|was|will) i\\b.*")
+                || q.matches("^(am|do|did|was) i\\b.*")) && !q.matches(".*\\b(tell|show|give|teach|help|let) me\\b.*")
                 && !q.matches(".*\\bmy (own )?(code|file|files|phone|app|chat|message|messages|question)\\b.*");
     }
 
