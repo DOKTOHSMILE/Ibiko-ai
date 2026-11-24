@@ -538,7 +538,7 @@ public final class Ibiko1 {
         // code pasted in: read as code (to explain), never as a passage of prose or rewritten with the talk's names
         final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet = inquiry == null ? ai.ibiko.ibiko1.formulas.CodeReader.find(message) : null;
         // an error message pasted in: read as an error (to explain), not as prose, and not rewritten with the talk's names
-        final boolean errorPasted = inquiry == null && snippet == null && errors().find(message) != null;
+        final boolean errorPasted = inquiry == null && snippet == null && errors().carries(message);
         final Passage pasted = inquiry == null && snippet == null && !errorPasted ? Passage.of(message, heardAt) : null;
         final Context.Resolved withContext = pasted != null || snippet != null || errorPasted || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
@@ -1876,7 +1876,12 @@ public final class Ibiko1 {
         final ai.ibiko.ibiko1.formulas.ErrorTalk.Found errorBefore = lastError;
         final ai.ibiko.ibiko1.formulas.ErrorTalk.Ask errorAsk = error == null && snippet == null && errorBefore != null
                 ? ai.ibiko.ibiko1.formulas.ErrorTalk.followUp(message) : null;
-        if (error != null || errorAsk != null) {
+        // an error it doesn't know by heart: its kind, a fix learned before, or one looked up on the web
+        final ai.ibiko.ibiko1.formulas.ErrorTalk.Unknown unknownError = error == null && !runIt ? errors().unknown(message) : null;
+        // "that fixed it" / "still the same error", after a fix found on the web
+        final String triedFix = pendingErrorFix;
+        final Boolean fixWorked = triedFix == null || error != null || unknownError != null ? null : ai.ibiko.ibiko1.formulas.ErrorTalk.worked(message);
+        if (error != null || errorAsk != null || unknownError != null || fixWorked != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ERROR);
         }
         // a follow-up about the code just read: convert it, one line of it, a mistake in it
@@ -1981,6 +1986,26 @@ public final class Ibiko1 {
                     break;
                 case ERROR:
                     turnDomain = "code";
+                    if (fixWorked != null) {
+                        pendingErrorFix = null;
+                        final String heard;
+                        if (fixWorked) {
+                            errors().confirm(triedFix);
+                            heard = "Good. I'll keep that fix: next time that error comes up, I'll know it without looking it up.";
+                        } else {
+                            errors().wrong(triedFix);
+                            heard = "Sorry it didn't work. I won't give that fix again. Paste the error you get now (it may have changed), and the"
+                                    + " lines of code around where it happens, and I'll look again.";
+                        }
+                        how = How.MEMORY;
+                        think(Arrays.asList("Reading your reply about the fix I found", fixWorked ? "It worked: keeping it" : "It didn't: dropping it"),
+                                () -> saysPlain(who, heard));
+                        return true;
+                    }
+                    if (unknownError != null) {
+                        unknownErrorTurn(who, t, unknownError);
+                        return true;
+                    }
                     if (error == null) {
                         final String more = ai.ibiko.ibiko1.formulas.ErrorTalk.followed(errorBefore, errorAsk, lastErrorCode);
                         how = How.MEMORY;
@@ -2242,6 +2267,79 @@ public final class Ibiko1 {
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
 
+    /** The signature of the error whose fix was found on the web, until it's said to work or not. */
+    private volatile String pendingErrorFix;
+
+    /**
+     * E5–E7: an error it doesn't know by heart: what kind it is, and a fix: one learned before (said as confirmed or
+     * not), else looked up on the web and in social posts, kept unconfirmed until the person says it worked.
+     */
+    private void unknownErrorTurn(final String who, final String t, final ai.ibiko.ibiko1.formulas.ErrorTalk.Unknown u) {
+        final String kind = ai.ibiko.ibiko1.formulas.ErrorTalk.kindSaid(u);
+        final String head = "That error isn't one I know by heart: " + u.line + "\n\n" + (kind == null ? "" : "What kind it is: " + kind + ".\n\n");
+        String[] had = errors().learned(u);
+        if (had != null) {
+            final boolean sure = "1".equals(had[0]);
+            final String said = head + "The fix" + (sure ? " (it worked for you before)" : " I found last time (not confirmed yet)") + ":\n\n" + had[1]
+                    + (sure ? "" : "\n\nTell me if it works, and I'll keep it.");
+            if (!sure) {
+                pendingErrorFix = u.signature;
+            }
+            how = How.MEMORY;
+            think(Arrays.asList("Reading what you pasted: an error message", sure ? "I learned the fix for this one before, and it worked"
+                    : "I found a fix for this one before"), () -> saysExact(who, said));
+            return;
+        }
+        if (!host.online() || Plug.web == null || Plug.web == Plug.NONE) {
+            final String said = head + "Paste the lines of code around where it happens and I'll read them with it. When you're online, I can also"
+                    + " look it up, and keep the fix once you tell me it worked.";
+            how = How.MEMORY;
+            think(Arrays.asList("Reading what you pasted: an error message", "Not one I know by heart: telling its kind"), () -> saysPlain(who, said));
+            return;
+        }
+        how = How.RESEARCH;
+        think(Arrays.asList("Reading what you pasted: an error message", "Not one I know by heart: looking it up on the web and in posts",
+                "Taking the sentences that say what to do about it"), () -> {
+                    final int mine = token;
+                    new Thread(() -> {
+                        String fix = null;
+                        try {
+                            fix = ai.ibiko.ibiko1.formulas.ErrorTalk.fixFrom(Plug.web.search(ai.ibiko.ibiko1.formulas.ErrorTalk.query(u)), u);
+                        } catch (RuntimeException ignored) {
+                            // nothing on the web
+                        }
+                        if (fix == null) {
+                            try {
+                                StringBuilder posts = new StringBuilder();
+                                for (ai.ibiko.ibiko1.formulas.Corroborate.Post p : Plug.social.apply(ai.ibiko.ibiko1.formulas.ErrorTalk.query(u))) {
+                                    posts.append(p.text).append("\n\n");
+                                }
+                                fix = ai.ibiko.ibiko1.formulas.ErrorTalk.fixFrom(posts.toString(), u);
+                            } catch (RuntimeException ignored) {
+                                // nothing there either
+                            }
+                        }
+                        final String found = fix;
+                        if (found != null) {
+                            errors().found(u, found);
+                            pendingErrorFix = u.signature;
+                        }
+                        host.onScreen(() -> {
+                            if (mine != token) {
+                                return;
+                            }
+                            String said = found == null
+                                    ? head + "I looked it up but found nothing I'd trust as a fix. Paste the lines of code around where it happens and I'll read them with it."
+                                    : head + "What I found on the web (not confirmed yet):\n\n" + found + "\n\nTry it and tell me if it worked: I'll keep it for next time, offline.";
+                            saysExact(who, said);
+                            if (found != null) {
+                                rateable(t, said);
+                            }
+                        });
+                    }, "ibiko1-error-lookup").start();
+                });
+    }
+
     /** The error last explained, and the code that came with it, for "how do I fix it?" and "why?". */
     private volatile ai.ibiko.ibiko1.formulas.ErrorTalk.Found lastError;
     private volatile String lastErrorCode;
@@ -2255,7 +2353,7 @@ public final class Ibiko1 {
             } catch (RuntimeException ignored) {
                 // none shipped here
             }
-            errors = new ai.ibiko.ibiko1.formulas.ErrorTalk(in);
+            errors = new ai.ibiko.ibiko1.formulas.ErrorTalk(in, new File(dir, "learned_errors.tsv"));
         }
         return errors;
     }
@@ -3258,6 +3356,15 @@ public final class Ibiko1 {
         learner().judged(right, System.currentTimeMillis());
         methods().judge(question, right); // the way that reached it, too
         reflection().judged(Methods.kind(question), right); // and the record of how replies like it go
+        String fixed = pendingErrorFix;
+        if (fixed != null && answer.contains("(not confirmed yet)")) {
+            pendingErrorFix = null;
+            if (right) {
+                errors().confirm(fixed);
+            } else {
+                errors().wrong(fixed);
+            }
+        }
         String[] recipe = lastRecipe;
         if (recipe != null && answer.contains("```")) {
             // a recipe it found: kept as known once it works, dropped for good when it doesn't
