@@ -152,7 +152,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     # The release build shrinks and obfuscates with R8 (app/proguard-rules.pro); the debug build never runs it,
-    # so a missing keep rule would only show on a phone. No keystore here: the APK comes out unsigned.
+    # so a missing keep rule would only show on a phone.
+    # It is signed, so it installs: with the key in the repository's secrets (IBIKO_KEYSTORE_B64, the keystore in
+    # base64; IBIKO_KEYSTORE_PASSWORD; IBIKO_KEY_ALIAS; IBIKO_KEY_PASSWORD), or, without them, with a key made for
+    # this run (it installs, but an update over it needs the app uninstalled first).
+    # A push to main (and a manual run) publishes it as a GitHub release with Ibiko.apk attached, the newest marked
+    # Latest: https://github.com/<owner>/<repo>/releases/latest/download/Ibiko.apk is always the newest build.
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,8 +182,72 @@ jobs:
           fi
           chmod +x ./gradlew
 
+      - name: Signing key
+        id: key
+        env:
+          KS_B64: ${{ secrets.IBIKO_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.IBIKO_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.IBIKO_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.IBIKO_KEY_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/ibiko-release.jks"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$KS"
+            {
+              echo "IBIKO_KEYSTORE=$KS"
+              echo "IBIKO_KEYSTORE_PASSWORD=$KS_PASS"
+              echo "IBIKO_KEY_ALIAS=$KEY_ALIAS"
+              echo "IBIKO_KEY_PASSWORD=${KEY_PASS:-$KS_PASS}"
+            } >> "$GITHUB_ENV"
+            echo "kind=saved" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No IBIKO_KEYSTORE_B64 secret: signing with a key made for this run. It installs, but updating over it needs an uninstall."
+            keytool -genkeypair -keystore "$KS" -storepass ibiko-ci -keypass ibiko-ci -alias ibiko -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Ibiko CI" -noprompt
+            {
+              echo "IBIKO_KEYSTORE=$KS"
+              echo "IBIKO_KEYSTORE_PASSWORD=ibiko-ci"
+              echo "IBIKO_KEY_ALIAS=ibiko"
+              echo "IBIKO_KEY_PASSWORD=ibiko-ci"
+            } >> "$GITHUB_ENV"
+            echo "kind=temporary" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build release APK (R8 + llama.cpp via CMake)
         run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Check the signature and name the APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/Ibiko.apk
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$APKSIGNER" verify --print-certs dist/Ibiko.apk | head -3
+          echo "VERSION=$(sed -nE 's/^ *versionName "([^"]+)".*/\1/p' app/build.gradle | head -1)" >> "$GITHUB_ENV"
+          ls -la dist/Ibiko.apk
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibiko-release-apk
+          path: dist/Ibiko.apk
+          retention-days: 7
+
+      - name: Publish as a GitHub release
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}-build${{ github.run_number }}
+          name: Ibiko ${{ env.VERSION }} (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: dist/Ibiko.apk
+          body: |
+            Ibiko ${{ env.VERSION }}, built from ${{ github.sha }}.
+
+            **Install:** open this page on the phone, tap **Ibiko.apk**, then open the download and allow installs from your browser if Android asks.
+            The newest build is always at `releases/latest/download/Ibiko.apk`.
+
+            Signed with ${{ steps.key.outputs.kind == 'saved' && 'the saved release key: it updates the installed app in place.' || 'a key made for this build only (no signing secret is set): uninstall the app before installing it.' }}
 
       - name: Upload R8 mapping
         if: always()
