@@ -1,5 +1,6 @@
 package ai.ibiko.ibiko1;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.file.Files;
@@ -387,6 +388,40 @@ public class WhyFlowTest {
                     && both.contains("In your code: line 2: print(prices['coffee'])"));
             String fenced = ask(brain, chat, "```\nUncaught TypeError: Cannot read properties of undefined (reading 'length')\n    at count (app.js:3:17)\n```");
             assertTrue("in fences too: an error, not code to read: " + fenced, fenced.startsWith("That's a JavaScript error:"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
+
+    @Test(timeout = 180000)
+    public void theLastAnswerSaidAnotherWay() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String full = ask(brain, chat, "What is photosynthesis?");
+            assertTrue(full, full.startsWith("Photosynthesis is a process in which green plants make their own food"));
+            String shorter = ask(brain, chat, "Shorter please");
+            assertEquals("its core", "Photosynthesis is a process in which green plants make their own food from sunlight, using the help of leaves to produce sugar.", shorter);
+            String simpler = ask(brain, chat, "Explain it more simply");
+            assertTrue("plain words, from the whole answer (not the shortened one): " + simpler,
+                    simpler.startsWith("Photosynthesis is how green plants make their own food") && simpler.contains("energy from light into energy stored in food")
+                    && !simpler.contains("(glucose"));
+            String points = ask(brain, chat, "In bullet points");
+            assertTrue(points, points.startsWith("• Photosynthesis is a process") && points.split("\n").length == 3);
+            String one = ask(brain, chat, "Say it in one sentence");
+            assertTrue(one, !one.contains("\n") && one.split("(?<=[.!?]) ").length == 1);
+            String example = ask(brain, chat, "Give me an example");
+            assertTrue("said plainly when what it read has none: " + example, example.startsWith("For example:")
+                    || example.startsWith("I haven't read an example of Photosynthesis"));
         } finally {
             Plug.asset = was;
         }
