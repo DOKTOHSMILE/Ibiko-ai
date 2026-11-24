@@ -545,6 +545,7 @@ public final class Ibiko1 {
      * up.
      */
     public void answer(final String typed) {
+        thinkingSince = System.currentTimeMillis(); // Stop shows until it answers, or is stopped
         final String message = asQuestion(typed); // "capital of france", typed as a search: "What is the capital of france?"
         final String who = host.persona();
         long heardAt = System.currentTimeMillis();
@@ -769,7 +770,7 @@ public final class Ibiko1 {
                     Plug.workers.end(worker, true);
                     worker = null;
                 }
-                host.answered(How.OTHER);
+                answeredNow(How.OTHER);
                 host.act(t, code);
             });
             return;
@@ -1478,7 +1479,7 @@ public final class Ibiko1 {
                         Plug.workers.end(worker, true);
                         worker = null;
                     }
-                    host.answered(How.OTHER);
+                    answeredNow(How.OTHER);
                     host.act(t, call.toString());
                     return;
                 }
@@ -1500,6 +1501,36 @@ public final class Ibiko1 {
         ratingQuestion = question;
         learner().answered(question, answer, System.currentTimeMillis());
         host.askRating(question, answer);
+    }
+
+    /** When the current answer began, or 0 when Ibiko v1 isn't thinking: the app shows Stop meanwhile. */
+    private volatile long thinkingSince;
+    /** The longest a turn counts as thinking: past it the Stop button gives way, whatever is still pending. */
+    static final long THINKING_MAX_MS = MODEL_WAIT_MS + 20_000;
+
+    /** Whether Ibiko v1 is working out an answer now (its steps showing, or waiting on a model). */
+    public boolean isThinking() {
+        long since = thinkingSince;
+        return since != 0 && System.currentTimeMillis() - since < THINKING_MAX_MS;
+    }
+
+    private void answeredNow(How h) {
+        thinkingSince = 0;
+        host.answered(h);
+    }
+
+    /**
+     * The Stop button: the answer being worked out is let go, like a model's reply that is stopped. Its pending steps and
+     * any late answer (from the web, the device's model or the API model) see a newer token and say nothing. The screen
+     * clears its own steps (the app's Stop drops them rather than folding them into the chat).
+     */
+    public void stop() {
+        token++;
+        thinkingSince = 0;
+        if (worker != null) {
+            Plug.workers.end(worker, false);
+            worker = null;
+        }
     }
 
     /** It thinks visibly, like the models: its steps show one by one, then it answers. */
@@ -1587,7 +1618,7 @@ public final class Ibiko1 {
             worker = null;
         }
         host.say(who, text);
-        host.answered(how);
+        answeredNow(how);
     }
 
     private void saysPlain(String who, String text) {
@@ -3353,7 +3384,7 @@ public final class Ibiko1 {
             worker = null;
         }
         host.say(who, text);
-        host.answered(how);
+        answeredNow(how);
     }
 
     /** The text the person pasted last, for questions about it ({@link Passage}). */

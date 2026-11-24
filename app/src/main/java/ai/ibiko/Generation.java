@@ -46,6 +46,9 @@ final class Generation {
     void interruptReply() {
         a.readToken++;
         a.stopVisibleJob();
+        if (a.ibiko1 != null) {
+            a.ibiko1.stop(); // Ibiko v1's answer being worked out is let go: its late reply says nothing
+        }
         a.walker.abandon();
         setStreamOpen(false);
         a.endThink();
