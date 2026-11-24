@@ -22,6 +22,19 @@ public final class Quick {
     private static final String DAYS = "monday|tuesday|wednesday|thursday|friday|saturday|sunday";
     private static final Pattern WEEKDAY = Pattern.compile("(?i)^\\s*what day (?:is|will it be|would it be|is it)\\s+(\\d{1,4}) days? (after|from|before)\\s+"
             + "(" + DAYS + "|today)\\s*[?.!]*\\s*$");
+    private static final Pattern NEXT_DAY = Pattern.compile("(?i)^\\s*(?:what|which) day (?:comes|is|falls)?\\s*(after|before)\\s+(" + DAYS + ")\\s*[?.!]*\\s*$");
+    private static final String MONEY = "(?:\\s*(naira|dollars?|pounds?|euros?|cedis?|shillings?|rand))?";
+    private static final String CUR = "([₦$£€]|N(?=\\d))?\\s*";
+    /** "Share 90 naira equally among 3 children": what each gets. */
+    private static final Pattern SHARE = Pattern.compile("(?i)\\b(?:share|split|divide|shared|split up|divided)\\s+" + CUR + NUM + MONEY
+            + "\\s*(?:[a-z]+\\s+)?(?:equally\\s+)?(?:among|between|by|into|amongst|with)\\s+" + NUM + "\\s*([a-z]+)?");
+    /** "I paid 1000 naira for something that costs 650. How much change?": the change. */
+    private static final Pattern CHANGE = Pattern.compile("(?i)\\b(?:paid|pay|gave|give|hand over|handed over)\\s+(?:the [a-z]+\\s+)?" + CUR + NUM + MONEY
+            + "\\b.*?\\b(?:costs?|costing|priced at|is|was)\\s+" + CUR + NUM + MONEY + "\\b.*\\bchange\\b");
+    /** "The area of a rectangle 5 m long and 3 m wide". */
+    private static final Pattern RECT = Pattern.compile("(?i)\\barea of (?:a |the )?(rectangle|square|room|field|plot|floor|garden|wall)\\b.*?" + NUM
+            + "\\s*(m|cm|km|mm|ft|feet|metres?|meters?|inch(?:es)?|yards?)?\\s*(?:long|by|x|×|in length)?\\s*(?:and|by|x|×)?\\s*" + NUM
+            + "\\s*(m|cm|km|mm|ft|feet|metres?|meters?|inch(?:es)?|yards?)?\\s*(?:wide|in width|broad)?");
     private static final Pattern PRICE = Pattern.compile("(?i)\\b(?:a|an|one|each)\\s+([a-z]+)\\s+costs?\\s+([₦$£€]|N(?=\\d))?\\s*" + NUM
             + "(?:\\s*(naira|dollars?|pounds?|euros?|cedis?))?[^?]*?how much (?:do|does|would|will|for)\\s+" + NUM + "\\s+([a-z]+)(?:\\s+cost)?\\s*\\?");
 
@@ -76,6 +89,42 @@ public final class Quick {
             int to = Math.floorMod(at + step, 7);
             return days[to] + ". " + n + " days is " + (n / 7) + (n / 7 == 1 ? " week" : " weeks") + " and " + (n % 7) + (n % 7 == 1 ? " day" : " days")
                     + ", so it's " + (n % 7) + " " + (n % 7 == 1 ? "day" : "days") + " " + (step < 0 ? "before " : "after ") + days[at] + ".";
+        }
+        if ((m = NEXT_DAY.matcher(message)).matches()) {
+            String[] days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+            int at = java.util.Arrays.asList(DAYS.split("\\|")).indexOf(m.group(2).toLowerCase(Locale.ROOT));
+            boolean after = m.group(1).equalsIgnoreCase("after");
+            return days[Math.floorMod(at + (after ? 1 : -1), 7)] + (after ? " comes after " : " comes before ") + days[at] + ".";
+        }
+        if ((m = SHARE.matcher(message)).find()) {
+            double total = num(m.group(2)), ways = num(m.group(4));
+            if (ways <= 0) {
+                return null;
+            }
+            String cur = m.group(1) != null ? m.group(1) : "", unit = m.group(3) != null ? " " + m.group(3) : "";
+            String who = m.group(5) == null ? "" : " " + m.group(5);
+            double each = total / ways;
+            boolean whole = Math.abs(each - Math.rint(each)) < 1e-9;
+            return "Each gets " + cur + show(each) + unit + ": " + cur + show(total) + unit + " ÷ " + show(ways) + who + " = " + cur + show(each) + unit + "."
+                    + (whole || unit.isEmpty() && cur.isEmpty() ? "" : " (It doesn't share out exactly.)");
+        }
+        if ((m = CHANGE.matcher(message)).find()) {
+            double paid = num(m.group(2)), cost = num(m.group(5));
+            String cur = m.group(1) != null ? m.group(1) : m.group(4) != null ? m.group(4) : "";
+            String unit = m.group(3) != null ? " " + m.group(3) : m.group(6) != null ? " " + m.group(6) : "";
+            if (cost > paid) {
+                return "No change: you paid " + cur + show(paid) + unit + ", which is " + cur + show(cost - paid) + unit + " short of the "
+                        + cur + show(cost) + unit + " it costs.";
+            }
+            return "Your change is " + cur + show(paid - cost) + unit + ": " + cur + show(paid) + " − " + cur + show(cost) + " = " + cur
+                    + show(paid - cost) + unit + ".";
+        }
+        if ((m = RECT.matcher(message)).find()) {
+            double l = num(m.group(2)), w = num(m.group(4));
+            String u = m.group(3) != null ? m.group(3) : m.group(5);
+            String unit = u == null ? "" : " square " + u.replaceFirst("(?i)^m$", "metres").replaceFirst("(?i)^cm$", "centimetres")
+                    .replaceFirst("(?i)^km$", "kilometres").replaceFirst("(?i)^mm$", "millimetres").replaceFirst("(?i)^ft$", "feet");
+            return "The area is " + show(l * w) + unit + ": length × width = " + show(l) + " × " + show(w) + " = " + show(l * w) + unit + ".";
         }
         if ((m = PRICE.matcher(message)).find()) {
             double each = num(m.group(3));

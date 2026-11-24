@@ -102,6 +102,112 @@ public final class Spelling {
         return out;
     }
 
+    /** A question with its misspelled words put right, and what was put right ("captal" → "capital"). */
+    public static final class Fixed {
+        public final String text;
+        public final List<String> changes;
+
+        Fixed(String text, List<String> changes) {
+            this.text = text;
+            this.changes = changes;
+        }
+    }
+
+    /**
+     * The words of a question that aren't words, put right: each typed in lower case (a capital is a name, left alone),
+     * of four letters or more, not a word or a form of one, and one letter away from a real word. Of the real words one
+     * letter away, the commonest is taken (the one with the most meanings: "capital", not "cantal"); none when it's a
+     * close call. Null when nothing needed putting right.
+     *
+     * @param known  whether a written word is a word or a form of one ("boils")
+     * @param lemma  whether it is a word's own form, a candidate for the correction
+     * @param senses how many meanings a word has: how common it is
+     */
+    /** The small words a dictionary of meanings leaves out ("they", "your", "would"): words, never typos. */
+    private static final Set<String> FUNCTION = new java.util.HashSet<String>(java.util.Arrays.asList((
+            "they them their theirs themselves this that these those there here then than with from into onto upon unto over under "
+            + "your yours yourself ours ourselves mine hers himself herself itself what when where which whom whose while whilst why "
+            + "would could should shall will might must have been being were does doing done didn't doesn't about above below "
+            + "after before between among amongst against through throughout during until till since because although though "
+            + "unless whether either neither some many much more most very just also only even ever never always often "
+            + "each every both other another such same same anyone anybody anything someone somebody something everyone "
+            + "everybody everything nobody nothing none nowhere somewhere anywhere everywhere hello thanks please okay yeah "
+            + "whats hows wheres whos thats theres heres cant dont wont isnt arent wasnt werent didnt doesnt hasnt havent "
+            + "youre theyre were im ive ill").split("\\s+")));
+
+    public static Fixed fix(String message, Predicate<String> known, Predicate<String> lemma, java.util.function.ToIntFunction<String> senses) {
+        return fix(message, known, lemma, senses, null);
+    }
+
+    /**
+     * As {@link #fix(String, Predicate, Predicate, java.util.function.ToIntFunction)}, and when no common word is one
+     * letter away, the word as it sounds: {@code soundsLike} gives the words with the same consonant sounds ("fone":
+     * phone; "nolij": knowledge), and the commonest near in spelling is taken.
+     */
+    public static Fixed fix(String message, Predicate<String> known, Predicate<String> lemma, java.util.function.ToIntFunction<String> senses,
+            java.util.function.Function<String, List<String>> soundsLike) {
+        if (message == null || message.length() > 200 || message.contains("\n") || message.matches("(?s).*[{};<>=`].*")) {
+            return null;
+        }
+        Matcher m = Pattern.compile("(?<![\\p{L}'-])([a-z]{4,14})(?![\\p{L}'-])").matcher(message);
+        StringBuilder out = new StringBuilder();
+        List<String> changes = new ArrayList<String>();
+        int at = 0;
+        while (m.find()) {
+            String w = m.group(1);
+            if (FUNCTION.contains(w) || known.test(w)) {
+                continue;
+            }
+            String best = null;
+            int bestN = 0, second = 0;
+            for (String e : edits(w)) {
+                if (e.length() < 3 || !lemma.test(e)) {
+                    continue;
+                }
+                int n = senses.applyAsInt(e);
+                if (n > bestN) {
+                    second = bestN;
+                    best = e;
+                    bestN = n;
+                } else if (n > second) {
+                    second = n;
+                }
+            }
+            if ((best == null || bestN < 2 || second * 2 > bestN && second > 1) && soundsLike != null) {
+                // nothing sure one letter away: what it sounds like ("fone" is phone, "nolij" knowledge)
+                best = null;
+                bestN = 0;
+                second = 0;
+                for (String e : soundsLike.apply(w)) {
+                    // the sounds already match: the letters may differ more ("nolij" and "knowledge")
+                    int most = Math.max(2, (int) Math.ceil(Math.max(w.length(), e.length()) * 0.6));
+                    if (e.equals(w) || ai.ibiko.ibiko1.words.Phonetic.distance(w, e, most) > most) {
+                        continue;
+                    }
+                    int n = senses.applyAsInt(e);
+                    if (n > bestN) {
+                        second = bestN;
+                        best = e;
+                        bestN = n;
+                    } else if (n > second) {
+                        second = n;
+                    }
+                }
+            }
+            if (best == null || bestN < 2 || second * 2 > bestN && second > 1) {
+                continue; // no word near it, a rare one, or two as likely
+            }
+            out.append(message, at, m.start(1)).append(best);
+            at = m.end(1);
+            changes.add("“" + w + "” as “" + best + "”");
+        }
+        if (changes.isEmpty()) {
+            return null;
+        }
+        out.append(message.substring(at));
+        return new Fixed(out.toString(), changes);
+    }
+
     private static Set<String> edits(String w) {
         Set<String> out = new LinkedHashSet<String>();
         String abc = "abcdefghijklmnopqrstuvwxyz";

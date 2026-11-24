@@ -66,6 +66,10 @@ public final class WordTalk {
             + "what(?:'s| is) (?:a|the) term for|is there a word for)\\s+" + S + END);
     private static final Pattern SYNONYMS = Pattern.compile("(?is)^(?:(?:give me |list |what are (?:the |some )?)?synonyms? (?:of|for)|"
             + "(?:what(?:'s| is) )?another word for|(?:what(?:'s| is) )?a synonym (?:of|for)|other words for|words like)\\s+" + W + END);
+    /** "Is run a verb or a noun?", "is quickly an adverb?", "what part of speech is beautiful?" */
+    private static final String POS_WORDS = "verb|noun|adjective|adverb|pronoun|preposition|conjunction";
+    private static final Pattern PART_OF_SPEECH = Pattern.compile("(?i)^\\s*(?:is (?:the word )?[\"“']?([a-z][a-z'-]*)[\"”']? (?:a|an) (" + POS_WORDS + ")(?: or (?:a|an) ("
+            + POS_WORDS + "))?|what part of speech is (?:the word )?[\"“']?([a-z][a-z'-]*)[\"”']?|what (?:kind|type) of word is [\"“']?([a-z][a-z'-]*)[\"”']?)\\s*[?.!]*\\s*$");
     private static final Pattern OPPOSITES = Pattern.compile("(?is)^(?:(?:give me |list |what are (?:the |some )?)?antonyms? (?:of|for)|"
             + "(?:what(?:'s| is) )?the opposite of|opposite of|what(?:'s| is) (?:an|the) antonym (?:of|for))\\s+" + W + END);
     private static final Pattern EXPLAIN = Pattern.compile("(?is)^(?:explain|break down|analy[sz]e the meaning of|what does)\\s+(?:this|the)?\\s*"
@@ -76,7 +80,7 @@ public final class WordTalk {
             + "\\s+(?:mean|say) the same(?: thing)?" + END + "|^(?:is|does)\\s+" + S + "\\s+(?:mean the same as|the same as|same as)\\s+" + S + END
             + "|^compare\\s+" + S + "\\s+(?:and|with|to)\\s+" + S + END);
     private static final Pattern MORPH = Pattern.compile("(?is)^(?:break down the word|break down|morphemes (?:of|in)|what are the morphemes (?:of|in)|"
-            + "morphology of|word structure of|draw the (?:word|morphological|morphology) tree (?:of|for)|how is|what is the structure of the word)\\s+" + W
+            + "morphology of|word structure of|draw the (?:word|morphological|morphology) tree (?:of|for)|how is the word|how is(?=\\s+\\S+\\s+formed\\b)|what is the structure of the word)\\s+" + W
             + "(?:\\s+(?:formed|built|made))?" + END);
     private static final Pattern FORM = Pattern.compile("(?is)^(?:what(?:'s| is) )?the\\s+(plural|past tense|past participle|participle|-ing form|ing form|"
             + "present participle|comparative|superlative|third person)(?: form)? of\\s+" + W + END);
@@ -120,13 +124,56 @@ public final class WordTalk {
             return false;
         }
         String m = message.trim();
-        for (Pattern p : new Pattern[]{NUMBERS, TAGS, IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
+        for (Pattern p : new Pattern[]{NUMBERS, PART_OF_SPEECH, TAGS, IN_CONTEXT, MEANS, WORD_FOR, SYNONYMS, OPPOSITES, SAME, OTHER_WORDS, GRAMMAR, FORM, SOUND, MORPH, SIMILAR, CLOSE, ODD}) {
             if (p.matcher(m).matches()) {
                 return true;
             }
         }
         Matcher x = EXPLAIN.matcher(m);
         return x.matches() && first(x).split("\\s+").length >= 3;
+    }
+
+    /** What parts of speech a word can be, from its senses in the dictionary, with an example meaning of each. */
+    private String partOfSpeech(Matcher x) {
+        String word = x.group(1) != null ? x.group(1) : x.group(4) != null ? x.group(4) : x.group(5);
+        java.util.LinkedHashMap<String, String> kinds = new java.util.LinkedHashMap<String, String>();
+        for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : meanings.senses(word)) {
+            String pos = s.pos.toLowerCase(java.util.Locale.ROOT).trim();
+            if (!pos.isEmpty() && !kinds.containsKey(pos)) {
+                kinds.put(pos, s.definition);
+            }
+        }
+        if (kinds.isEmpty()) {
+            return "I don't have “" + word + "” in my dictionary, so I can't say what kind of word it is.";
+        }
+        List<String> said = new ArrayList<String>();
+        for (java.util.Map.Entry<String, String> e : kinds.entrySet()) {
+            said.add("a " + e.getKey() + " (" + e.getValue().split(";")[0].trim() + ")");
+        }
+        String asked1 = x.group(2) == null ? null : x.group(2).toLowerCase(java.util.Locale.ROOT);
+        String asked2 = x.group(3) == null ? null : x.group(3).toLowerCase(java.util.Locale.ROOT);
+        String lead;
+        if (asked1 != null && asked2 != null && kinds.containsKey(asked1) && kinds.containsKey(asked2)) {
+            lead = "Both: “" + word + "” can be a " + asked1 + " or a " + asked2 + ", depending on how it's used.";
+        } else if (asked1 != null && asked2 != null) {
+            String yes = kinds.containsKey(asked1) ? asked1 : kinds.containsKey(asked2) ? asked2 : null;
+            lead = yes == null ? "Neither: “" + word + "” is " + String.join(" or ", firstWords(kinds)) + "."
+                    : "A " + yes + ": “" + word + "” isn't used as a " + (yes.equals(asked1) ? asked2 : asked1) + ".";
+        } else if (asked1 != null) {
+            lead = kinds.containsKey(asked1) ? "Yes, “" + word + "” is a " + asked1 + (kinds.size() > 1 ? ", and it can also be other kinds of word." : ".")
+                    : "No, “" + word + "” isn't a " + asked1 + ".";
+        } else {
+            lead = "“" + word + "” is " + String.join(" or ", firstWords(kinds)) + ".";
+        }
+        return lead + "\n" + "It can be " + String.join("; ", said) + ".";
+    }
+
+    private static List<String> firstWords(java.util.Map<String, String> kinds) {
+        List<String> out = new ArrayList<String>();
+        for (String k : kinds.keySet()) {
+            out.add("a " + k);
+        }
+        return out;
     }
 
     /** The reply to a question about words, meanings or grammar; null when it isn't one. */
@@ -158,6 +205,9 @@ public final class WordTalk {
             List<String> syn = meanings.synonyms(first(x), null);
             return syn.isEmpty() ? "I don't have synonyms for “" + first(x) + "” in my dictionary."
                     : "Words with the same meaning as “" + first(x) + "”: " + String.join(", ", syn) + ".";
+        }
+        if ((x = PART_OF_SPEECH.matcher(m)).matches()) {
+            return partOfSpeech(x);
         }
         if ((x = OPPOSITES.matcher(m)).matches()) {
             List<String> opp = meanings.opposites(first(x));

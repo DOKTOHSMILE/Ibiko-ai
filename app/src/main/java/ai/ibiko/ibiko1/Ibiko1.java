@@ -208,6 +208,14 @@ public final class Ibiko1 {
     /** The dictionary turned both ways ({@link ai.ibiko.ibiko1.words.MeaningIndex}) from a knowledge folder, or null. */
     public static ai.ibiko.ibiko1.words.Meanings meanings(File knowledge) {
         ai.ibiko.ibiko1.words.MeaningIndex index = ai.ibiko.ibiko1.words.MeaningIndex.of(Store.unpacked(knowledge, "lexicon.tsv"));
+        if (index != null) {
+            try {
+                // the words the dictionary lacks ("they", "went", "wahala", "selfie"), after its own
+                index.addMore(TextCode.open(Plug.asset, "knowledge/lexicon_more.tsv"));
+            } catch (RuntimeException ignored) {
+                // none shipped here: the dictionary alone
+            }
+        }
         return index == null ? null : new ai.ibiko.ibiko1.words.Meanings(index);
     }
 
@@ -567,7 +575,7 @@ public final class Ibiko1 {
     public void answer(final String typed) {
         thinkingSince = System.currentTimeMillis(); // Stop shows until it answers, or is stopped
         understood = null; // worked out again for this message
-        final String message = asQuestion(typed); // "capital of france", typed as a search: "What is the capital of france?"
+        final String message = typosFixed(asQuestion(typed)); // "capital of france", typed as a search: "What is the capital of france?"
         final String who = host.persona();
         long heardAt = System.currentTimeMillis();
         // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
@@ -594,6 +602,9 @@ public final class Ibiko1 {
         }
         asking = t; // what this turn asks, as understood: kept with its answer in the conversation
         contextStep = withContext.changed() ? "Reading it with what we were talking about: " + withContext.said() : null;
+        if (typoStep != null) {
+            contextStep = contextStep == null ? typoStep : typoStep + "; " + contextStep; // "Reading “captal” as “capital”"
+        }
         if (hops != null) {
             String worked = String.join("; ", hops.steps) + ". So: " + t;
             contextStep = contextStep == null ? worked : contextStep + "; " + worked;
@@ -747,6 +758,13 @@ public final class Ibiko1 {
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
         // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
         // the best taken first (not the first pattern that fits); the others kept to fall back on
+        // a saying, before the word-by-word readers ("me, myself and I", "break a leg", "no wahala"): what it means, and what it implies
+        final String saying = pasted == null ? expressions().explain(message, previous) : null;
+        if (saying != null) {
+            think(Arrays.asList("Reading your message", "That's a saying: its words don't add up to what it means",
+                    "Recalling what it means and what it implies"), () -> saysPlain(who, saying));
+            return;
+        }
         if (ranked(who, message, t, snippet)) {
             return;
         }
@@ -808,6 +826,9 @@ public final class Ibiko1 {
             List<String> rest = new ArrayList<String>();
             for (String part : parts) {
                 String ack = person().heard(part);
+                if (ack == null) {
+                    ack = tally.heard(part); // "I have 3 apples", "I buy 4 more": counts kept through the talk
+                }
                 if (ack != null) {
                     took.append(took.length() == 0 ? "" : " ").append(ack);
                 } else {
@@ -826,6 +847,11 @@ public final class Ibiko1 {
             }
         }
         // a question about the person ("who am I?", "what's my name?", "what do you know about me?")
+        final String counted = tally.asked(t);
+        if (counted != null) {
+            think(Arrays.asList("Reading your question", "That's a count you've been keeping with me", "Adding it up"), () -> saysPlain(who, counted));
+            return;
+        }
         final String aboutYou = person().asked(t, host.aboutPilot());
         if (aboutYou != null) {
             think(Arrays.asList("Reading your question", "That's about you", "Recalling what you told me"), () -> saysPlain(who, aboutYou));
@@ -2628,6 +2654,22 @@ public final class Ibiko1 {
     private ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes;
 
     /** The kinds of question by how they start (knowledge/language/question_types.tsv: a newer one downloaded first). */
+    private ai.ibiko.ibiko1.formulas.Expressions expressions;
+
+    /** Idioms and sayings and what they mean (knowledge/language/expressions.tsv). */
+    public synchronized ai.ibiko.ibiko1.formulas.Expressions expressions() {
+        if (expressions == null || expressions.size() == 0) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/language/expressions.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            expressions = new ai.ibiko.ibiko1.formulas.Expressions(in);
+        }
+        return expressions;
+    }
+
     public synchronized ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes() {
         if (questionTypes == null) {
             java.io.InputStream in = null;
@@ -2771,6 +2813,44 @@ public final class Ibiko1 {
             m = m.replaceAll("[.!]+$", "") + "?";
         }
         return m.equals(message.trim()) ? message : m;
+    }
+
+    /** The misspellings put right in the message being answered ("“captal” as “capital”"), for the thinking; null when none. */
+    private volatile String typoStep;
+
+    /**
+     * A question's misspelled words put right ("wat is the captal of nigeria": capital), so a typo doesn't send it to the
+     * wrong answer. Only questions: what someone tells it, pastes or codes is read as written.
+     */
+    private String typosFixed(String message) {
+        typoStep = null;
+        final ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (message == null || words == null || !ASKING_START.matcher(message).find() || !message.trim().endsWith("?")) {
+            return message;
+        }
+        ai.ibiko.ibiko1.formulas.Spelling.Fixed f;
+        try {
+            final Encyclopedia book = encyclopedia();
+            // words said in this conversation are the person's own ("garri", a name): never typos
+            final java.util.Set<String> said = new java.util.HashSet<String>();
+            StringBuilder talked = new StringBuilder(current == null ? "" : current).append(' ').append(previous == null ? "" : previous);
+            for (Conversation.Turn turn : talk.recent(10)) {
+                talked.append(' ').append(turn.asked).append(' ').append(turn.said);
+            }
+            for (String w : talked.toString().toLowerCase(Locale.ROOT).split("[^\\p{L}']+")) {
+                said.add(w);
+            }
+            // a word is known when the dictionary has it, the encyclopedia uses it ("became", "took"), or it was said here
+            f = ai.ibiko.ibiko1.formulas.Spelling.fix(message, w -> words.headword(w) != null || said.contains(w) || book.uses(w),
+                    w -> words.index().has(w), w -> words.index().senses(w).size(), words::soundsLike);
+        } catch (RuntimeException e) {
+            return message;
+        }
+        if (f == null) {
+            return message;
+        }
+        typoStep = "Reading " + String.join(", ", f.changes);
+        return f.text;
     }
 
     /** A bare phrase typed as a search ("capital of france", "population of Kano"): the question it stands for. */
@@ -3048,6 +3128,9 @@ public final class Ibiko1 {
             return null;
         }
     }
+
+    /** Counts of things the person said they have, kept through this conversation ({@code formulas/Tally}). */
+    private final ai.ibiko.ibiko1.formulas.Tally tally = new ai.ibiko.ibiko1.formulas.Tally();
 
     /** What the message being answered asks, read with the conversation ({@link Understanding}); null before it is read. */
     private volatile Understanding understood;

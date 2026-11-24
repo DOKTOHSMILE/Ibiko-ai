@@ -148,3 +148,47 @@ h.honest.weather	honest2	What will the weather be tomorrow?	(can't|don't|not|onl
 h.err.index	errors2	IndexError: list index out of range	(length|len\(|position)
 h.code.even	code2	Write a function to check if a number is even in Python	```python
 h.code.js	code2	how do i reverse a string in javascript	```javascript
+# ---- round 3: conversation memory, follow-ups across turns, word problems, grammar, everyday knowledge
+r3.mem.name	memory	My name is Ada. || What is my name?	\bAda\b
+r3.mem.city	memory	I'm from Kano. || Where am I from?	\bKano\b
+r3.mem.apples	memory	I have 3 apples. || I buy 4 more apples. || How many apples do I have now?	\b7\b
+r3.mem.age	memory	I am 25 years old. || How old will I be in 5 years?	\b30\b
+r3.mem.like	memory	I love jollof rice. || What food do I love?	jollof
+r3.fu.capital	follow-ups3	Tell me about Ghana || What is its capital?	\bAccra\b
+r3.fu.and	follow-ups3	What is the capital of France? || And Germany?	\bBerlin\b
+r3.fu.born	follow-ups3	Who was Nelson Mandela? || When was he born?	1918
+r3.fu.pop	follow-ups3	What is the capital of Kenya? || How many people live there?	(million|\d{1,3},\d{3},\d{3})
+r3.fu.currency	follow-ups3	Tell me about Japan || What currency do they use?	\byen\b
+r3.wp.speed	maths3	A car travels 120 km in 2 hours. What is its average speed?	\b60\b
+r3.wp.share	maths3	Share 90 naira equally among 3 children. How much does each get?	\b30\b
+r3.wp.change	maths3	I paid 1000 naira for something that costs 650. How much change do I get?	\b350\b
+r3.wp.solve	maths3	Solve 2x + 6 = 14	\b4\b
+r3.wp.sqrt	maths3	What is the square root of 144?	\b12\b
+r3.wp.percent	maths3	What is 15% of 240?	\b36\b
+r3.wp.area	maths3	What is the area of a rectangle 5 m long and 3 m wide?	\b15\b
+r3.g.plural	grammar	What is the plural of child?	\bchildren\b
+r3.g.past	grammar	What is the past tense of go?	\bwent\b
+r3.g.synonym	grammar	Give me a synonym for happy	(glad|joyful|content|cheerful|felicitous)
+r3.g.spell	grammar	How do you spell necessary?	necessary
+r3.g.noun	grammar	Is run a verb or a noun?	(both|verb)
+r3.k.planets	everyday3	How many planets are in the solar system?	\b(8|eight)\b
+r3.k.largest	everyday3	What is the largest planet?	\bJupiter\b
+r3.k.continents	everyday3	How many continents are there?	\b(7|seven)\b
+r3.k.gold	everyday3	What is the chemical symbol for gold?	\bAu\b
+r3.k.heavier	everyday3	Which is heavier, gold or silver?	^Gold
+r3.k.after	everyday3	What day comes after Friday?	\bSaturday\b
+r3.k.seconds	everyday3	How many seconds are in an hour?	3,?600
+r3.k.km	everyday3	Convert 5 km to miles	\b3\.1
+r3.k.africa	everyday3	Which country in Africa has the most people?	\bNigeria\b
+r3.t.typo	typos3	wat is the captal of nigeria	\bAbuja\b
+r3.t.typo2	typos3	hw many legs does a spidr have	\b(8|eight)\b
+r3.h.future	honest3	Who will win the 2030 World Cup?	(can't|cannot|no one|nobody|don't know|not possible|future)
+r3.h.mind	honest3	What am I thinking right now?	(can't|cannot|don't|no way|not able)
+r3.l.syllogism	logic3	If all birds have feathers and a penguin is a bird, does a penguin have feathers?	^Yes
+# ---- words and sayings: Nigerian English, modern words, idioms, typos by sound
+w.riddle	sayings	Me myself and I\nJust the 3 of us\n🤔 What does this implicate?	(only you|myself alone|by yourself)
+w.idiom	sayings	What does "spill the beans" mean?	(secret|reveal|disclose)
+w.wahala	newwords	What does wahala mean?	(trouble|problem)
+w.japa	newwords	What does japa mean?	(emigrat|leave|abroad)
+w.selfie	newwords	What is a selfie?	(photo|self-portrait|picture)
+w.sound	typos4	what is the meening of nolij?	(knowledge|knowing|understanding|information)

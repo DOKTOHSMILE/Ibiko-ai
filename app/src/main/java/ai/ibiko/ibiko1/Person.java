@@ -269,6 +269,27 @@ public final class Person {
             int age = Integer.parseInt(a) + since;
             return since == 0 ? "You told me you're " + age + "." : "You told me you were " + a + ", so you're about " + age + " now.";
         }
+        java.util.regex.Matcher later = java.util.regex.Pattern.compile("how old (will|would) i be in (\\d{1,3}) years?( time)?|how old was i (\\d{1,3}) years? ago")
+                .matcher(t);
+        if (later.matches()) {
+            String a = get("age");
+            if (a == null) {
+                return unknown.replace("yet.", "your age yet.");
+            }
+            int year = java.time.LocalDate.now().getYear();
+            int now = Integer.parseInt(a) + Math.max(0, year - Integer.parseInt(p.getProperty("age_year", String.valueOf(year))));
+            if (later.group(2) != null) {
+                int n = Integer.parseInt(later.group(2));
+                return "You'll be " + (now + n) + ": you're " + now + " now, and " + now + " + " + n + " = " + (now + n) + ".";
+            }
+            int n = Integer.parseInt(later.group(4));
+            return n > now ? "You weren't born yet " + n + " years ago: you're " + now + "."
+                    : "You were " + (now - n) + ": you're " + now + " now, and " + now + " − " + n + " = " + (now - n) + ".";
+        }
+        if (t.matches("what ([a-z]+ )?do i (like|love|enjoy)|what ([a-z]+ )?(do i|i) (like|love|enjoy) (most|best)")) {
+            List<String> l = list("likes");
+            return l.isEmpty() ? unknown : "From what you told me, you like " + FactsQA.and(String.join(", ", l)) + ".";
+        }
         if (t.matches("where (am i|do i come) from|where('s| is) my home ?town")) {
             String f = get("from");
             return f == null ? unknown : "You're from " + f + ".";
