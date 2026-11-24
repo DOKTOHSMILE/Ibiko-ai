@@ -449,6 +449,8 @@ public class WhyFlowTest {
             assertTrue(check, check.startsWith("No: it's the other way round."));
             String apples = ask(brain, chat, "If I have 3 apples and eat one, how many are left?");
             assertTrue("a counting story, worked through: " + apples, apples.startsWith("2 apples are left.") && apples.contains("3 − 1 = 2"));
+            String bat = ask(brain, chat, "Is a bat a bird?");
+            assertEquals("a sure no, from groups that can't overlap", "No. Bats are mammals, and mammals aren't birds.", bat);
             String world = ask(brain, chat, "Who is the tallest man in the world?");
             assertTrue("a question of its own: not from the puzzle: " + world, !world.contains("Ada") && !world.contains("Obi"));
         } finally {

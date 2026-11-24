@@ -75,6 +75,65 @@ public final class Kinds {
     /** Q2–Q3: the steps from the thing up to the kind asked, or null when what it reads doesn't get there. */
     public static List<Step> chain(String thing, String kind, Function<String, List<Contrast.Kind>> whatIs) {
         String goal = Causes.stem(last(kind));
+        return search(thing, k -> Causes.stem(last(k.head)).equals(goal) || saysKind(k.said, kind), whatIs);
+    }
+
+    /**
+     * Kinds that can't overlap: what is one of them is none of the others. A "no" is said only from these: a chain from
+     * the thing that reaches another member of the kind's own group ("a bat is a mammal": not a bird). Anything else not
+     * reached stays unsaid (what isn't read isn't false).
+     */
+    private static final String[][] APART = {
+        {"mammal", "bird", "fish", "reptile", "amphibian", "insect", "arachnid", "crustacean", "mollusc"},
+        {"animal", "plant", "fungus", "bacterium", "virus"},
+        {"planet", "star", "moon", "comet", "asteroid", "galaxy"},
+        {"country", "city", "continent", "river", "mountain", "ocean", "lake", "island", "desert"},
+        {"fruit", "vegetable", "grain", "nut"},
+        {"metal", "nonmetal", "gas", "liquid"},
+        {"tree", "flower", "grass", "shrub"}};
+
+    private static String[] groupOf(String word) {
+        String w = Causes.stem(last(word));
+        for (String[] g : APART) {
+            for (String m : g) {
+                if (Causes.stem(m).equals(w)) {
+                    return g;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Q4: the steps from the thing to a kind that rules out the one asked ("a bat is a mammal"), or null: not a sure no. */
+    public static List<Step> not(String thing, String kind, Function<String, List<Contrast.Kind>> whatIs) {
+        final String[] group = groupOf(kind);
+        if (group == null) {
+            return null;
+        }
+        final String asked = Causes.stem(last(kind));
+        return search(thing, k -> {
+            String h = Causes.stem(last(k.head));
+            if (h.equals(asked)) {
+                return false;
+            }
+            for (String m : group) {
+                if (Causes.stem(m).equals(h)) {
+                    return true;
+                }
+            }
+            return false;
+        }, whatIs);
+    }
+
+    /** "No. A bat is a mammal, and mammals aren't birds." */
+    public static String saidNo(List<Step> steps, String kind) {
+        Step last = steps.get(steps.size() - 1);
+        String yes = said(steps).replaceFirst("^Yes\\. ", "").replaceAll("\\.$", "");
+        String other = singular(last.head.trim()), asked = singular(kind.replaceFirst("(?i)^(a|an|the)\\s+", "").trim());
+        return "No. " + yes + ", and " + Contrast.plural(other) + " aren't " + Contrast.plural(asked) + ".";
+    }
+
+    private static List<Step> search(String thing, java.util.function.Predicate<Contrast.Kind> found, Function<String, List<Contrast.Kind>> whatIs) {
         Map<String, Step> cameFrom = new HashMap<String, Step>();
         Set<String> seen = new HashSet<String>();
         LinkedList<String[]> queue = new LinkedList<String[]>(); // {name, depth}
@@ -97,8 +156,7 @@ public final class Kinds {
             }
             for (Contrast.Kind k : ks) {
                 Step step = new Step(at[0], k.said, k.head, k.sentence);
-                String head = Causes.stem(last(k.head));
-                if (head.equals(goal) || saysKind(k.said, kind)) {
+                if (found.test(k)) {
                     List<Step> out = new ArrayList<Step>();
                     out.add(0, step);
                     String back = at[0];

@@ -80,7 +80,10 @@ public final class Conversation {
     private static final Pattern RETURN = Pattern.compile("(?i)^\\s*(?:(?:ok(?:ay)?|so|now|anyway),?\\s+)?(?:(?:let'?s |can we |could we )?go back to|back to|"
             + "returning to|let'?s talk about|let'?s get back to|getting back to)\\s+(.{2,60}?)(?:\\s+(?:again|for a (?:moment|second|bit)))?\\s*[?.!]*\\s*$");
     private static final Pattern FIRST = Pattern.compile("(?i)^\\s*what (?:was|is) the (first|last|previous) (?:thing|question) (?:i|we) (?:asked|said|talked about)"
-            + "(?: you)?\\s*[?.!]*\\s*$|^\\s*what did i (first) ask(?: you)?\\s*[?.!]*\\s*$");
+            + "(?: you)?\\s*[?.!]*\\s*$|^\\s*what did i (first|last) ask(?: you)?\\s*[?.!]*\\s*$"
+            + "|^\\s*what did i ask(?: you)? (first|last|before that|just now|at the (?:start|beginning))\\s*[?.!]*\\s*$"
+            + "|^\\s*what (?:was|were) my (first|last|previous) (?:question|message|thing)s?\\s*[?.!]*\\s*$"
+            + "|^\\s*what did i (?:just )?(ask|say)(?: you)? just now\\s*[?.!]*\\s*$");
 
     /** V1–V4: what a message asks about the conversation, or null. */
     public static Ask read(String message) {
@@ -99,8 +102,12 @@ public final class Conversation {
             return new Ask(Ask.Kind.RETURN, bare(x.group(1)));
         }
         if ((x = FIRST.matcher(m)).matches()) {
-            String which = x.group(1) != null ? x.group(1) : x.group(2);
-            return new Ask("first".equalsIgnoreCase(which) ? Ask.Kind.FIRST : Ask.Kind.LAST, null);
+            String which = null;
+            for (int g = 1; g <= x.groupCount() && which == null; g++) {
+                which = x.group(g);
+            }
+            boolean first = which != null && which.toLowerCase(java.util.Locale.ROOT).matches("first|at the (?:start|beginning)");
+            return new Ask(first ? Ask.Kind.FIRST : Ask.Kind.LAST, null);
         }
         return null;
     }
