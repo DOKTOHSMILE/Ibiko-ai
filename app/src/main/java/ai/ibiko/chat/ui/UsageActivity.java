@@ -155,6 +155,21 @@ public final class UsageActivity extends AppCompatActivity {
         });
         sw.addView(toggle);
         learn.addView(sw);
+        // Ibiko v1 asking the API model what it doesn't know, checking the answer and keeping it
+        LinearLayout ask = new LinearLayout(this);
+        ask.setGravity(Gravity.CENTER_VERTICAL);
+        ask.addView(Ui.text(this, "Ibiko v1 asks your API model", 16, Ui.TEXT, false), new LinearLayout.LayoutParams(0, -2, 1f));
+        android.widget.Switch asks = new android.widget.Switch(this);
+        asks.setChecked(prefs.getBoolean("ibiko1_asks_api", true));
+        asks.setTrackTintList(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{Ui.CORAL, Ui.FIELD}));
+        asks.setOnCheckedChangeListener((b, on) -> prefs.edit().putBoolean("ibiko1_asks_api", on).apply());
+        ask.addView(asks);
+        learn.addView(ask, Ui.wide(this, 12));
+        learn.addView(Ui.text(this, "When Ibiko v1 doesn't know something and the web doesn't either, it asks your API model (its faster,"
+                + " cheaper model when you set one), checks the answer against what it knows, and keeps it: the same question is then"
+                + " answered from memory, offline and free. An answer that goes against what it knows is shown beside it and not kept."
+                + " This uses your API tokens.", 13, Ui.SUB, false), Ui.wide(this, 8));
         learn.addView(row("Answers kept", String.valueOf(ll.count())), Ui.wide(this, 8));
         learn.addView(row("Size", bytes(ll.bytes())), Ui.wide(this, 8));
         learn.addView(Ui.text(this, "Each request, reply and Ibiko step from your API models is kept on this device, never sent anywhere."

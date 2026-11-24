@@ -104,6 +104,21 @@ public final class Ibiko1 {
             return null;
         }
 
+        /** Whether an API model the pilot set up can be asked what Ibiko v1 doesn't know (online, and allowed). */
+        default boolean teacherReady() {
+            return false;
+        }
+
+        /** The API model's answer, or null. Blocking: off the main thread. Costs the pilot tokens: asked only when needed. */
+        default String askTeacher(String system, String question) {
+            return null;
+        }
+
+        /** The API model's name, as the pilot knows it ("Claude", "GPT-5"). */
+        default String teacherName() {
+            return "the API model";
+        }
+
         /** Carries out a function code line ("§SR weather in Lagos") through the app's gate for every model. */
         default void act(String message, String codeLine) {
         }
@@ -1124,11 +1139,16 @@ public final class Ibiko1 {
                             }
                             // only a question with a subject to explain ("what is a zorblat"): one about Ibiko itself
                             // ("what limitations do you face") or with nothing named goes the usual way
-                            if (asksBack() && host.online() && subject != null && (found != null || !host.modelReady())) {
+                            if (asksBack() && host.online() && subject != null && (found != null || !host.modelReady() && !host.teacherReady())) {
                                 // not in memory: before answering, it asks what the person means (Inquiry); when the search
                                 // found nothing and the phone has a model, that model answers instead, as before
                                 inquiry = new Inquiry.Pending(t, subject, found, System.currentTimeMillis());
                                 saysPlain(who, Inquiry.askBack(t, subject, found != null));
+                                return;
+                            }
+                            if (found == null && host.teacherReady()) {
+                                // not in memory, not on the web: the pilot's API model is asked, and its answer checked
+                                think(Arrays.asList("Not in what I know or on the web: asking " + host.teacherName()), () -> fromTeacher(who, t, subject), false);
                                 return;
                             }
                             if (found == null && host.modelReady()) {
@@ -1341,6 +1361,69 @@ public final class Ibiko1 {
         think(Arrays.asList("Reading your correction", "Replacing what I said", "Matching it with what I already know"),
                 () -> saysPlain(who, "Thank you for correcting me. When you ask “" + q.replaceAll("[?.!]+$", "") + "”, I'll answer: "
                         + right + ties));
+    }
+
+    static final String TEACHER_SYSTEM = "Answer the question in two to four plain, factual sentences. State facts with their dates and"
+            + " numbers. If it is not known, or is about the future, say so plainly; never guess.";
+
+    /**
+     * L1–L4: what Ibiko v1 doesn't know, asked of the pilot's API model, then checked by Ibiko against what it holds
+     * ({@link TeacherCheck}): an answer that goes against a fact it holds sure is shown beside that fact and not kept; one
+     * its own reading backs is kept as known; a new one is kept as unsure until the pilot says it's right. Next time the
+     * question is answered from memory: no tokens, offline, at once.
+     */
+    private void fromTeacher(final String who, final String t, final String subject) {
+        final int mine = token;
+        final String name = host.teacherName();
+        new Thread(() -> {
+            String a = null;
+            try {
+                a = host.askTeacher(TEACHER_SYSTEM, "Question: " + PromptReader.guard(t));
+            } catch (RuntimeException ignored) {
+                // no answer: said below
+            }
+            final String said = a == null ? null : ai.ibiko.suit.FunctionCode.withoutCode(a).trim();
+            Encyclopedia.Article art = subject == null ? null : encyclopedia().find(subject);
+            final TeacherCheck.Result r = said == null || said.isEmpty() || ai.ibiko.learn.Corroborate.failure(said) ? null
+                    : TeacherCheck.check(said, subject, facts(), knowledge(), art == null ? null : art.text);
+            if (r != null) {
+                long now = System.currentTimeMillis();
+                if (r.verdict == TeacherCheck.Verdict.CONFIRMED) {
+                    knowledge().confirm(t, said); // checked: known from now on
+                    facts().learn(said, subject, 2, now);
+                } else if (r.verdict == TeacherCheck.Verdict.NEW) {
+                    knowledge().learnUnchecked(t, said); // kept as unsure: "accurate?" until the pilot says
+                    facts().learn(said, subject, 1, now);
+                }
+            }
+            host.onScreen(() -> {
+                if (mine != token) {
+                    return;
+                }
+                if (r == null) {
+                    LearningJob.remember(host.context(), t);
+                    learner().unanswered(t, System.currentTimeMillis());
+                    saysPlain(who, noSureAnswer(t, subject, true));
+                    return;
+                }
+                how = How.OTHER;
+                switch (r.verdict) {
+                    case CONFIRMED:
+                        saysSure(who, said, ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES,
+                                "From " + name + ", checked against " + r.because + ": it agrees. I'll know it from now on.");
+                        break;
+                    case CONFLICT:
+                        saysPlain(who, name + " says: " + said + "\n\nBut that goes against what I hold: " + r.because
+                                + ". I've kept what I had. Tell me which is right, and I'll remember it.");
+                        break;
+                    default:
+                        saysSure(who, said, ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED,
+                                "From " + name + ". I couldn't check it against what I know, so I've kept it as unsure: tell me if it's right.");
+                        rateable(t, said);
+                        break;
+                }
+            });
+        }, "ibiko1-teacher").start();
     }
 
     /** Ibiko v1 and the device's model as one brain: what Ibiko v1 knows goes in, and the model can run a function. */
