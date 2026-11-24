@@ -54,7 +54,7 @@ public final class Logic {
     }
 
     private static final String NOUN = "([a-z][a-z-]*(?: [a-z][a-z-]*)?)";
-    private static final String WHO = "((?:a |an |the )?[A-Za-z][\\p{L}'-]*(?: [A-Z][\\p{L}'-]*)?)";
+    private static final String WHO = "((?:[Aa] |[Aa]n |[Tt]he )?[A-Za-z][\\p{L}'-]*(?: [A-Z][\\p{L}'-]*)?)";
     private static final Pattern ALL = Pattern.compile("(?i)^(?:all|every|each)\\s+" + NOUN + "\\s+(?:are|is)\\s+(?:a |an )?" + NOUN + "$");
     private static final Pattern NONE = Pattern.compile("(?i)^no\\s+" + NOUN + "\\s+(?:are|is)\\s+(?:a |an )?" + NOUN + "$");
     private static final Pattern ALL_HAVE = Pattern.compile("(?i)^(?:all|every|each)\\s+" + NOUN + "\\s+(?:have|has)\\s+(?:a |an |some )?" + NOUN + "$");
@@ -62,12 +62,39 @@ public final class Logic {
     private static final Pattern LACKS = Pattern.compile("(?i)^" + WHO + "\\s+(?:has no|does not have|doesn't have|has not got|hasn't got|lacks)\\s+(?:a |an |any )?" + NOUN + "$");
     private static final Pattern IF = Pattern.compile("(?i)^if\\s+(.{3,80}?),\\s*(?:then\\s+)?(.{3,80})$");
 
+    /** "If all birds have feathers and a penguin is a bird, does a penguin have feathers?" asked in one sentence. */
+    private static final Pattern IF_ASK = Pattern.compile("(?i)^\\s*(?:if|given that|suppose|supposing|assuming)\\s+(.{6,200}?),\\s*(?:then\\s+)?"
+            + "((?:is|are|was|were|does|do|did|can|could|will|would|has|have|must)\\b.{3,120}\\?)\\s*$");
+
+    /**
+     * The premises of a one-sentence question said first, as statements ("All birds have feathers. A penguin is a bird.
+     * Does a penguin have feathers?"), when each is one Ibiko reasons from; the text as it was otherwise.
+     */
+    static String premisesFirst(String text) {
+        Matcher m = text == null ? null : IF_ASK.matcher(text.trim());
+        if (m == null || !m.matches()) {
+            return text;
+        }
+        List<String> said = new ArrayList<String>();
+        for (String p : m.group(1).split("(?i),?\\s+and\\s+|;\\s*")) {
+            String c = p.trim();
+            if (!(ALL.matcher(c).matches() || ALL_HAVE.matcher(c).matches() || NONE.matcher(c).matches() || IS_A.matcher(c).matches()
+                    || LACKS.matcher(c).matches())) {
+                return text; // "if it rains and …": an if-then, read as one
+            }
+            said.add(Character.toUpperCase(c.charAt(0)) + c.substring(1) + ".");
+        }
+        String q = m.group(2).trim();
+        return String.join(" ", said) + " " + Character.toUpperCase(q.charAt(0)) + q.substring(1);
+    }
+
     /** L1–L4: what a text states (its questions are left out). */
     public static Known read(String text) {
         Known k = new Known();
         if (text == null) {
             return k;
         }
+        text = premisesFirst(text);
         for (String raw : text.split("(?<=[.!?])\\s+|\\n+")) {
             String s = raw.trim();
             if (s.endsWith("?") || s.isEmpty()) {
@@ -120,6 +147,7 @@ public final class Logic {
         if (text == null) {
             return null;
         }
+        text = premisesFirst(text);
         String[] parts = text.trim().split("(?<=[.!?])\\s+");
         String q = parts[parts.length - 1].trim();
         if (!q.endsWith("?")) {

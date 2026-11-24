@@ -209,8 +209,12 @@ public final class Context {
         out = swap(out, "\\b(his)\\b", man, r, true);
         out = swap(out, "\\b(her)\\b(?=\\s+[a-z])", woman, r, true); // "her husband": hers
         out = swap(out, "\\b(her)\\b", woman, r, false);
-        out = swap(out, "\\b(they|them)\\b", they != null ? they : who == null && it != null && it.kind == Kind.GROUP ? it : null, r, false);
-        out = swap(out, "\\b(their)\\b", they, r, true);
+        // "they" with no group in the talk: a group thing, else the country or place we're on ("What currency do they use?"
+        // after Japan: its people)
+        Focus people = they != null ? they : who == null && it != null && it.kind == Kind.GROUP ? it
+                : who == null && cur.kind == Kind.PLACE ? cur : who == null && there != null ? there : null;
+        out = swap(out, "\\b(they|them)\\b", people, r, false);
+        out = swap(out, "\\b(their)\\b", people, r, true);
         Focus thingNow = it != null ? it : cur.kind == Kind.THING || cur.kind == Kind.PLACE ? cur : null;
         if (out.matches("(?i).*\\b(what time is it|what day is it|what date is it|is it (true|right|ok|okay|possible|safe|good|bad)|"
                 + "how is it going|what is it like|it's (raining|cold|hot|late|early)|is it raining)\\b.*")) {
