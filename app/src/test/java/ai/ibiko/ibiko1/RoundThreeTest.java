@@ -56,6 +56,14 @@ public class RoundThreeTest {
         Spelling.Fixed g = Spelling.fix("how many legs does a spidr have?", w -> words.contains(w) || w.equals("legs"), words::contains,
                 w -> senses.getOrDefault(w, 1));
         assertEquals("how many legs does a spider have?", g.text);
+        java.util.Map<String, Integer> tie = new java.util.HashMap<String, Integer>();
+        tie.put("author", 3);
+        tie.put("tutor", 3);
+        tie.put("actor", 2);
+        Spelling.Fixed h = Spelling.fix("who is the autor of things fall apart?", w -> !w.equals("autor"), tie::containsKey,
+                w -> tie.getOrDefault(w, 1));
+        assertNotNull("a letter left out wins a tie", h);
+        assertEquals("who is the author of things fall apart?", h.text);
         assertNull("small words aren't typos", Spelling.fix("what currency do they use?", w -> false, w -> w.equals("thew"), w -> 5));
         assertNull("names in capitals are left alone", Spelling.fix("who is Chinedu?", w -> false, w -> true, w -> 5));
     }

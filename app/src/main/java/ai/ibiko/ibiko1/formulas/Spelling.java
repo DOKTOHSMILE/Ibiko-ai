@@ -158,8 +158,8 @@ public final class Spelling {
             if (FUNCTION.contains(w) || known.test(w)) {
                 continue;
             }
-            String best = null;
-            int bestN = 0, second = 0;
+            String best = null, missed = null;
+            int bestN = 0, second = 0, missedN = 0, missedSecond = 0;
             for (String e : edits(w)) {
                 if (e.length() < 3 || !lemma.test(e)) {
                     continue;
@@ -172,6 +172,21 @@ public final class Spelling {
                 } else if (n > second) {
                     second = n;
                 }
+                if (e.length() == w.length() + 1 && within(w, e)) { // the typed letters all in it, one left out
+                    if (n > missedN) {
+                        missedSecond = missedN;
+                        missed = e;
+                        missedN = n;
+                    } else if (n > missedSecond) {
+                        missedSecond = n;
+                    }
+                }
+            }
+            // a letter left out is the commonest slip: on a tie it wins ("autor": author, not tutor, both as common)
+            if (missed != null && missedN >= bestN && missedN >= 2 && !(missedSecond * 2 > missedN && missedSecond > 1)) {
+                best = missed;
+                bestN = missedN;
+                second = 0;
             }
             if ((best == null || bestN < 2 || second * 2 > bestN && second > 1) && soundsLike != null) {
                 // nothing sure one letter away: what it sounds like ("fone" is phone, "nolij" knowledge)
@@ -206,6 +221,17 @@ public final class Spelling {
         }
         out.append(message.substring(at));
         return new Fixed(out.toString(), changes);
+    }
+
+    /** Whether the typed word is the longer one with one letter left out. */
+    private static boolean within(String typed, String word) {
+        int i = 0;
+        for (int j = 0; j < word.length() && i < typed.length(); j++) {
+            if (word.charAt(j) == typed.charAt(i)) {
+                i++;
+            }
+        }
+        return i == typed.length();
     }
 
     private static Set<String> edits(String w) {
