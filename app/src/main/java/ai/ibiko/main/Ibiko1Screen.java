@@ -47,6 +47,20 @@ public final class Ibiko1Screen implements Ibiko1.Host {
         default String askModel(String system, String question) {
             return null;
         }
+
+        /** Whether an API model is set up and may be asked what Ibiko v1 doesn't know. */
+        default boolean teacherReady() {
+            return false;
+        }
+
+        /** Asks the API model (blocking, off the main thread); null when it can't. */
+        default String askTeacher(String system, String question) {
+            return null;
+        }
+
+        default String teacherName() {
+            return "the API model";
+        }
     }
 
     @Override
@@ -57,6 +71,21 @@ public final class Ibiko1Screen implements Ibiko1.Host {
     @Override
     public String askModel(String system, String question) {
         return parts.askModel(system, question);
+    }
+
+    @Override
+    public boolean teacherReady() {
+        return parts.teacherReady();
+    }
+
+    @Override
+    public String askTeacher(String system, String question) {
+        return parts.askTeacher(system, question);
+    }
+
+    @Override
+    public String teacherName() {
+        return parts.teacherName();
     }
 
     @Override

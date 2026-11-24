@@ -1936,6 +1936,44 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
 
         @Override
+        public boolean teacherReady() {
+            // an API model set up, online, and Settings hasn't turned it off: Ibiko v1 asks it what it doesn't know,
+            // checks the answer and keeps it, so the same question costs nothing next time
+            return prefs.getBoolean("ibiko1_asks_api", true) && online()
+                    && !new ai.ibiko.llm.ProviderStore(MainActivity.this).usable().isEmpty();
+        }
+
+        @Override
+        public String askTeacher(String system, String question) {
+            try {
+                ai.ibiko.llm.ProviderStore store = new ai.ibiko.llm.ProviderStore(MainActivity.this);
+                java.util.List<ai.ibiko.llm.Providers> usable = store.usable();
+                if (usable.isEmpty()) {
+                    return null;
+                }
+                ai.ibiko.llm.Providers p = usable.get(0);
+                ai.ibiko.llm.RemoteBrain b = store.fastBrain(p); // the cheaper model for a short factual answer
+                if (b == null) {
+                    b = store.brain(p);
+                }
+                if (b == null) {
+                    return null;
+                }
+                java.util.List<String[]> turns = new java.util.ArrayList<String[]>();
+                turns.add(new String[]{"user", question});
+                return b.chat(system, turns, 600, 0.2f, null);
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+
+        @Override
+        public String teacherName() {
+            java.util.List<ai.ibiko.llm.Providers> usable = new ai.ibiko.llm.ProviderStore(MainActivity.this).usable();
+            return usable.isEmpty() ? "the API model" : usable.get(0).title;
+        }
+
+        @Override
         public java.util.List<String> aboutPilot() {
             return pilotProfile().lines();
         }
