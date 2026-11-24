@@ -546,6 +546,7 @@ public final class Ibiko1 {
      */
     public void answer(final String typed) {
         thinkingSince = System.currentTimeMillis(); // Stop shows until it answers, or is stopped
+        understood = null; // worked out again for this message
         final String message = asQuestion(typed); // "capital of france", typed as a search: "What is the capital of france?"
         final String who = host.persona();
         long heardAt = System.currentTimeMillis();
@@ -600,6 +601,10 @@ public final class Ibiko1 {
         } else if (heardAt - topicAt > 30 * 60 * 1000L) {
             topic = null;
         }
+        // what this message asks, read with the running conversation: every part below reads this one understanding
+        Context.Focus inFocus = context.focus(heardAt);
+        understood = new Understanding(message, t, questionTypes().of(message), topic, inFocus == null ? null : inFocus.name,
+                talk.recent(Understanding.TURNS));
         if (inquiry == null && curiousTurn(who, message.trim())) {
             return; // the answer to what it asked back about, formed into a sentence before it is kept
         }
@@ -1110,6 +1115,10 @@ public final class Ibiko1 {
         if (frame.wants != ai.ibiko.ibiko1.formulas.Asking.Wants.OTHER) {
             researching.add("Looking for " + frame.said());
         }
+        final Understanding reading = understood == null ? null : understood.with(asked);
+        if (reading != null && reading.step() != null && (reading.focus != null || !reading.recent.isEmpty())) {
+            researching.add(reading.step());
+        }
         researching.add("Checking what I already know");
         researching.add(way != null ? "Following the way that worked before: " + way.said() : "Thinking it through");
         think(researching, () -> {
@@ -1125,7 +1134,10 @@ public final class Ibiko1 {
                         }
                         if (r == null) {
                             // the question as understood (its name repaired), searched in words phrased for the most results
-                            r = LearningJob.research(host.context(), asked, q -> host.onScreen(() -> {
+                            int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+                            List<String> searches = reading == null ? null
+                                    : reading.searches(ai.ibiko.ibiko1.formulas.SearchPhrase.get(), year);
+                            r = LearningJob.research(host.context(), asked, searches, q -> host.onScreen(() -> {
                                 if (mine == token) {
                                     host.step("Searching the web for: " + q);
                                 }
@@ -1371,7 +1383,8 @@ public final class Ibiko1 {
     }
 
     static final String TEACHER_SYSTEM = "Answer the question in two to four plain, factual sentences. State facts with their dates and"
-            + " numbers. If it is not known, or is about the future, say so plainly; never guess.";
+            + " numbers. If it is not known, or is about the future, say so plainly; never guess. When the conversation so far is"
+            + " given, use it only to tell what the question refers to.";
 
     /**
      * L1–L4: what Ibiko v1 doesn't know, asked of the pilot's API model, then checked by Ibiko against what it holds
@@ -1381,11 +1394,13 @@ public final class Ibiko1 {
      */
     private void fromTeacher(final String who, final String t, final String subject) {
         final int mine = token;
+        final Understanding reading = understood;
         final String name = host.teacherName();
         new Thread(() -> {
             String a = null;
             try {
-                a = host.askTeacher(TEACHER_SYSTEM, "Question: " + PromptReader.guard(t));
+                // asked with the conversation before it, so "when did he die?" is about the one we were talking about
+                a = host.askTeacher(TEACHER_SYSTEM, reading == null ? "Question: " + PromptReader.guard(t) : reading.forModel(t));
             } catch (RuntimeException ignored) {
                 // no answer: said below
             }
@@ -1435,7 +1450,8 @@ public final class Ibiko1 {
 
     /** Ibiko v1 and the device's model as one brain: what Ibiko v1 knows goes in, and the model can run a function. */
     static final String MODEL_SYSTEM = "You are Ibiko, answering for Ibiko's own brain. Answer in a few plain sentences."
-            + " Use what Ibiko already knows when it is given. If you don't know, say so. "
+            + " Use what Ibiko already knows when it is given, and the conversation so far to tell what the question refers to."
+            + " If you don't know, say so. "
             + ai.ibiko.suit.FunctionCode.directions()
             + " /no_think";
 
@@ -1444,6 +1460,7 @@ public final class Ibiko1 {
 
     private void fromModel(final String who, final String t, final String subject, final boolean online) {
         final int mine = token;
+        final Understanding reading = understood;
         final String known = foundation(t);
         final boolean[] settled = {false};
         host.later(() -> {
@@ -1458,9 +1475,22 @@ public final class Ibiko1 {
         }, MODEL_WAIT_MS);
         new Thread(() -> {
             String asked = (known == null || known.trim().isEmpty() ? "" : "What Ibiko already knows:\n" + known.trim() + "\n\n")
-                    + "Question: " + PromptReader.guard(t); // orders hidden in pasted text are fenced off as text
+                    + (reading == null ? "Question: " + PromptReader.guard(t) : reading.forModel(t)); // pasted orders fenced off as text
             String a = host.askModel(MODEL_SYSTEM, asked);
             final String said = a == null ? null : a.trim();
+            // the device's model is checked the way the API model is: against the facts, the knowledge and the encyclopedia
+            String plain = said == null ? null : ai.ibiko.suit.FunctionCode.withoutCode(said);
+            TeacherCheck.Result checked = null;
+            if (plain != null && !plain.trim().isEmpty() && ai.ibiko.suit.FunctionCode.parse(said) == null
+                    && !ai.ibiko.learn.Corroborate.failure(plain)) {
+                try {
+                    Encyclopedia.Article art = subject == null ? null : encyclopedia().find(subject);
+                    checked = TeacherCheck.check(plain.trim(), subject, facts(), knowledge(), art == null ? null : art.text);
+                } catch (RuntimeException ignored) {
+                    // unchecked: said as the model's own, below
+                }
+            }
+            final TeacherCheck.Result check = checked;
             host.onScreen(() -> {
                 if (mine != token || settled[0]) {
                     return; // a newer message took over, or it already replied
@@ -1496,6 +1526,17 @@ public final class Ibiko1 {
                     return;
                 }
                 how = How.OTHER;
+                if (check != null && check.verdict == TeacherCheck.Verdict.CONFLICT) {
+                    saysPlain(who, "The device's model says: " + shown.trim() + "\n\nBut that goes against what I hold: " + check.because
+                            + ". I've kept what I had. Tell me which is right, and I'll remember it.");
+                    return;
+                }
+                if (check != null && check.verdict == TeacherCheck.Verdict.CONFIRMED) {
+                    knowledge().confirm(t, shown.trim());
+                    saysSure(who, shown.trim(), ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES,
+                            "Thought through with the device's model, and checked against " + check.because + ": it agrees.");
+                    return;
+                }
                 saysSure(who, shown.trim(), ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED, "Thought through with the device's model");
                 rateable(t, shown.trim()); // the pilot's check keeps it in Ibiko v1's memory (and in the next adapter's training)
             });
@@ -2976,6 +3017,14 @@ public final class Ibiko1 {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    /** What the message being answered asks, read with the conversation ({@link Understanding}); null before it is read. */
+    private volatile Understanding understood;
+
+    /** What the message being answered asks, read with the conversation; null when none is being answered. */
+    public Understanding understood() {
+        return understood;
     }
 
     /** The conversation so far, turn by turn (one per chat), to be talked about. */

@@ -160,6 +160,15 @@ public final class LearningJob extends JobService {
      * {@code searching} hears each search as it goes out (for the thinking shown), when given.
      */
     public static ResearchAnswer research(Context c, String question, java.util.function.Consumer<String> searching) {
+        return research(c, question, null, searching);
+    }
+
+    /**
+     * As {@link #research(Context, String, java.util.function.Consumer)}, with the searches already phrased (with the
+     * conversation: {@link Understanding#searches}); the question's own phrasing when null.
+     */
+    public static ResearchAnswer research(Context c, String question, java.util.List<String> searches,
+            java.util.function.Consumer<String> searching) {
         ResearchAnswer r = null;
         String subject = ResearchAnswer.subject(question);
         if (subject != null) {
@@ -167,7 +176,9 @@ public final class LearningJob extends JobService {
         }
         if (r == null) {
             int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
-            for (String q : ai.ibiko.ibiko1.formulas.SearchPhrase.get().tries(question, year)) {
+            java.util.List<String> tries = searches != null && !searches.isEmpty() ? searches
+                    : ai.ibiko.ibiko1.formulas.SearchPhrase.get().tries(question, year);
+            for (String q : tries) {
                 if (searching != null) {
                     searching.accept(q);
                 }
