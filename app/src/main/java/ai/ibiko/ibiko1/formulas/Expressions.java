@@ -103,4 +103,60 @@ public final class Expressions {
         meaning = Character.toLowerCase(meaning.charAt(0)) + meaning.substring(1);
         return "“" + shown + "” is a saying: it means " + meaning + "." + (s.note.isEmpty() ? "" : "\n\n" + s.note);
     }
+
+    /**
+     * A quoted phrase read piece by piece, when its words are sayings of their own ("Abeg, fire up the gen": "abeg" is
+     * please, "fire up the gen" is start the generator): what it says in plain words, and what each piece means. Null when
+     * fewer than two of its pieces are known, or one whole saying covers it (that is {@link #explain}'s).
+     */
+    public String gloss(String phrase) {
+        if (phrase == null || sayings.isEmpty()) {
+            return null;
+        }
+        String t = plain(phrase);
+        // the longest known piece at each place, left to right
+        String[] words = t.trim().split(" ");
+        List<Saying> found = new ArrayList<Saying>();
+        for (int i = 0; i < words.length; ) {
+            Saying best = null;
+            int span = 0;
+            for (Saying s : sayings) {
+                String[] w = s.words.trim().split(" ");
+                if (w.length > span && i + w.length <= words.length) {
+                    boolean same = true;
+                    for (int j = 0; j < w.length && same; j++) {
+                        same = w[j].equals(words[i + j]);
+                    }
+                    if (same) {
+                        best = s;
+                        span = w.length;
+                    }
+                }
+            }
+            if (best != null) {
+                found.add(best);
+                i += span;
+            } else {
+                i++;
+            }
+        }
+        if (found.size() < 2) {
+            return null;
+        }
+        // the phrase said plainly: each piece put in its own short meaning
+        String said = phrase.trim().replaceAll("[.!?]+$", "");
+        List<String> parts = new ArrayList<String>();
+        for (Saying s : found) {
+            String plainly = s.meaning.split("[;.]")[0].trim();
+            String low = Character.toLowerCase(plainly.charAt(0)) + plainly.substring(1);
+            java.util.regex.Matcher m = Pattern.compile("(?i)(?<![\\p{L}])" + Pattern.quote(s.phrase).replace(" ", "\\E\\s+\\Q") + "(?![\\p{L}])").matcher(said);
+            if (m.find()) {
+                said = said.substring(0, m.start()) + "\u0000" + low + "\u0000" + said.substring(m.end());
+            }
+            parts.add("“" + s.phrase + "” means " + low + (s.note.isEmpty() ? "" : " (" + Character.toLowerCase(s.note.charAt(0)) + s.note.substring(1).replaceAll("\\.$", "") + ")"));
+        }
+        said = said.replace("\u0000", "");
+        said = Character.toUpperCase(said.charAt(0)) + said.substring(1);
+        return "“" + phrase.trim() + "” means “" + said + ".” " + String.join("; ", parts) + ".";
+    }
 }

@@ -511,7 +511,7 @@ public final class SocialActivity extends AppCompatActivity {
             // the campaign studio plans it on its own; its conversation opens, showing the plan as it is made
             String id = ai.ibiko.social.campaign.CampaignStudio.startWaiting(this);
             if (id != null) {
-                startActivity(CampaignChatActivity.open(this, id));
+                startActivity(ai.ibiko.CampaignRoom.intent(this, id));
             }
         }
     }

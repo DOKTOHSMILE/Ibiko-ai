@@ -341,7 +341,7 @@ public final class CampaignsActivity extends AppCompatActivity {
 
     /** A campaign opens to its studio conversation (planning shows there as it goes). */
     private void open(final Campaign c, boolean planning) {
-        startActivity(CampaignChatActivity.open(this, c.id));
+        startActivity(ai.ibiko.CampaignRoom.intent(this, c.id));
     }
 
     private void newCampaign() {
@@ -355,7 +355,7 @@ public final class CampaignsActivity extends AppCompatActivity {
             // the campaign studio plans it on its own; its conversation opens, showing the plan as it is made
             String id = ai.ibiko.social.campaign.CampaignStudio.startWaiting(this);
             if (id != null) {
-                startActivity(CampaignChatActivity.open(this, id));
+                startActivity(ai.ibiko.CampaignRoom.intent(this, id));
             }
         }
     }

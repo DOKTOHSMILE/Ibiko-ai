@@ -86,7 +86,7 @@ public final class CampaignDraft {
             nm.createNotificationChannel(ch);
         }
         PendingIntent open = PendingIntent.getActivity(c, id.hashCode(),
-                ai.ibiko.chat.ui.CampaignChatActivity.open(c, id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                ai.ibiko.CampaignRoom.intent(c, id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new Notification.Builder(c, CHANNEL)
                 .setSmallIcon(ai.ibiko.R.drawable.ic_calendar)

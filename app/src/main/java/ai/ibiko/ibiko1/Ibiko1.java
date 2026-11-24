@@ -119,6 +119,11 @@ public final class Ibiko1 {
             return "the API model";
         }
 
+        /** Opens the Learning chat, where the learning conversation happens; false where there is none (no screen). */
+        default boolean openLearningChat() {
+            return false;
+        }
+
         /** Carries out a function code line ("§SR weather in Lagos") through the app's gate for every model. */
         default void act(String message, String codeLine) {
         }
@@ -651,12 +656,27 @@ public final class Ibiko1 {
         if (tasks != null) {
             // what a task asks that the passage only uses ("what does 'no wahala' mean?"): its sayings and words
             tasks.also = q -> {
+                // a quoted phrase made of sayings ("Abeg, fire up the gen"): read piece by piece
+                java.util.regex.Matcher quoted = java.util.regex.Pattern.compile("[\"“]([^\"”]{2,80})[\"”]").matcher(q);
+                if (quoted.find()) {
+                    String glossed = expressions().gloss(quoted.group(1));
+                    if (glossed != null) {
+                        return glossed;
+                    }
+                }
                 String saying = expressions().explain(q.replaceAll("[\"“”']", " "), null);
                 if (saying != null) {
                     return saying;
                 }
                 java.util.regex.Matcher w = java.util.regex.Pattern.compile("(?i)what does [\"“']?([\\p{L}' -]{2,30}?)[\"”']? mean").matcher(q);
                 return w.find() ? dictionaryMeaning(w.group(1)) : null;
+            };
+        }
+        if (tasks != null) {
+            // a yes-or-no claim about the world in a task ("Is Onitsha the capital of Anambra State?"): its facts
+            tasks.facts = q -> {
+                ai.ibiko.ibiko1.formulas.Verify.Said v = ai.ibiko.ibiko1.formulas.Verify.check(q, this::fact);
+                return v != null ? v.text : claimChecked(q);
             };
         }
         if (tasks != null) {
@@ -769,6 +789,10 @@ public final class Ibiko1 {
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
         // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
         // the best taken first (not the first pattern that fits); the others kept to fall back on
+        // a learning conversation with the pilot's API model: started, or stopped, when asked
+        if (pasted == null && learningTurn(who, message)) {
+            return;
+        }
         // "what do you think about remote work?": a view of its own, reasoned from what it reads, with how sure it is
         if (pasted == null && opinionTurn(who, message)) {
             return;
@@ -2247,6 +2271,15 @@ public final class Ibiko1 {
             sum = ai.ibiko.ibiko1.formulas.TextOps.reply(message); // "how many letters in Nigeria?", "reverse hello", "sort … alphabetically"
         }
         if (sum == null && snippet == null) {
+            sum = ai.ibiko.ibiko1.formulas.Patterns.next(message); // "what comes next: 2, 6, 18, 54?": the rule, then the number
+        }
+        if (sum == null && snippet == null) {
+            sum = ai.ibiko.ibiko1.formulas.Patterns.analogy(message, analogyWords()); // "hot is to cold as up is to what?"
+        }
+        if (sum == null && snippet == null) {
+            sum = storyInOneMessage(message); // "Kemi baked 40 cakes and sold 15. How many cakes were left?"
+        }
+        if (sum == null && snippet == null) {
             sum = yearsAgo(t); // "how many years ago was Nelson Mandela born?": the date looked up, then the years counted
         }
         final String quick = sum;
@@ -2869,6 +2902,9 @@ public final class Ibiko1 {
             }
             for (String w : talked.toString().toLowerCase(Locale.ROOT).split("[^\\p{L}']+")) {
                 said.add(w);
+                if (w.length() > 3 && w.endsWith("s")) {
+                    said.add(w.substring(0, w.length() - 1)); // "flarns" said: "flarn" is theirs too
+                }
             }
             // a word is known when the dictionary has it, the encyclopedia uses it ("became", "took"), or it was said here
             f = ai.ibiko.ibiko1.formulas.Spelling.fix(message, w -> words.headword(w) != null || said.contains(w) || book.uses(w),
@@ -3078,6 +3114,122 @@ public final class Ibiko1 {
      * place and number put in, one responsive HTML file given whole. Explained or compared: from what it knows of each
      * kind. False when it names no kind it knows (the rest of Ibiko, or the coding agent, takes it).
      */
+    private volatile LearningTalk learningTalk;
+
+    /** Whether Ibiko is in a learning conversation with the API model now. */
+    public boolean learning() {
+        LearningTalk l = learningTalk;
+        return l != null && l.going();
+    }
+
+    /**
+     * "Start a learning conversation with my API model", "go and learn 20 things", "stop learning": Ibiko asks the API
+     * model what it doesn't know, checks each answer against what it holds, keeps it by the verdict, and shows every
+     * exchange ({@link LearningTalk}). False when the message isn't about one.
+     */
+    private boolean learningTurn(final String who, String message) {
+        if (LearningTalk.stops(message)) {
+            LearningTalk l = learningTalk;
+            if (l == null || !l.going()) {
+                return false;
+            }
+            l.stop();
+            think(Arrays.asList("Reading your message", "Ending the learning conversation"),
+                    () -> saysPlain(who, "Stopped. What I learned so far is kept; ask me about any of it."));
+            return true;
+        }
+        final int count = LearningTalk.asked(message);
+        if (count == 0) {
+            return false;
+        }
+        if (!host.teacherReady()) {
+            think(Arrays.asList("Reading your message: a learning conversation with your API model"), () -> saysPlain(who,
+                    "I need an API model to learn from: add one in Settings › Models (your API key), then ask me again. Each question I ask it "
+                            + "uses your tokens, so I'll ask " + count + " and stop."));
+            return true;
+        }
+        if (learning()) {
+            think(Arrays.asList("Reading your message"), () -> saysPlain(who, "I'm already in a learning conversation. Say “stop learning” to end it."));
+            return true;
+        }
+        if (host.openLearningChat()) {
+            // the conversation happens in its own chat, through the same way as every message
+            think(Arrays.asList("Reading your message: a learning conversation with " + host.teacherName(), "Opening the Learning chat"),
+                    () -> saysPlain(who, "Opening the Learning chat: I'll type my questions to " + host.teacherName() + " there and send them the way"
+                            + " you send yours, check every answer before I keep it, and you can join in. Each question uses your API tokens;"
+                            + " say “stop learning” there to end it."));
+            return true;
+        }
+        final String teacher = host.teacherName();
+        learningTalk = new LearningTalk(learningBrain(), text -> host.onScreen(() -> host.say(host.persona(), text)));
+        how = How.OTHER;
+        think(Arrays.asList("Reading your message: a learning conversation with " + teacher, "Picking what I don't know yet"), () -> {
+            saysPlain(who, "Starting a learning conversation with " + teacher + ": I'll ask " + count + (count == 1 ? " question" : " questions")
+                    + " about what I don't know: first what I couldn't answer before, then what each answer makes me curious about, then "
+                    + "random subjects. I'll check every answer against what I hold before I keep it. Each question uses your API tokens; "
+                    + "say “stop learning” to end it.");
+            learningTalk.start(count);
+        });
+        return true;
+    }
+
+    /**
+     * What a learning conversation is given of this brain: the API model to ask, and the check and keep every answer
+     * goes through ({@link TeacherCheck}), so what is learned in the Learning chat is learned the same way as here.
+     */
+    public LearningTalk.Brain learningBrain() {
+        return new LearningTalk.Brain() {
+            @Override
+            public String ask(String question) {
+                String a = host.askTeacher(TEACHER_SYSTEM, "Question: " + PromptReader.guard(question));
+                return a == null ? null : ai.ibiko.suit.FunctionCode.withoutCode(a).trim();
+            }
+
+            @Override
+            public String teacher() {
+                return host.teacherName();
+            }
+
+            @Override
+            public String checkAndKeep(String question, String answer, String subject) {
+                if (ai.ibiko.learn.Corroborate.failure(answer)) {
+                    return "Not kept: that isn't an answer.";
+                }
+                String about = subject != null ? subject : ResearchAnswer.subject(question);
+                Encyclopedia.Article art = about == null ? null : encyclopedia().find(about);
+                TeacherCheck.Result r = TeacherCheck.check(answer, about, facts(), knowledge(), art == null ? null : art.text);
+                long now = System.currentTimeMillis();
+                learner().read(answer, Learner.Source.RESEARCH, now); // the language of it, learned too
+                if (r == null || r.verdict == TeacherCheck.Verdict.NEW) {
+                    knowledge().learnUnchecked(question, answer);
+                    facts().learn(answer, about, 1, now);
+                    return "Kept as unsure: it's new to me, so I'll hold it until you confirm it.";
+                }
+                if (r.verdict == TeacherCheck.Verdict.CONFIRMED) {
+                    knowledge().confirm(question, answer);
+                    facts().learn(answer, about, 2, now);
+                    return "Kept as known: it agrees with " + r.because + ".";
+                }
+                return "Set aside: it goes against what I hold (" + r.because + "). Tell me which is right.";
+            }
+
+            @Override
+            public List<String> open() {
+                return learner().openQuestions();
+            }
+
+            @Override
+            public String randomSubject(java.util.Random r) {
+                return encyclopedia().randomSubject(r);
+            }
+
+            @Override
+            public boolean knows(String name) {
+                return encyclopedia().find(name) != null;
+            }
+        };
+    }
+
     private static final java.util.regex.Pattern OPINION_ASK = java.util.regex.Pattern.compile("(?i)^\\s*(?:so\\s+|and\\s+|ok(?:ay)?,?\\s+)?(?:what do you think (?:about|of)|"
             + "what are your thoughts (?:on|about)|what(?:'s| is) your (?:opinion|view|take) (?:on|of|about)|your thoughts on|how do you feel about|"
             + "do you think (?:that )?(.{2,60}?) is (?:good|bad|worth it|a good idea)|is (.{2,60}?) (?:good or bad|a good idea|worth it))(?:\\s*(.{2,80}?))?\\s*[?.!]*\\s*$");
@@ -3230,6 +3382,61 @@ public final class Ibiko1 {
                     }, "ibiko1-ambition").start();
                 });
         return true;
+    }
+
+    /** The dictionary, as the analogies ask it: opposites, meanings, and the words a meaning names. */
+    private ai.ibiko.ibiko1.formulas.Patterns.Words analogyWords() {
+        final ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (words == null) {
+            return null;
+        }
+        return new ai.ibiko.ibiko1.formulas.Patterns.Words() {
+            @Override
+            public List<String> opposites(String w) {
+                return words.opposites(w);
+            }
+
+            @Override
+            public List<String> meanings(String w) {
+                List<String> out = new ArrayList<String>();
+                for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : words.senses(w)) {
+                    if (!s.definition.isEmpty() && !Character.isUpperCase(s.definition.charAt(0))) {
+                        out.add(s.definition);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public List<String> meaning(String... holding) {
+                return words.withMeaning(holding);
+            }
+        };
+    }
+
+    /**
+     * A short story and its question in one message ("Tunde keeps 4 cows and grows maize. How many cows does Tunde keep?"):
+     * worked out from what the message itself says, not looked up; null when it isn't one.
+     */
+    private String storyInOneMessage(String message) {
+        if (message == null || message.length() > 1500) {
+            return null;
+        }
+        String m = message.trim();
+        List<String> parts = Passage.split(m);
+        if (parts.size() < 2 || !parts.get(parts.size() - 1).trim().endsWith("?") || !m.matches("(?s).*\\d.*")) {
+            return null;
+        }
+        String question = parts.get(parts.size() - 1).trim();
+        int at = m.lastIndexOf(question);
+        if (at <= 0) {
+            return null;
+        }
+        try {
+            return new Story(m.substring(0, at).trim()).answer(question);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** A noun's first meaning in the dictionary, or null. */
@@ -3473,6 +3680,32 @@ public final class Ibiko1 {
         }
     }
 
+    private static final java.util.regex.Pattern CLAIM = java.util.regex.Pattern.compile("(?i)^\\s*(?:is|was)\\s+(.+?)\\s+the\\s+(capital|capital city|largest city|"
+            + "currency|president|governor|official language|head of state)\\s+of\\s+(.+?)\\s*\\?\\s*$");
+
+    /**
+     * "Is Onitsha the capital of Anambra State?" checked against the built-in facts (Nigeria's states and their
+     * capitals, the countries): yes or no first, then the fact. Null when there is no fact for it.
+     */
+    String claimChecked(String q) {
+        java.util.regex.Matcher c = q == null ? null : CLAIM.matcher(q);
+        if (c == null || !c.matches()) {
+            return null;
+        }
+        String known = null;
+        try {
+            known = builtIn().answer("What is the " + c.group(2) + " of " + c.group(3).trim() + "?");
+        } catch (RuntimeException e) {
+            // no fact for it
+        }
+        if (known == null || known.trim().isEmpty()) {
+            return null;
+        }
+        String a = c.group(1).trim();
+        boolean yes = known.toLowerCase(Locale.ROOT).matches("(?s).*\\b" + java.util.regex.Pattern.quote(a.toLowerCase(Locale.ROOT)) + "\\b.*");
+        return (yes ? "Yes. " : "No. ") + known.trim() + (yes ? "" : " " + a + " is not its " + c.group(2).toLowerCase(Locale.ROOT) + ".");
+    }
+
     /** Counts of things the person said they have, kept through this conversation ({@code formulas/Tally}). */
     private final ai.ibiko.ibiko1.formulas.Tally tally = new ai.ibiko.ibiko1.formulas.Tally();
 
@@ -3495,6 +3728,33 @@ public final class Ibiko1 {
     }
 
     /** Keeps the turn just answered: what was asked, what it was about, and what was said. */
+    private static final java.util.regex.Pattern WHO_ASKED = java.util.regex.Pattern.compile("(?i)^\\s*who\\b(?!\\s+(?:am|are)\\s+(?:i|you)\\b)");
+    private static final java.util.regex.Pattern FULL_NAME = java.util.regex.Pattern.compile("\\b([A-Z][a-z]+(?:\\s+[A-Z]\\.?)?(?:\\s+[A-Z][a-z]+){1,2})\\b");
+
+    /** "Who wrote Things Fall Apart?" answered "Chinua Achebe": the person "he" means in the next question. */
+    private void personInAnswer(String asked, String said) {
+        if (asked == null || said == null || !WHO_ASKED.matcher(asked).find()) {
+            return;
+        }
+        try {
+            java.util.regex.Matcher m = FULL_NAME.matcher(said.length() > 400 ? said.substring(0, 400) : said);
+            for (int tries = 0; m.find() && tries < 4; tries++) {
+                String name = m.group(1);
+                if (asked.contains(name)) {
+                    continue; // the thing asked about ("Things Fall Apart"), not who did it
+                }
+                Encyclopedia.Article a = encyclopedia().find(name);
+                Context.Kind kind = a == null ? null : Context.kindOf(a, encyclopedia().facts(a.title));
+                if (kind == Context.Kind.MAN || kind == Context.Kind.WOMAN || kind == Context.Kind.PERSON) {
+                    context.answerNamed(a.title, kind, System.currentTimeMillis());
+                    return;
+                }
+            }
+        } catch (RuntimeException e) {
+            // no person read: "he" stays as it was
+        }
+    }
+
     private void kept(String said) {
         Context.Focus f = context.focus(System.currentTimeMillis());
         if (!reshaping && said != null && !said.trim().isEmpty()) {
@@ -3502,6 +3762,7 @@ public final class Ibiko1 {
             lastAnswerAbout = f == null ? null : f.name;
         }
         talk.add(asking, f == null ? null : f.name, said);
+        personInAnswer(asking, said);
         // what this turn was about, for reading the next one with the conversation
         String domain = turnDomain;
         if (domain == null && asking != null) {

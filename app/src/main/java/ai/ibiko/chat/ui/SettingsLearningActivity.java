@@ -43,6 +43,10 @@ public class SettingsLearningActivity extends SettingsActivity {
             own.addView(Ui.text(this, ai.ibiko.ibiko1.Ibiko1.NAME + " learns from every message, every model's answer, what it researches"
                     + " and the social pages it reads (language only: people's words are never taken as facts). "
                     + ai.ibiko.ibiko1.Ibiko1.scoreLine(getFilesDir()) + ". See it under Memory.", 13, Ui.SUB, false), Ui.wide(this, 10));
+            own.addView(toggle("Learning chat with your API model", "Opens a chat called Learning where " + ai.ibiko.ibiko1.Ibiko1.NAME
+                    + " asks your API model what it doesn't know, typing each question and checking every answer before it keeps it. You"
+                    + " can join the chat any time. It runs only while Ibiko is open, at most 60 questions a day, and each uses your API tokens.",
+                    LEARNING_CHAT, false, on -> prefs.edit().putBoolean(LEARNING_CHAT_OPEN, on).apply()), Ui.wide(this, 10));
             android.view.View learnNow = Ui.button(this, "Learn now", false);
             learnNow.setOnClickListener(v -> {
                 ai.ibiko.ibiko1.LearningJob.learnNow(this);
@@ -87,6 +91,8 @@ public class SettingsLearningActivity extends SettingsActivity {
     }
 
     static final int PICK_DATASET = 7301;
+    /** Settings: the Learning chat with the API model is on; and it was just turned on, so it opens. */
+    public static final String LEARNING_CHAT = "learning_chat_on", LEARNING_CHAT_OPEN = "learning_chat_open";
     /** Settings: whether Ibiko is a commercial product, which decides the licences a dataset may have. */
     public static final String COMMERCIAL = "knowledge_commercial";
     private TextView knowledgeSummary;

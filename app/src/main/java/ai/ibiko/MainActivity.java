@@ -51,6 +51,21 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     final InternetWait internetWait = new InternetWait(this);
     final Steering steering = new Steering(this);
     final BrainGate gates = new BrainGate(this);
+    /** The Learning chat: Ibiko and the API model talking, the pilot welcome to join. */
+    final LearningRoom learningRoom = new LearningRoom(this);
+    /** For tests: the chats, and a message sent as if typed. */
+    @androidx.annotation.VisibleForTesting
+    public ai.ibiko.chat.ChatBook chatsForTest() {
+        return chats;
+    }
+
+    @androidx.annotation.VisibleForTesting
+    public void answerForTest(String text) {
+        answer(text);
+    }
+
+    /** A campaign's studio conversation, as a chat page here. */
+    final CampaignRoom campaignRoom = new CampaignRoom(this);
     final Pages pageTurns = new Pages(this);
     final Generation generationTurns = new Generation(this);
     final ComposerRow composerRow = new ComposerRow(this);
@@ -632,7 +647,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     }
 
     boolean modelGoing() {
-        return generating || streamOpen || (model != null && (model.working() || model.coding)) || ibikoThinking();
+        return generating || streamOpen || (model != null && (model.working() || model.coding)) || ibikoThinking() || campaignRoom.working();
     }
 
     /** Ibiko v1 is working out an answer: Stop shows for it as it does for a model's reply. */
@@ -1980,6 +1995,11 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
 
         @Override
+        public boolean openLearningChat() {
+            return learningRoom.openFromChat();
+        }
+
+        @Override
         public String teacherName() {
             java.util.List<ai.ibiko.llm.Providers> usable = new ai.ibiko.llm.ProviderStore(MainActivity.this).usable();
             return usable.isEmpty() ? "the API model" : usable.get(0).title;
@@ -3284,6 +3304,13 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     }
 
     @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handler.postDelayed(() -> campaignRoom.fromIntent(intent), 300); // a campaign's conversation, opened from elsewhere
+    }
+
+    @Override
     protected void onPause() {
         inFront = false;
         if (chats != null) {
@@ -3295,6 +3322,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
         handler.removeCallbacks(engineTick);
         super.onPause();
+        learningRoom.pause(); // the talk with the API model uses the pilot's tokens: only while Ibiko is open
     }
 
     /** Unsent words, kept in a file. The message box is not saved with the activity: a long draft crashed the app when the screen was left (the binder parcel was about 700 KB). */
@@ -3367,6 +3395,8 @@ public final class MainActivity extends AppCompatActivity implements StageListen
         }
         applyProvider(); // back from the AI providers sheet: the brain the user chose answers
         applySettings(); // back from Settings: name, voice speed, Enter key, deleted chats
+        handler.postDelayed(learningRoom::sync, 700); // the Learning chat: opened when just turned on, and its talk goes on
+        handler.postDelayed(() -> campaignRoom.fromIntent(getIntent()), 500); // opened for a campaign's conversation
         meanings = null; // back from "What Ibiko remembers": phrasings it forgot are read again from the phone
         if (!carryOnOffered) {
             carryOnOffered = true; // once a start: work cut off by a crash or a close can carry on

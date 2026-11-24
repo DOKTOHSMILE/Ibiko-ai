@@ -452,6 +452,14 @@ final class BrainGate {
                 return;
             }
         }
+        // a chat with a purpose (the Learning chat, a campaign's): the same way to here, then its own answerer, whose
+        // steps and reply show as every reply does
+        if (!interpreted && a.learningRoom.control(text)) {
+            return;
+        }
+        if (!interpreted && a.campaignRoom.handle(text)) {
+            return;
+        }
         messageGate().handle(text, System.currentTimeMillis()); // every message takes one way through Ibiko
     }
 }

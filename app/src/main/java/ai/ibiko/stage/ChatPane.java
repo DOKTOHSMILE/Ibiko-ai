@@ -1917,7 +1917,7 @@ public final class ChatPane extends LinearLayout {
             row.setContentDescription("Campaign " + x.name + ", " + state);
             row.setOnClickListener(v -> {
                 closeDrawer();
-                c.startActivity(ai.ibiko.chat.ui.CampaignChatActivity.open(c, x.id));
+                c.startActivity(ai.ibiko.CampaignRoom.intent(c, x.id));
             });
             list.addView(row);
         }
@@ -2008,6 +2008,11 @@ public final class ChatPane extends LinearLayout {
         });
         row.setOnClickListener(v -> openChat(s.id));
         return row;
+    }
+
+    /** Opens a chat by its id, as a tap on it in the list does (the Learning chat, when it is turned on). */
+    public void openChatById(String id) {
+        openChat(id);
     }
 
     private void openChat(String id) {

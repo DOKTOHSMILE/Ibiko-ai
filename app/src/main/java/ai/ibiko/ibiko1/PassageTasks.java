@@ -40,6 +40,11 @@ public final class PassageTasks {
      * its sayings, its facts; null for none. Set by the brain.
      */
     public java.util.function.Function<String, String> also;
+    /**
+     * A yes-or-no claim about the world checked against Ibiko's facts ("Is Onitsha the capital of Anambra State?"): the
+     * answer, or null when it has no fact for it. Set by the brain.
+     */
+    public java.util.function.Function<String, String> facts;
 
     private PassageTasks(String passage, List<String> tasks) {
         List<PromptReader.Hidden> found = PromptReader.scan(passage);
@@ -80,7 +85,8 @@ public final class PassageTasks {
 
     /** A passage with numbered (or labelled) tasks, or null. */
     private static PassageTasks numbered(String message) {
-        String m = message.replace("\r", "");
+        // bold and italic marks from a pasted document ("**Tasks:**") are not words
+        String m = message.replace("\r", "").replaceAll("\\*\\*|__", "");
         int tasksAt = indexOfLabel(m, "tasks?|questions?|instructions?");
         int passageAt = indexOfLabel(m, "passage|text|story|article");
         String passage;
@@ -112,8 +118,13 @@ public final class PassageTasks {
             if (!t.find()) {
                 return null;
             }
-            passage = m.substring(0, t.start());
+            passage = m.substring(0, tasksAt > 0 && tasksAt < t.start() ? tasksAt : t.start()); // "Tasks:" above them isn't the passage
             tasksText = m.substring(t.start());
+            // a title line ("The Workshop at Onitsha") is not a sentence of the passage
+            String[] lines = passage.trim().split("\\n", 2);
+            if (lines.length == 2 && lines[0].trim().length() <= 80 && !lines[0].trim().matches(".*[.!?:;\"”]$") && lines[0].trim().split("\\s+").length <= 10) {
+                passage = lines[1];
+            }
             // the line that introduces the tasks ("Read the passage … complete all 5 tasks") is not the passage
             passage = passage.replaceFirst("(?is)^[^\\n]*\\b(tasks?|questions?|following)\\b[^\\n]*\\n", "");
         }
@@ -198,6 +209,18 @@ public final class PassageTasks {
 
     /** A task said as an order rather than a question, done by what it wants. */
     private String task(String t, String notStated) {
+        // "Rank Chinedu, Musa and Zainab from least to most experienced": an order from the passage's comparisons
+        List<ai.ibiko.ibiko1.formulas.Order.Fact> order = ai.ibiko.ibiko1.formulas.Order.read(passage);
+        ai.ibiko.ibiko1.formulas.Order.Question oq = order.isEmpty() ? null : ai.ibiko.ibiko1.formulas.Order.asked(t, order);
+        String ordered = oq == null ? null : ai.ibiko.ibiko1.formulas.Order.answer(oq, order);
+        if (ordered != null) {
+            return ordered;
+        }
+        // "Work out how many cables were left": the story's reckoning, said as an order
+        String worked = story.answer(t.replaceFirst("(?i)^(?:work out|calculate|find|say|state|tell me|determine)\\s+", "").replaceAll("[.!]+$", "") + "?");
+        if (worked != null) {
+            return worked;
+        }
         PromptReader.Intent want = PromptReader.intent(t);
         if (want == PromptReader.Intent.LIST) {
             List<String> names = tracker.people.isEmpty() ? Passage.names(passage) : new ArrayList<String>(tracker.people.keySet());
@@ -273,10 +296,36 @@ public final class PassageTasks {
                 return new Found(in.group(1) + " is the " + cap.group(1).toLowerCase(Locale.ROOT) + " of " + cap.group(2).trim() + ".", null);
             }
         }
+        // "Is Onitsha the capital of Anambra State? (Check carefully!)": checked against the facts, and what the passage
+        // says of it besides
+        String claim = q.replaceAll("\\s*\\([^()]*\\)\\s*", " ").trim();
+        if (facts != null && claim.matches("(?i)^(is|was|are|were|did|does)\\b.*\\?$")) {
+            String checked = facts.apply(claim);
+            if (checked != null) {
+                Matcher is = Pattern.compile("(?i)^(?:is|was)\\s+([A-Z][\\p{L}'-]+(?:\\s+[A-Z][\\p{L}'-]+)*)\\s+the\\s+").matcher(claim);
+                if (is.find()) {
+                    Matcher said = Pattern.compile(Pattern.quote(is.group(1)) + ",\\s+(the\\s+[a-z]+(?:\\s+[a-z]+)?\\s+of\\s+[A-Z][\\p{L} ]+?)[,.]").matcher(passage);
+                    if (said.find() && !checked.toLowerCase(Locale.ROOT).contains(said.group(1).toLowerCase(Locale.ROOT))) {
+                        checked = checked.replaceAll("\\s+$", "") + " The story calls " + is.group(1) + " " + said.group(1) + ", which isn't the same thing.";
+                    }
+                }
+                return new Found(checked, null);
+            }
+        }
         // what the passage only uses ("No wahala"): what it means, from Ibiko's other skills
         if (also != null && low.matches("^(what does|what do|what is the meaning of|what's the meaning of)\\b.*")) {
             String elsewhere = also.apply(q);
             if (elsewhere != null) {
+                // "in this context": where it was said in the story, too
+                Matcher quoted = Pattern.compile("[\"“]([^\"”]{2,80})[\"”]").matcher(q);
+                if (low.contains("context") && quoted.find()) {
+                    for (String sentence : Passage.split(passage)) {
+                        if (sentence.toLowerCase(Locale.ROOT).contains(quoted.group(1).toLowerCase(Locale.ROOT))) {
+                            elsewhere = elsewhere.replaceAll("\\s+$", "") + " In the story it's said here: " + sentence.trim();
+                            break;
+                        }
+                    }
+                }
                 return new Found(elsewhere, null);
             }
         }

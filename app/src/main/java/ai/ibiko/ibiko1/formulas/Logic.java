@@ -38,6 +38,7 @@ public final class Logic {
         final List<String[]> rules = new ArrayList<String[]>();      // {P, Q, as said}: if P then Q
         final List<String> happened = new ArrayList<String>();       // P: stated as so
         final List<String[]> does = new ArrayList<String[]>();       // {A, verb, rest, as said}: every A does it ("pay a stall fee")
+        final List<String[]> notMember = new ArrayList<String[]>();  // {X, A, as said}: X is not an A ("an apprentice, not a technician")
 
         public boolean isEmpty() {
             return isa.isEmpty() && apart.isEmpty() && has.isEmpty() && member.isEmpty() && lacks.isEmpty() && rules.isEmpty() && does.isEmpty();
@@ -52,6 +53,7 @@ public final class Logic {
             rules.addAll(k.rules);
             happened.addAll(k.happened);
             does.addAll(k.does);
+            notMember.addAll(k.notMember);
         }
     }
 
@@ -67,6 +69,13 @@ public final class Logic {
             + "(?!are\\b|is\\b|have\\b|has\\b|were\\b|was\\b)([a-z]+)\\s+(.{2,60})$");
     // case kept: a name is its capitals ("Does Tunde pay…": "Tunde", not "Tunde pay")
     private static final Pattern ASK_DO = Pattern.compile("^\\s*(?:[Dd]oes|[Dd]o|[Dd]id|[Ww]ill|[Mm]ust|[Ss]hould)\\s+" + WHO + "\\s+([a-z]+)\\s+(.{2,60}?)\\s*\\?\\s*$");
+    /** "Musa is an apprentice, not a certified technician", "Musa is not a technician": what X is not. */
+    private static final Pattern IS_NOT = Pattern.compile("^" + WHO + "\\s+is\\s+(?:(?:a|an)\\s+" + NOUN + ",?\\s+(?:and\\s+|but\\s+)?)?(?:not|isn't|never)\\s+(?:a|an)\\s+"
+            + "(?:(?:certified|qualified|licensed|registered|trained|full|real|proper)\\s+)?" + NOUN + "$");
+    /** "Is Musa required (by plaza rules) to wear a safety badge?", "Does Musa have to wear…?" */
+    private static final Pattern ASK_REQUIRED = Pattern.compile("^\\s*(?:[Ii]s|[Aa]re|[Ww]as)\\s+" + WHO + "\\s+(?:required|obliged|supposed|expected|meant|bound)"
+            + "(?:\\s+by\\s+.{2,40}?)?\\s+to\\s+([a-z]+)\\s+(.{2,60}?)\\s*\\?\\s*$|^\\s*(?:[Dd]oes|[Dd]o)\\s+" + WHO + "\\s+(?:have|need)\\s+to\\s+([a-z]+)\\s+(.{2,60}?)\\s*\\?\\s*$");
+    private static final Pattern MODAL = Pattern.compile("(?i)^(must|should|shall|have to|has to|need to|needs to|are to|is to|are required to|is required to)$");
     private static final Pattern IF = Pattern.compile("(?i)^if\\s+(.{3,80}?),\\s*(?:then\\s+)?(.{3,80})$");
 
     /** "If all birds have feathers and a penguin is a bird, does a penguin have feathers?" asked in one sentence. */
@@ -112,7 +121,22 @@ public final class Logic {
             if ((m = ALL_HAVE.matcher(s)).matches()) {
                 k.has.add(new String[]{kind(m.group(1)), said(m.group(2))}); // what they have, as said ("feathers")
             } else if ((m = ALL_DO.matcher(s)).matches()) {
-                k.does.add(new String[]{kind(m.group(1)), m.group(2).toLowerCase(Locale.ROOT), m.group(3).toLowerCase(Locale.ROOT).trim(), s});
+                String verb = m.group(2).toLowerCase(Locale.ROOT), rest = m.group(3).toLowerCase(Locale.ROOT).trim();
+                // "Every technician … must wear a safety badge": the rule's verb is after "must"
+                java.util.regex.Matcher two = Pattern.compile("^(to|required to)\\s+([a-z]+)\\s+(.+)$").matcher(rest);
+                if (MODAL.matcher(verb).matches() || verb.matches("are|is") && two.matches()) {
+                    String[] w = rest.replaceFirst("^(?:to|required to)\\s+", "").split("\\s+", 2);
+                    if (w.length == 2) {
+                        verb = w[0];
+                        rest = w[1];
+                    }
+                }
+                k.does.add(new String[]{kind(m.group(1)), verb, rest, s});
+            } else if ((m = IS_NOT.matcher(s)).matches()) {
+                if (m.group(2) != null) {
+                    k.member.add(new String[]{who(m.group(1)), kind(m.group(2))});
+                }
+                k.notMember.add(new String[]{who(m.group(1)), kind(m.group(3)), s});
             } else if ((m = ALL.matcher(s)).matches()) {
                 k.isa.add(new String[]{kind(m.group(1)), kind(m.group(2))});
             } else if ((m = NONE.matcher(s)).matches()) {
@@ -178,6 +202,14 @@ public final class Logic {
         if ((m = ASK_HAS.matcher(q)).matches()) {
             return hasIt(k, who(m.group(1)), kind(m.group(2)), m.group(1).trim(), m.group(2).trim());
         }
+        if ((m = ASK_REQUIRED.matcher(q)).matches() && !k.does.isEmpty()) {
+            boolean first = m.group(1) != null;
+            String x = first ? m.group(1) : m.group(4), verb = first ? m.group(2) : m.group(5), rest = first ? m.group(3) : m.group(6);
+            String done = doesIt(k, who(x), verb.toLowerCase(Locale.ROOT), rest.toLowerCase(Locale.ROOT), x.trim());
+            if (done != null) {
+                return done;
+            }
+        }
         if ((m = ASK_DO.matcher(q)).matches() && !k.does.isEmpty()) {
             String done = doesIt(k, who(m.group(1)), m.group(2).toLowerCase(Locale.ROOT), m.group(3).toLowerCase(Locale.ROOT), m.group(1).trim());
             if (done != null) {
@@ -197,6 +229,25 @@ public final class Logic {
                 if (d[0].equals(kd[0]) && sameVerb(d[1], verb) && overlap(d[2], rest)) {
                     return "Yes: " + kd[1] + ", and " + d[3].replaceAll("[.!]+$", "").replaceFirst("^(\\p{Lu})", "$1").toLowerCase(Locale.ROOT)
                             .replaceFirst("^", "") + ".";
+                }
+            }
+        }
+        // the rule is for a kind X is said not to be: it doesn't reach X ("an apprentice, not a technician")
+        for (String[] d : k.does) {
+            if (!sameVerb(d[1], verb) || !overlap(d[2], rest)) {
+                continue;
+            }
+            for (String[] nm : k.notMember) {
+                if (nm[0].equals(x) && nm[1].equals(d[0])) {
+                    String is = "";
+                    for (String[] mm : k.member) {
+                        if (mm[0].equals(x)) {
+                            is = " " + article(mm[1]) + ",";
+                        }
+                    }
+                    return "No: the rule is for " + plural(d[0]) + " (“" + d[3].replaceAll("[.!]+$", "") + "”), and " + xSaid + " is" + is + " not "
+                            + article(d[0]) + ", so the rule doesn't require it of " + xSaid + ". (" + xSaid + " may still choose to, or another rule may"
+                            + " apply, but this one doesn't.)";
                 }
             }
         }
