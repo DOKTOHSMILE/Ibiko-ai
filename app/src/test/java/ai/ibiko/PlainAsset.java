@@ -48,4 +48,34 @@ public final class PlainAsset {
         }
         return out;
     }
+
+    /**
+     * The common-sense table (ConceptNet) put where the app installs it on the phone (brain/knowledge/concepts.tsv):
+     * the build downloads it (fetchAppFiles); it isn't in the assets folder. Nothing when the build hasn't got it.
+     */
+    public static synchronized void commonSense(File filesDir) {
+        File build = new File("build/generated/appfiles/appfiles");
+        if (!build.isDirectory()) {
+            build = new File("app/build/generated/appfiles/appfiles");
+        }
+        File[] gz = build.listFiles((d, n) -> n.startsWith("concepts") && n.endsWith(".tsv.gz"));
+        if (gz == null || gz.length == 0) {
+            return;
+        }
+        File plain = new File(build.getParentFile(), "concepts.tsv");
+        if (!plain.isFile() || plain.lastModified() < gz[0].lastModified()) {
+            try (java.io.InputStream in = new java.util.zip.GZIPInputStream(new java.io.FileInputStream(gz[0]), 1 << 16)) {
+                java.nio.file.Files.copy(in, plain.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.io.IOException e) {
+                return;
+            }
+        }
+        File to = new File(new File(new File(filesDir, "brain"), "knowledge"), "concepts.tsv");
+        to.getParentFile().mkdirs();
+        try {
+            java.nio.file.Files.copy(plain.toPath(), to.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.io.IOException ignored) {
+            // the probe runs without common sense
+        }
+    }
 }

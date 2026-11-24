@@ -209,6 +209,52 @@ public final class LearningRecords {
         return any;
     }
 
+    /** The person confirmed a record: it is theirs to vouch for now (user confirmed), held with full confidence. */
+    public synchronized boolean confirm(String id) {
+        Record r = find(id);
+        if (r == null || r.status == Verification.superseded) {
+            return false;
+        }
+        r.status = Verification.user_confirmed;
+        r.confidence = Math.max(r.confidence, 0.95);
+        save();
+        return true;
+    }
+
+    /** What a record is about (the key it was filed under), so a correction supersedes it; null when it has none. */
+    public static String keyOf(Record r) {
+        for (String t : r.tags) {
+            if (t.startsWith("key:")) {
+                return t.substring(4);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The person corrected a record: the right content is kept as a correction that supersedes it (the old one kept,
+     * with its history). The new record, or null when the record is gone or the correction is empty or private.
+     */
+    public synchronized Record correct(String id, String rightContent, long now) {
+        Record r = find(id);
+        if (r == null || rightContent == null || rightContent.trim().isEmpty()) {
+            return null;
+        }
+        String key = keyOf(r);
+        Record fixed = learn(Category.correction, key == null ? r.content : key, rightContent.trim(), "explicit_user_correction", "memory", 0.95, now,
+                false, "correction");
+        if (fixed == r) {
+            return r; // the same words again: that is a confirmation, kept as one
+        }
+        if (fixed != null && r.status != Verification.superseded) {
+            r.status = Verification.superseded; // a different key would not have caught it
+            r.supersededBy = fixed.id;
+            fixed.supersedes = r.id;
+            save();
+        }
+        return fixed;
+    }
+
     /** The records in use: not superseded, not expired. */
     public synchronized List<Record> active(long now) {
         List<Record> out = new ArrayList<Record>();

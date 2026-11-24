@@ -205,6 +205,7 @@ public class IqProbeTest {
             Store.reset();
             Chat chat = new Chat();
             File files = Files.createTempDirectory("iq").toFile();
+            ai.ibiko.PlainAsset.commonSense(files); // the common-sense table the app installs on the phone (brain/knowledge)
             Ibiko1.warm(files);
             Ibiko1 brain = new Ibiko1(chat, files);
             for (Turn turn : battery(new Random(seed))) {
