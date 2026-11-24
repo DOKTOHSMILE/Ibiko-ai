@@ -41,6 +41,8 @@ public final class Story {
     final Map<String, Double> price = new LinkedHashMap<String, Double>();
     String currency = "";
     int opens = -1, closes = -1;
+    /** The thing named last, for "and sold 15". */
+    private String lastItem;
     /** The sentence each time of day is reached by ("noon" → 1). */
     final Map<String, Integer> marks = new LinkedHashMap<String, Integer>();
 
@@ -51,7 +53,10 @@ public final class Story {
     private static final Pattern FRACTION = Pattern.compile("(?i)\\b(\\d+)\\s*/\\s*(\\d+)\\s+of\\s+(?:the|her|his|their|its|my)\\s+" + "(" + UNIT + ")" + ITEM
             + "|\\b(half|a third|a quarter|two-thirds|three-quarters|one-third|one-quarter)\\s+of\\s+(?:the|her|his|their|its|my)\\s+(" + UNIT + ")" + ITEM);
     private static final Pattern HAS = Pattern.compile("(?i)\\b(?:brought|had|has|have|carried|started with|took|packed|harvested|baked|made|received|got|stocked|"
-            + "prepared|loaded|collected)\\b");
+            + "prepared|loaded|collected|keeps|kept|keep|owns|owned|grows|grew|bakes|makes|picked|caught|bought)\\b");
+    /** "and sold 15": a number given away with its thing left unsaid (the one just named). */
+    private static final Pattern GIVES_BARE = Pattern.compile("(?i)\\b(?:sold|gave away|gave|used|ate|lost|spoiled|delivered|donated)\\s+(\\d[\\d,]*|"
+            + "one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty|thirty|forty|fifty|half)\\b(?!\\s+(?:more\\s+)?[a-z]+)");
     private static final Pattern GIVES = Pattern.compile("(?i)\\b(?:sold|sells|gave away|gave|used|ate|lost|spoiled|delivered|donated|threw away)\\b");
     private static final Pattern BUYS = Pattern.compile("(?i)\\b(?:bought|buys|purchased|took home|paid for|ordered)\\b");
     private static final Pattern PRICE = Pattern.compile("(?i)\\beach\\s+(" + UNIT + ")" + ITEM + "\\s+(?:costs?|is|sells for|goes for)\\s+([₦$£€]|N(?=\\d))?\\s*(\\d[\\d,]*(?:\\.\\d+)?)\\s*(naira|dollars?|pounds?|euros?|cedis?)?"
@@ -179,7 +184,14 @@ public final class Story {
             } else if (HAS.matcher(before).find() && byMain) {
                 start.merge(item, n, Double::sum);
                 said.putIfAbsent(item, a.group(2) + a.group(3));
+                lastItem = item;
             }
+        }
+        Matcher bare = GIVES_BARE.matcher(s);
+        if (bare.find() && byMain && lastItem != null && start.containsKey(lastItem)) {
+            String q = bare.group(1).toLowerCase(Locale.ROOT);
+            double n = q.equals("half") ? count(lastItem, i) / 2 : number(q);
+            events.add(new Event(i, lastItem, -n, null, 0));
         }
     }
 
@@ -218,6 +230,9 @@ public final class Story {
     private static final Pattern PAID = Pattern.compile("(?i)how much(?: money)? did ([A-Z][a-z]+) (?:pay|spend)(?: for| on)?(?: the)?(?:\\s+(\\d[\\d,]*))?(?:\\s+(?!after\\b|with\\b|before\\b|in\\b|at\\b)(" + UNIT + ")" + ITEM
             + ")?(?:\\s+(after|with|before) the discount)?");
     private static final Pattern BOUGHT = Pattern.compile("(?i)how many\\s+(" + UNIT + ")" + ITEM + "\\s+did ([A-Z][a-z]+) (?:buy|get|take)");
+    /** "How many cows does Tunde keep?", "how many cakes did Kemi bake?": what someone had. */
+    private static final Pattern HAD = Pattern.compile("(?i)how many\\s+(" + UNIT + ")" + ITEM + "\\s+(?:does|did|do)\\s+([A-Z][a-z]+|she|he|they)\\s+"
+            + "(?:have|keep|own|bring|carry|bake|make|grow|harvest|start with|get|pack)");
     private static final Pattern SOLD = Pattern.compile("(?i)how many\\s+(" + UNIT + ")" + ITEM + "\\s+did ([A-Z][a-z]+|she|he) sell");
 
     /** The question worked out from the story, with the working; null when it isn't one the story can answer this way. */
@@ -275,6 +290,14 @@ public final class Story {
                 }
             }
             return n == 0 ? null : who + " bought " + fmt(n) + " " + shown(item, n) + ".";
+        }
+        if ((m = HAD.matcher(q)).find()) {
+            String item = key(m.group(2));
+            if (!start.containsKey(item)) {
+                return null;
+            }
+            double now = count(item, -1), had = start.get(item);
+            return fmt(had) + " " + shown(item, had) + (now == had ? "." : " to start with; " + fmt(now) + " now.");
         }
         if ((m = SOLD.matcher(q)).find()) {
             String item = key(m.group(2));

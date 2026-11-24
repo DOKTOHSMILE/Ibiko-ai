@@ -2247,6 +2247,15 @@ public final class Ibiko1 {
             sum = ai.ibiko.ibiko1.formulas.TextOps.reply(message); // "how many letters in Nigeria?", "reverse hello", "sort … alphabetically"
         }
         if (sum == null && snippet == null) {
+            sum = ai.ibiko.ibiko1.formulas.Patterns.next(message); // "what comes next: 2, 6, 18, 54?": the rule, then the number
+        }
+        if (sum == null && snippet == null) {
+            sum = ai.ibiko.ibiko1.formulas.Patterns.analogy(message, analogyWords()); // "hot is to cold as up is to what?"
+        }
+        if (sum == null && snippet == null) {
+            sum = storyInOneMessage(message); // "Kemi baked 40 cakes and sold 15. How many cakes were left?"
+        }
+        if (sum == null && snippet == null) {
             sum = yearsAgo(t); // "how many years ago was Nelson Mandela born?": the date looked up, then the years counted
         }
         final String quick = sum;
@@ -3230,6 +3239,61 @@ public final class Ibiko1 {
                     }, "ibiko1-ambition").start();
                 });
         return true;
+    }
+
+    /** The dictionary, as the analogies ask it: opposites, meanings, and the words a meaning names. */
+    private ai.ibiko.ibiko1.formulas.Patterns.Words analogyWords() {
+        final ai.ibiko.ibiko1.words.Meanings words = ai.ibiko.ibiko1.words.Meanings.shared();
+        if (words == null) {
+            return null;
+        }
+        return new ai.ibiko.ibiko1.formulas.Patterns.Words() {
+            @Override
+            public List<String> opposites(String w) {
+                return words.opposites(w);
+            }
+
+            @Override
+            public List<String> meanings(String w) {
+                List<String> out = new ArrayList<String>();
+                for (ai.ibiko.ibiko1.words.MeaningIndex.Sense s : words.senses(w)) {
+                    if (!s.definition.isEmpty() && !Character.isUpperCase(s.definition.charAt(0))) {
+                        out.add(s.definition);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public List<String> meaning(String... holding) {
+                return words.withMeaning(holding);
+            }
+        };
+    }
+
+    /**
+     * A short story and its question in one message ("Tunde keeps 4 cows and grows maize. How many cows does Tunde keep?"):
+     * worked out from what the message itself says, not looked up; null when it isn't one.
+     */
+    private String storyInOneMessage(String message) {
+        if (message == null || message.length() > 1500) {
+            return null;
+        }
+        String m = message.trim();
+        List<String> parts = Passage.split(m);
+        if (parts.size() < 2 || !parts.get(parts.size() - 1).trim().endsWith("?") || !m.matches("(?s).*\\d.*")) {
+            return null;
+        }
+        String question = parts.get(parts.size() - 1).trim();
+        int at = m.lastIndexOf(question);
+        if (at <= 0) {
+            return null;
+        }
+        try {
+            return new Story(m.substring(0, at).trim()).answer(question);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** A noun's first meaning in the dictionary, or null. */

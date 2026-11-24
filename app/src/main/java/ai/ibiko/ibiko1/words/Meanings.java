@@ -492,6 +492,47 @@ public final class Meanings {
         return l.size() > 12 ? l.subList(0, 12) : l;
     }
 
+    /**
+     * The words whose meaning holds every word given ("cover", "foot": sock, shoe), the commonest first (most meanings):
+     * the dictionary read backwards.
+     */
+    public List<String> withMeaning(String... holding) {
+        int[] ids = null;
+        for (String h : holding) {
+            int[] p = index.postings(index.inMeaning, Words.key(h.toLowerCase(Locale.ROOT)));
+            if (ids == null) {
+                ids = p;
+            } else {
+                java.util.Set<Integer> keep = new java.util.HashSet<Integer>();
+                for (int x : p) {
+                    keep.add(x);
+                }
+                List<Integer> both = new ArrayList<Integer>();
+                for (int x : ids) {
+                    if (keep.contains(x)) {
+                        both.add(x);
+                    }
+                }
+                ids = new int[both.size()];
+                for (int i = 0; i < ids.length; i++) {
+                    ids[i] = both.get(i);
+                }
+            }
+        }
+        List<String> out = new ArrayList<String>();
+        if (ids == null) {
+            return out;
+        }
+        for (int id : ids) {
+            String w = index.word[id];
+            if (!out.contains(w) && w.matches("[a-z]+")) {
+                out.add(w);
+            }
+        }
+        out.sort((x, y) -> index.senses(y).size() - index.senses(x).size());
+        return out.size() > 10 ? out.subList(0, 10) : out;
+    }
+
     /** The common words by their sounds ({@link Phonetic}): built once, the first time a typo needs it. */
     private volatile Map<String, List<String>> bySound;
 
