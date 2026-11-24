@@ -230,6 +230,87 @@ public final class MeaningIndex {
         }
     }
 
+    // ------------------------------------------------------------------ words the dictionary lacks
+
+    /** Senses added after the dictionary's own (knowledge/lexicon_more.tsv), by id less the dictionary's size. */
+    private final List<String[]> more = new ArrayList<String[]>();
+    /** The dictionary's own size: ids from here on are added senses. */
+    private int base = -1;
+
+    /**
+     * Words the dictionary lacks ("they", "went", "wahala", "selfie"), each line in the dictionary's own columns, added
+     * after its own senses: every word already there keeps its id (and its code in the knowledge packs). Once per index.
+     */
+    public synchronized void addMore(java.io.InputStream tsv) {
+        if (tsv == null || base >= 0) {
+            return;
+        }
+        base = word.length;
+        List<String[]> rows = new ArrayList<String[]>();
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(tsv, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                String[] c = line.split("\t", -1);
+                if (!line.startsWith("#") && c.length >= 3 && !c[0].isEmpty()) {
+                    rows.add(c);
+                }
+            }
+        } catch (IOException e) {
+            // what was read is added
+        }
+        if (rows.isEmpty()) {
+            return;
+        }
+        int n = base + rows.size();
+        word = java.util.Arrays.copyOf(word, n);
+        pos = java.util.Arrays.copyOf(pos, n);
+        at = java.util.Arrays.copyOf(at, n);
+        Map<String, IntList> def = new HashMap<String, IntList>(), syn = new HashMap<String, IntList>(), opp = new HashMap<String, IntList>();
+        Map<String, IntList> head = new HashMap<String, IntList>();
+        for (int i = 0; i < rows.size(); i++) {
+            String[] c = rows.get(i);
+            int id = base + i;
+            more.add(c);
+            word[id] = c[0];
+            pos[id] = posCode(c[1]);
+            at[id] = -1;
+            add(head, c[0].toLowerCase(Locale.ROOT), id);
+            Set<String> seen = new HashSet<String>();
+            for (String w : Words.content(c[2])) {
+                if (seen.add(w)) {
+                    add(def, w, id);
+                }
+            }
+            seen.clear();
+            for (String x : (c.length > 3 ? c[3] : "").split(",")) {
+                addPhrase(syn, x, id, seen);
+            }
+            seen.clear();
+            for (String x : (c.length > 4 ? c[4] : "").split(",")) {
+                addPhrase(opp, x, id, seen);
+            }
+        }
+        merge(def, inMeaning);
+        merge(syn, asSynonym);
+        merge(opp, asOpposite);
+        merge(head, heads);
+    }
+
+    /** New ids (all above the old ones) added after a key's old ones, so each list stays in order. */
+    private static void merge(Map<String, IntList> from, Map<String, int[]> to) {
+        for (Map.Entry<String, IntList> e : from.entrySet()) {
+            int[] old = to.get(e.getKey());
+            int[] add = e.getValue().toArray();
+            if (old == null) {
+                to.put(e.getKey(), add);
+            } else {
+                int[] both = java.util.Arrays.copyOf(old, old.length + add.length);
+                System.arraycopy(add, 0, both, old.length, add.length);
+                to.put(e.getKey(), both);
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ the cache
 
     private boolean load(File f) {
@@ -340,6 +421,9 @@ public final class MeaningIndex {
     public synchronized Sense sense(int id) {
         if (id < 0 || id >= at.length) {
             return null;
+        }
+        if (base >= 0 && id >= base) {
+            return new Sense(id, more.get(id - base)); // a word the dictionary lacked
         }
         try {
             if (reader == null) {

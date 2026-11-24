@@ -492,6 +492,34 @@ public final class Meanings {
         return l.size() > 12 ? l.subList(0, 12) : l;
     }
 
+    /** The common words by their sounds ({@link Phonetic}): built once, the first time a typo needs it. */
+    private volatile Map<String, List<String>> bySound;
+
+    /**
+     * Common words that sound like this one ("fone": phone; "nolij": knowledge), from their consonant sounds; empty when
+     * none. Only words with two meanings or more are kept by sound, so the index stays small and the rare ones don't win.
+     */
+    public List<String> soundsLike(String typed) {
+        Map<String, List<String>> m = bySound;
+        if (m == null) {
+            synchronized (this) {
+                if (bySound == null) {
+                    Map<String, List<String>> built = new HashMap<String, List<String>>();
+                    for (Map.Entry<String, int[]> e : index.heads.entrySet()) {
+                        String w = e.getKey();
+                        if (e.getValue().length >= 2 && w.length() >= 3 && w.length() <= 14 && w.matches("[a-z]+")) {
+                            built.computeIfAbsent(Phonetic.key(w), k -> new ArrayList<String>(2)).add(w);
+                        }
+                    }
+                    bySound = built;
+                }
+                m = bySound;
+            }
+        }
+        List<String> l = m.get(Phonetic.key(typed));
+        return l == null ? new ArrayList<String>() : l;
+    }
+
     /** A word's opposites: those its senses list, the words that list it, and its own negative form when there is one. */
     public List<String> opposites(String word) {
         Set<String> out = new LinkedHashSet<String>();

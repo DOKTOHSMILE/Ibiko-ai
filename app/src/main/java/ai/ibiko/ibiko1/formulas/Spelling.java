@@ -136,6 +136,16 @@ public final class Spelling {
             + "youre theyre were im ive ill").split("\\s+")));
 
     public static Fixed fix(String message, Predicate<String> known, Predicate<String> lemma, java.util.function.ToIntFunction<String> senses) {
+        return fix(message, known, lemma, senses, null);
+    }
+
+    /**
+     * As {@link #fix(String, Predicate, Predicate, java.util.function.ToIntFunction)}, and when no common word is one
+     * letter away, the word as it sounds: {@code soundsLike} gives the words with the same consonant sounds ("fone":
+     * phone; "nolij": knowledge), and the commonest near in spelling is taken.
+     */
+    public static Fixed fix(String message, Predicate<String> known, Predicate<String> lemma, java.util.function.ToIntFunction<String> senses,
+            java.util.function.Function<String, List<String>> soundsLike) {
         if (message == null || message.length() > 200 || message.contains("\n") || message.matches("(?s).*[{};<>=`].*")) {
             return null;
         }
@@ -161,6 +171,27 @@ public final class Spelling {
                     bestN = n;
                 } else if (n > second) {
                     second = n;
+                }
+            }
+            if ((best == null || bestN < 2 || second * 2 > bestN && second > 1) && soundsLike != null) {
+                // nothing sure one letter away: what it sounds like ("fone" is phone, "nolij" knowledge)
+                best = null;
+                bestN = 0;
+                second = 0;
+                for (String e : soundsLike.apply(w)) {
+                    // the sounds already match: the letters may differ more ("nolij" and "knowledge")
+                    int most = Math.max(2, (int) Math.ceil(Math.max(w.length(), e.length()) * 0.6));
+                    if (e.equals(w) || ai.ibiko.ibiko1.words.Phonetic.distance(w, e, most) > most) {
+                        continue;
+                    }
+                    int n = senses.applyAsInt(e);
+                    if (n > bestN) {
+                        second = bestN;
+                        best = e;
+                        bestN = n;
+                    } else if (n > second) {
+                        second = n;
+                    }
                 }
             }
             if (best == null || bestN < 2 || second * 2 > bestN && second > 1) {

@@ -201,6 +201,35 @@ public final class Encyclopedia {
         return s.toString();
     }
 
+    /** The encyclopedia's most used words, in lower case: real words (and names), never typos. Built once, when asked. */
+    private volatile java.util.Set<String> used;
+    /** How many of the most used words count: past these, a word may be a rare typo in an article. */
+    static final int USED = 40_000;
+
+    /**
+     * Whether the encyclopedia uses a word among its most used: "became", "took", "Achebe" are real words though the
+     * dictionary of meanings lacks them, so a typo fixer leaves them alone.
+     */
+    public boolean uses(String word) {
+        java.util.Set<String> u = used;
+        if (u == null) {
+            synchronized (this) {
+                if (used == null) {
+                    vocabulary();
+                    java.util.Set<String> built = new java.util.HashSet<String>(USED * 2);
+                    int n = Math.min(USED, at.length - 1);
+                    for (int i = 0; i < n; i++) {
+                        String w = new String(words, at[i], at[i + 1] - at[i], java.nio.charset.StandardCharsets.UTF_8);
+                        built.add(w.toLowerCase(java.util.Locale.ROOT));
+                    }
+                    used = built;
+                }
+                u = used;
+            }
+        }
+        return word != null && u.contains(word.toLowerCase(java.util.Locale.ROOT));
+    }
+
     /** The shared vocabulary, read once. */
     private void vocabulary() {
         if (words != null) {

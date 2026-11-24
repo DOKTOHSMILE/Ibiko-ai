@@ -180,3 +180,9 @@ r3.t.typo2
 r3.h.future
 r3.h.mind
 r3.l.syllogism
+w.riddle
+w.idiom
+w.wahala
+w.japa
+w.selfie
+w.sound

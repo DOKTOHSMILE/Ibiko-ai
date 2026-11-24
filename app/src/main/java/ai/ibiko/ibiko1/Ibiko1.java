@@ -208,6 +208,14 @@ public final class Ibiko1 {
     /** The dictionary turned both ways ({@link ai.ibiko.ibiko1.words.MeaningIndex}) from a knowledge folder, or null. */
     public static ai.ibiko.ibiko1.words.Meanings meanings(File knowledge) {
         ai.ibiko.ibiko1.words.MeaningIndex index = ai.ibiko.ibiko1.words.MeaningIndex.of(Store.unpacked(knowledge, "lexicon.tsv"));
+        if (index != null) {
+            try {
+                // the words the dictionary lacks ("they", "went", "wahala", "selfie"), after its own
+                index.addMore(TextCode.open(Plug.asset, "knowledge/lexicon_more.tsv"));
+            } catch (RuntimeException ignored) {
+                // none shipped here: the dictionary alone
+            }
+        }
         return index == null ? null : new ai.ibiko.ibiko1.words.Meanings(index);
     }
 
@@ -750,6 +758,13 @@ public final class Ibiko1 {
         // a word with meanings in several subjects, asked about while the subject is known: that subject's meaning
         // the thinking playground: every way this message could be meant, weighed by its words and the conversation,
         // the best taken first (not the first pattern that fits); the others kept to fall back on
+        // a saying, before the word-by-word readers ("me, myself and I", "break a leg", "no wahala"): what it means, and what it implies
+        final String saying = pasted == null ? expressions().explain(message, previous) : null;
+        if (saying != null) {
+            think(Arrays.asList("Reading your message", "That's a saying: its words don't add up to what it means",
+                    "Recalling what it means and what it implies"), () -> saysPlain(who, saying));
+            return;
+        }
         if (ranked(who, message, t, snippet)) {
             return;
         }
@@ -2639,6 +2654,22 @@ public final class Ibiko1 {
     private ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes;
 
     /** The kinds of question by how they start (knowledge/language/question_types.tsv: a newer one downloaded first). */
+    private ai.ibiko.ibiko1.formulas.Expressions expressions;
+
+    /** Idioms and sayings and what they mean (knowledge/language/expressions.tsv). */
+    public synchronized ai.ibiko.ibiko1.formulas.Expressions expressions() {
+        if (expressions == null || expressions.size() == 0) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/language/expressions.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            expressions = new ai.ibiko.ibiko1.formulas.Expressions(in);
+        }
+        return expressions;
+    }
+
     public synchronized ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes() {
         if (questionTypes == null) {
             java.io.InputStream in = null;
@@ -2799,8 +2830,19 @@ public final class Ibiko1 {
         }
         ai.ibiko.ibiko1.formulas.Spelling.Fixed f;
         try {
-            f = ai.ibiko.ibiko1.formulas.Spelling.fix(message, w -> words.headword(w) != null,
-                    w -> words.index().has(w), w -> words.index().senses(w).size());
+            final Encyclopedia book = encyclopedia();
+            // words said in this conversation are the person's own ("garri", a name): never typos
+            final java.util.Set<String> said = new java.util.HashSet<String>();
+            StringBuilder talked = new StringBuilder(current == null ? "" : current).append(' ').append(previous == null ? "" : previous);
+            for (Conversation.Turn turn : talk.recent(10)) {
+                talked.append(' ').append(turn.asked).append(' ').append(turn.said);
+            }
+            for (String w : talked.toString().toLowerCase(Locale.ROOT).split("[^\\p{L}']+")) {
+                said.add(w);
+            }
+            // a word is known when the dictionary has it, the encyclopedia uses it ("became", "took"), or it was said here
+            f = ai.ibiko.ibiko1.formulas.Spelling.fix(message, w -> words.headword(w) != null || said.contains(w) || book.uses(w),
+                    w -> words.index().has(w), w -> words.index().senses(w).size(), words::soundsLike);
         } catch (RuntimeException e) {
             return message;
         }

@@ -80,7 +80,7 @@ public final class WordTalk {
             + "\\s+(?:mean|say) the same(?: thing)?" + END + "|^(?:is|does)\\s+" + S + "\\s+(?:mean the same as|the same as|same as)\\s+" + S + END
             + "|^compare\\s+" + S + "\\s+(?:and|with|to)\\s+" + S + END);
     private static final Pattern MORPH = Pattern.compile("(?is)^(?:break down the word|break down|morphemes (?:of|in)|what are the morphemes (?:of|in)|"
-            + "morphology of|word structure of|draw the (?:word|morphological|morphology) tree (?:of|for)|how is|what is the structure of the word)\\s+" + W
+            + "morphology of|word structure of|draw the (?:word|morphological|morphology) tree (?:of|for)|how is the word|how is(?=\\s+\\S+\\s+formed\\b)|what is the structure of the word)\\s+" + W
             + "(?:\\s+(?:formed|built|made))?" + END);
     private static final Pattern FORM = Pattern.compile("(?is)^(?:what(?:'s| is) )?the\\s+(plural|past tense|past participle|participle|-ing form|ing form|"
             + "present participle|comparative|superlative|third person)(?: form)? of\\s+" + W + END);

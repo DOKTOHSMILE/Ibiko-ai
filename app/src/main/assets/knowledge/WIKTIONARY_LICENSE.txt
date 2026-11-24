@@ -1,0 +1,14 @@
+Words and meanings from Wiktionary
+
+knowledge/lexicon_more.tsv(.ibk) and knowledge/language/expressions.tsv(.ibk) hold meanings taken from
+Wiktionary (https://en.wiktionary.org), by its contributors, through the machine-readable extract at
+kaikki.org (Tatu Ylonen, "Wiktextract: Wiktionary as Machine-Readable Structured Data", LREC 2022).
+
+Wiktionary's text is licensed under the Creative Commons Attribution-ShareAlike 4.0 International License
+(https://creativecommons.org/licenses/by-sa/4.0/) and the GNU Free Documentation License. The meanings were
+shortened (the first few senses of each word kept) and put in the dictionary's columns; those files are
+shared under the same licence.
+
+The Nigerian and Pidgin sayings in expressions.tsv whose meanings Wiktionary lacked were written for Ibiko.
+
+Built by tools/build_lexicon_more.py and tools/build_expressions.py.
