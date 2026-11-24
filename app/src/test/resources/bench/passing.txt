@@ -1,6 +1,7 @@
 fact.capital.nigeria
 fact.capital.ghana
 fact.capital.kenya
+fact.capital.france
 fact.capital.japan
 fact.mandela.born
 fact.mandela.who
@@ -50,11 +51,13 @@ order.facts.bigger
 lang.meaning
 lang.synonym
 lang.plural
+lang.spell
 lang.sense.code
 lang.parse
 reason.why.told
 reason.how.told
 reason.kind
+reason.kind.no
 reason.contrast
 code.reverse.py
 code.sort.go
@@ -85,9 +88,11 @@ shape.shorter
 shape.points
 shape.simpler
 shape.one
+talk.recap
 talk.greet
 talk.thanks
 talk.who
 talk.name
 honest.unknown
+honest.future
 honest.made.up

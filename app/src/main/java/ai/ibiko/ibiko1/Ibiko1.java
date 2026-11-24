@@ -544,7 +544,8 @@ public final class Ibiko1 {
      * answered; otherwise it researches, answers in the sources' words and asks whether that was right. Nothing is made
      * up.
      */
-    public void answer(final String message) {
+    public void answer(final String typed) {
+        final String message = asQuestion(typed); // "capital of france", typed as a search: "What is the capital of france?"
         final String who = host.persona();
         long heardAt = System.currentTimeMillis();
         // what the conversation is about: "when was he born?" stands on its own as "when was Nelson Mandela born?"
@@ -2026,6 +2027,19 @@ public final class Ibiko1 {
         if (ordered != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ORDER);
         }
+        // "how do you spell necessary?": spelled out, or the real word it's nearest to
+        final String spellWord = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.asked(message) : null;
+        final String spelled = spellWord == null ? null : ai.ibiko.ibiko1.formulas.Spelling.reply(spellWord,
+                w -> ai.ibiko.ibiko1.words.Meanings.shared() != null && ai.ibiko.ibiko1.words.Meanings.shared().headword(w) != null
+                        && ai.ibiko.ibiko1.words.Meanings.shared().headword(w).equals(w));
+        if (spelled != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SPELL);
+        }
+        // "who will win the next World Cup?": what hasn't happened, said plainly
+        final String notHappened = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.future(message) : null;
+        if (notHappened != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.FUTURE);
+        }
         // a counting story: "I have 3 apples and eat one: how many are left?"
         final String counted = snippet == null ? ai.ibiko.ibiko1.formulas.Counting.reply(message) : null;
         if (counted != null) {
@@ -2096,6 +2110,17 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case SPELL:
+                    turnDomain = "language";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading your question: how a word is spelled", "Looking it up in my dictionary"),
+                            () -> saysExact(who, spelled));
+                    return true;
+                case FUTURE:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading your question: it's about something that hasn't happened yet"), () -> saysPlain(who, notHappened));
+                    return true;
                 case COUNT:
                     turnDomain = "reasons";
                     how = How.MEMORY;
@@ -2307,6 +2332,28 @@ public final class Ibiko1 {
                     return true;
                 }
             }
+            // not reached: a sure "no" only when it reaches another kind of the same group ("a bat is a mammal": not a bird)
+            final List<ai.ibiko.ibiko1.formulas.Kinds.Step> other = chain != null ? null : ai.ibiko.ibiko1.formulas.Kinds.not(kindAsked[0], kindAsked[1], name -> {
+                Encyclopedia.Article a = encyclopedia().find(name);
+                return a == null ? null : ai.ibiko.ibiko1.formulas.Contrast.kinds(a.text, a.title);
+            });
+            if (other != null) {
+                final String no = ai.ibiko.ibiko1.formulas.Kinds.saidNo(other, kindAsked[1]);
+                if (!knowledge().rejected(t, no)) {
+                    how = How.MEMORY;
+                    List<String> steps = new ArrayList<String>();
+                    steps.add("Reading your question: is " + kindAsked[0] + " a kind of " + kindAsked[1] + "?");
+                    for (ai.ibiko.ibiko1.formulas.Kinds.Step st : other) {
+                        steps.add("Reading what " + st.thing + " is: " + st.said);
+                    }
+                    steps.add("That's another group from " + kindAsked[1] + ": no");
+                    think(steps, () -> {
+                        saysSure(who, no, ai.ibiko.ibiko1.formulas.Critical.Ground.REASONED, "Worked out from Simple English Wikipedia, step by step");
+                        rateable(t, no);
+                    });
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -2444,6 +2491,23 @@ public final class Ibiko1 {
     static boolean aboutTheSum(String t) {
         String rest = SUM_WORDS.matcher(t).replaceAll(" ").replaceAll("[\\d.,+\\-*/×÷^()%=?!:;\\s]+", " ").trim();
         return rest.isEmpty() || rest.split(" ").length <= 1 && rest.length() <= 3;
+    }
+
+    private static final java.util.regex.Pattern BARE = java.util.regex.Pattern.compile("(?i)^\\s*(?:the\\s+)?(capital(?: city)?|population|currency|"
+            + "president|prime minister|leader|king|queen|official language|languages?|area|size|height|length|founder|flag|anthem|"
+            + "dialling code|dialing code|time zone|motto)\\s+of\\s+([\\p{L}][\\p{L} .'-]{1,40}?)\\s*[.!]*$");
+
+    /** A bare phrase typed as a search ("capital of france", "population of Kano"): the question it stands for. */
+    static String asQuestion(String message) {
+        if (message == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = BARE.matcher(message);
+        // a sentence about it ("the capital of France is lovely") isn't a search: the name runs into a verb
+        if (!m.matches() || m.group(2).matches("(?i).*\\b(?:is|are|was|were|has|have|had|does|do|did|looks?|seems?|and|but|because)\\b.*")) {
+            return message;
+        }
+        return "What is the " + m.group(1).toLowerCase(Locale.ROOT) + " of " + m.group(2).trim() + "?";
     }
 
     /** The last answer (not a reshaping of one), and what it was about, for "shorter", "as points", "give me an example". */
