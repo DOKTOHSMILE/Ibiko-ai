@@ -78,6 +78,9 @@ public final class Order {
             + "(?:(more|less) (\\p{L}+)|(\\p{L}+er)) than " + NAME + "\\b");
     private static final Pattern ALSO = Pattern.compile("\\b(?:but|and|yet|while)\\s+(?:is\\s+|also\\s+|is also\\s+)?(?:a (?:bit|little|lot) |much |far |slightly )?"
             + "(?:(more|less) (\\p{L}+)|(\\p{L}+er)) than " + NAME + "\\b");
+    /** "Chinedu has more years of experience than Zainab", "Musa has fewer customers than Ada": more or less of a thing. */
+    private static final Pattern HAS_MORE = Pattern.compile("\\b" + NAME + " (?:has|had|have|earns|earned|gets|got) (?:a (?:bit|little|lot) |much |far |slightly )?"
+            + "(more|fewer|less) (?:years? of |months? of |hours? of |amounts? of )?(\\p{L}+) than " + NAME + "\\b");
     private static final Pattern NOT_AS = Pattern.compile("\\b" + NAME + " (?:is|was|are|were) not as (\\p{L}+) as " + NAME + "\\b");
 
     /** O1: the comparisons a text states (not the ones it asks about). */
@@ -119,6 +122,15 @@ public final class Order {
                     out.add(sc[1].equals("1") ? new Fact(sc[0], subject, b, s) : new Fact(sc[0], b, subject, s));
                 }
             }
+            Matcher h = HAS_MORE.matcher(s);
+            while (h.find()) {
+                String a = name(h.group(1)), b = name(h.group(4));
+                String scale = h.group(3).toLowerCase(Locale.ROOT);
+                if (!a.equalsIgnoreCase(b) && !a.matches("(?i)he|she|they|it")) {
+                    scales.add(scale);
+                    out.add(h.group(2).equalsIgnoreCase("more") ? new Fact(scale, a, b, s) : new Fact(scale, b, a, s));
+                }
+            }
             Matcher n = NOT_AS.matcher(s);
             while (n.find()) {
                 String adj = n.group(2).toLowerCase(Locale.ROOT);
@@ -148,6 +160,8 @@ public final class Order {
         public final int direction; // +1 the most, -1 the least
         public final String a, b; // one against another: is a above b?
         public final boolean all;
+        /** How the question named the two ends ("least experienced", "most experienced"), when it did. */
+        String low, high;
 
         Question(String scale, int direction, String a, String b, boolean all) {
             this.scale = scale;
@@ -161,7 +175,10 @@ public final class Order {
     private static final Pattern MOST = Pattern.compile("(?i)\\b(?:who|which(?: one)?|what)(?: of them| of the \\w+)? (?:is|was|are|'s) (?:the )?(?:(most|least) (\\p{L}+)|(\\p{L}+est))\\b");
     private static final Pattern ONE = Pattern.compile("\\b(?:[Ii]s|[Ww]as|[Aa]re|[Ww]ere) " + NAME + " (?:(more|less) (\\p{L}+)|(\\p{L}+er)) than " + NAME + "\\s*\\?");
     private static final Pattern ALL = Pattern.compile("(?i)\\b(?:put|list|rank|sort|arrange) (?:them|these|everyone|all of them|the \\w+) (?:in order|from|by)"
-            + "|\\b(?:what|which) (?:is|'s) the order\\b|\\bin order of (\\p{L}+)");
+            + "|\\b(?:what|which) (?:is|'s) the order\\b|\\bin order of (\\p{L}+)"
+            + "|\\b(?:put|list|rank|sort|arrange|order)\\s+[A-Z][\\p{L}'-]+(?:,\\s*[A-Z][\\p{L}'-]+)*,?\\s+(?:and|&)\\s+[A-Z][\\p{L}'-]+\\s+(?:in order|from|by)\\b");
+    /** "from least experienced to most experienced", "from youngest to oldest": which end comes first. */
+    private static final Pattern FROM = Pattern.compile("(?i)\\bfrom\\s+(?:the\\s+)?(least|most|fewest|lowest|highest|(\\p{L}+est))\\b(?:\\s+(\\p{L}+))?\\s+to\\s+(?:the\\s+)?(least|most|fewest|lowest|highest|\\p{L}+est)\\b(?:\\s+(\\p{L}+))?");
 
     /** O3: the question the text asks about order, or null. */
     public static Question asked(String text, List<Fact> facts) {
@@ -203,7 +220,28 @@ public final class Order {
             }
         }
         if (ALL.matcher(text).find() && !scales.isEmpty()) {
-            return new Question(scales.iterator().next(), 1, null, null, true);
+            // "from least … to most …", "from youngest to oldest": the low end first
+            Matcher f = FROM.matcher(text);
+            int dir = 1;
+            String scale = scales.iterator().next();
+            if (f.find()) {
+                String first = f.group(1).toLowerCase(Locale.ROOT);
+                if (f.group(2) != null) {
+                    String[] sc = scaleOf(f.group(2), true, scales);
+                    if (sc != null) {
+                        scale = sc[0];
+                        dir = Integer.parseInt(sc[1]);
+                    }
+                } else {
+                    dir = first.matches("least|fewest|lowest") ? -1 : 1;
+                }
+            }
+            Question q = new Question(scale, dir, null, null, true);
+            if (f.find(0) && f.group(2) == null) {
+                q.low = (f.group(1) + (f.group(3) == null ? "" : " " + f.group(3))).toLowerCase(Locale.ROOT);
+                q.high = (f.group(4) + (f.group(5) == null ? "" : " " + f.group(5))).toLowerCase(Locale.ROOT);
+            }
+            return q;
         }
         return null;
     }
@@ -268,6 +306,14 @@ public final class Order {
             for (String n : order) {
                 said.add(names.get(n));
             }
+            if (q.direction < 0) {
+                java.util.Collections.reverse(said); // the low end first, as asked
+                String from = q.low != null ? q.low : superlative(q.scale, -1), to = q.high != null ? q.high : superlative(q.scale, 1);
+                return String.join(", ", said) + " (from " + from + " to " + to + "): " + chainAll(facts) + ".";
+            }
+            if (q.low != null) {
+                return String.join(", ", said) + " (from " + q.low + " to " + q.high + "): " + chainAll(facts) + ".";
+            }
             return "From " + superlative(q.scale, 1) + " to " + superlative(q.scale, -1) + ": " + String.join(", ", said) + ".";
         }
         // the most (or the least): the one above (or below) every other
@@ -304,6 +350,18 @@ public final class Order {
             }
         }
         return "I can't tell from what you said: it's " + String.join(" or ", candidates) + ", and nothing says which of them is " + comparative(q.scale, q.direction) + ".";
+    }
+
+    /** The statements the order rests on, as said ("Chinedu has more years of experience than Zainab, …"). */
+    private static String chainAll(List<Fact> facts) {
+        List<String> said = new ArrayList<String>();
+        for (Fact f : facts) {
+            String t = f.said.replaceAll("[.!]+$", "").trim();
+            if (!said.contains(t)) {
+                said.add(t);
+            }
+        }
+        return String.join("; ", said);
     }
 
     private static String lowest(Map<String, String> names, Map<String, Set<String>> reach) {

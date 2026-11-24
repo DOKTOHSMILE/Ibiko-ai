@@ -178,7 +178,7 @@ public final class LearningTalk {
                     String c = curious.poll();
                     if (asked.add(c.toLowerCase(Locale.ROOT))) {
                         subject = c;
-                        question = "Who or what is " + c + "?";
+                        question = "Tell me about " + c + ".";
                     }
                 }
                 for (int tries = 0; question == null && tries < 6; tries++) {
@@ -211,6 +211,14 @@ public final class LearningTalk {
                 }
                 String a = answer.trim();
                 events.answered(question, a);
+                if (notAnAnswer(a)) {
+                    if (!nap(Math.min(9000, readMsPerChar * a.length())) || mine != run) {
+                        return;
+                    }
+                    none++;
+                    events.kept("Not kept: that isn't an answer, so there's nothing to learn from it.");
+                    continue;
+                }
                 if (!nap(Math.min(9000, readMsPerChar * a.length())) || mine != run) {
                     return;
                 }
@@ -255,14 +263,45 @@ public final class LearningTalk {
         }
     }
 
+    private static final Pattern NO_ANSWER = Pattern.compile("(?i)^\\W*(?:the question is (?:incomplete|unclear|ambiguous)|i(?:'m| am) not sure what you|"
+            + "could you (?:clarify|please clarify|say)|it(?:'s| is) (?:unclear|not clear) what|i (?:can't|cannot|don't) (?:answer|know what)|"
+            + "please (?:clarify|provide)|that (?:isn't|is not) a (?:complete )?question)");
+
+    /** "The question is incomplete…", "Could you clarify…": the model couldn't answer, so there's nothing to keep. */
+    static boolean notAnAnswer(String a) {
+        return a == null || NO_ANSWER.matcher(a).find();
+    }
+
     /** A question about a subject, in one of the ways a curious person asks. */
     private String pick(String subject) {
-        String[] ways = {"What is " + subject + "?", "What is " + subject + " best known for?", "Why does " + subject + " matter?",
-            "What are the key facts about " + subject + "?"};
+        String s = asSaid(subject);
+        String[] ways = {"What is " + s + "?", "What is " + s + " best known for?", "Why does " + s + " matter?",
+            "What are the key facts about " + s + "?"};
         return ways[random.nextInt(ways.length)];
     }
 
-    private static final Pattern NAME = Pattern.compile("\\b([A-Z][a-z]+(?:\\s+(?:of\\s+|the\\s+)?[A-Z][a-z]+){0,3})\\b");
+    /**
+     * A subject as it's said in a question: "Medical device" (an article's title) is "a medical device"; a name
+     * ("Lake Chad", "Nigeria") stays as it is.
+     */
+    static String asSaid(String subject) {
+        String t = subject.replaceFirst("\\s*\\([^()]*\\)$", "").trim();
+        String[] w = t.split("\\s+");
+        boolean common = w.length >= 2;
+        for (int i = 1; i < w.length; i++) {
+            common &= !w[i].isEmpty() && Character.isLowerCase(w[i].charAt(0));
+        }
+        if (!common) {
+            return t;
+        }
+        String low = Character.toLowerCase(t.charAt(0)) + t.substring(1);
+        return ("aeiou".indexOf(low.charAt(0)) >= 0 ? "an " : "a ") + low;
+    }
+
+    private static final Pattern NAME = Pattern.compile("\\b([A-Z][a-z]+(?:\\s+(?:of\\s+|the\\s+|and\\s+)?[A-Z][a-z]+){0,4})\\b");
+    /** The last word of a name that is a body or a law ("… Act", "… Agency"): a list before it is part of the name. */
+    private static final Pattern BODY = Pattern.compile("(?:Act|Acts|Administration|Agency|Association|Organi[sz]ation|Commission|Council|Institute|University|"
+            + "Company|Corporation|Bank|Fund|Party|Ministry|Department|Bureau|Society|Union|Authority|Service|Board|Court|Treaty|Convention|Amendments?)$");
     private static final Set<String> SMALL = new java.util.HashSet<String>(java.util.Arrays.asList("The", "This", "That", "It", "In", "On", "At",
             "He", "She", "They", "Its", "His", "Her", "Their", "A", "An", "And", "But", "As", "For", "Today", "However", "Also", "There"));
 
@@ -270,9 +309,26 @@ public final class LearningTalk {
     static List<String> names(String text) {
         List<String> out = new ArrayList<String>();
         Matcher m = NAME.matcher(text);
+        int skipTo = -1;
         while (m.find()) {
+            if (m.start() < skipTo) {
+                continue;
+            }
             String n = m.group(1).trim();
-            if (!SMALL.contains(n) && n.length() > 3 && !out.contains(n) && m.start() > 0) {
+            int end = m.end();
+            // "Federal Food, Drug, and Cosmetic Act": a list of capitals ending in a body or a law is one name
+            Matcher more = Pattern.compile("^(?:,\\s*(?:and\\s+)?[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*){1,4}").matcher(text.substring(end));
+            if (more.find() && BODY.matcher(more.group()).find()) {
+                n = n + more.group();
+                end += more.end();
+                skipTo = end;
+            }
+            // "In the United States": the small word that opens a sentence isn't part of the name
+            n = n.replaceFirst("^(?:In|On|At|By|For|From|With|The|This|That|Its|His|Her|Their|And|But|As|Also|However|Today)\\s+(?:the\\s+)?", "");
+            if (n.split("\\s+").length == 1 && m.start() == 0) {
+                continue;
+            }
+            if (!SMALL.contains(n) && n.length() > 3 && !out.contains(n) && (m.start() > 0 || n.contains(" "))) {
                 out.add(n);
             }
         }

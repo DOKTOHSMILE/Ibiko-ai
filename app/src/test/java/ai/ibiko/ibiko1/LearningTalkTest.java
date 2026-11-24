@@ -118,4 +118,18 @@ public class LearningTalkTest {
         assertTrue(done.await(10, TimeUnit.SECONDS));
         assertEquals(Arrays.asList("asking What is Lake Chad?", "answered Lake Chad is a lake in West Africa.", "kept Kept as unsure: new to me.", "done"), seen);
     }
+
+    @Test
+    public void readsNamesAndAsksTheWayAPersonWould() {
+        List<String> n = LearningTalk.names("A medical device is an instrument. In the United States, the FDA has regulated medical devices under the "
+                + "Federal Food, Drug, and Cosmetic Act since the Medical Device Amendments of 1976.");
+        assertTrue(n.toString(), n.contains("United States"));
+        assertTrue(n.toString(), n.contains("Federal Food, Drug, and Cosmetic Act"));
+        assertFalse(n.toString(), n.contains("In the United States"));
+        assertFalse(n.toString(), n.contains("Federal Food"));
+        assertEquals("a medical device", LearningTalk.asSaid("Medical device"));
+        assertEquals("Lake Chad", LearningTalk.asSaid("Lake Chad"));
+        assertTrue(LearningTalk.notAnAnswer("The question is incomplete: “In the United States” is a location phrase."));
+        assertFalse(LearningTalk.notAnAnswer("A medical device is an instrument."));
+    }
 }

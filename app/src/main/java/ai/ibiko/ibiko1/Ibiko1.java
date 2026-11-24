@@ -651,12 +651,27 @@ public final class Ibiko1 {
         if (tasks != null) {
             // what a task asks that the passage only uses ("what does 'no wahala' mean?"): its sayings and words
             tasks.also = q -> {
+                // a quoted phrase made of sayings ("Abeg, fire up the gen"): read piece by piece
+                java.util.regex.Matcher quoted = java.util.regex.Pattern.compile("[\"“]([^\"”]{2,80})[\"”]").matcher(q);
+                if (quoted.find()) {
+                    String glossed = expressions().gloss(quoted.group(1));
+                    if (glossed != null) {
+                        return glossed;
+                    }
+                }
                 String saying = expressions().explain(q.replaceAll("[\"“”']", " "), null);
                 if (saying != null) {
                     return saying;
                 }
                 java.util.regex.Matcher w = java.util.regex.Pattern.compile("(?i)what does [\"“']?([\\p{L}' -]{2,30}?)[\"”']? mean").matcher(q);
                 return w.find() ? dictionaryMeaning(w.group(1)) : null;
+            };
+        }
+        if (tasks != null) {
+            // a yes-or-no claim about the world in a task ("Is Onitsha the capital of Anambra State?"): its facts
+            tasks.facts = q -> {
+                ai.ibiko.ibiko1.formulas.Verify.Said v = ai.ibiko.ibiko1.formulas.Verify.check(q, this::fact);
+                return v != null ? v.text : claimChecked(q);
             };
         }
         if (tasks != null) {
@@ -3650,6 +3665,32 @@ public final class Ibiko1 {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    private static final java.util.regex.Pattern CLAIM = java.util.regex.Pattern.compile("(?i)^\\s*(?:is|was)\\s+(.+?)\\s+the\\s+(capital|capital city|largest city|"
+            + "currency|president|governor|official language|head of state)\\s+of\\s+(.+?)\\s*\\?\\s*$");
+
+    /**
+     * "Is Onitsha the capital of Anambra State?" checked against the built-in facts (Nigeria's states and their
+     * capitals, the countries): yes or no first, then the fact. Null when there is no fact for it.
+     */
+    String claimChecked(String q) {
+        java.util.regex.Matcher c = q == null ? null : CLAIM.matcher(q);
+        if (c == null || !c.matches()) {
+            return null;
+        }
+        String known = null;
+        try {
+            known = builtIn().answer("What is the " + c.group(2) + " of " + c.group(3).trim() + "?");
+        } catch (RuntimeException e) {
+            // no fact for it
+        }
+        if (known == null || known.trim().isEmpty()) {
+            return null;
+        }
+        String a = c.group(1).trim();
+        boolean yes = known.toLowerCase(Locale.ROOT).matches("(?s).*\\b" + java.util.regex.Pattern.quote(a.toLowerCase(Locale.ROOT)) + "\\b.*");
+        return (yes ? "Yes. " : "No. ") + known.trim() + (yes ? "" : " " + a + " is not its " + c.group(2).toLowerCase(Locale.ROOT) + ".");
     }
 
     /** Counts of things the person said they have, kept through this conversation ({@code formulas/Tally}). */
