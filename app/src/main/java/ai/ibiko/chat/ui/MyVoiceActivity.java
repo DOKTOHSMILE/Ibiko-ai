@@ -8,9 +8,6 @@ import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.MediaRecorder;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -44,75 +41,28 @@ public class MyVoiceActivity extends AppCompatActivity {
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         Ui.init(this);
+        setContentView(ai.ibiko.R.layout.activity_my_voice); // the page is res/layout/activity_my_voice.xml; this wires it up
         lines = MyVoice.script(readScript());
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 20);
-        page.setPadding(pad, pad, pad, pad);
-        page.setBackgroundColor(Ui.BG);
-        scroll.setBackgroundColor(Ui.BG);
-        scroll.addView(page);
-        page.addView(Ui.text(this, "My voice", 22, Ui.TEXT, true));
-        page.addView(Ui.text(this, "Read each sentence aloud in your normal speaking voice, in a quiet room, about a hand's width from the"
-                + " phone. Ibiko checks each take; a bad one is read again. About 45 minutes in all gives a good voice; you can stop and"
-                + " carry on any time.", 14, Ui.SUB, false), Ui.wide(this, 8));
-        progress = Ui.text(this, "", 13, Ui.ACCENT, true);
-        page.addView(progress, Ui.wide(this, 14));
-
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(Ui.round(this, Ui.SURFACE, 0, 18));
-        card.setPadding(Ui.dp(this, 18), Ui.dp(this, 16), Ui.dp(this, 18), Ui.dp(this, 18));
-        number = Ui.text(this, "", 12, Ui.SUB, false);
-        card.addView(number);
-        sentence = Ui.text(this, "", 22, Ui.TEXT, false);
-        sentence.setLineSpacing(0, 1.15f);
-        card.addView(sentence, Ui.wide(this, 8));
-        verdict = Ui.text(this, "", 13, Ui.SUB, false);
-        card.addView(verdict, Ui.wide(this, 10));
-        page.addView(card, Ui.wide(this, 10));
-
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER);
-        TextView back = Ui.button(this, "Back", false);
-        back.setOnClickListener(v -> go(at - 1));
-        recordButton = Ui.button(this, "Record", true);
+        progress = findViewById(ai.ibiko.R.id.my_voice_progress);
+        number = findViewById(ai.ibiko.R.id.my_voice_number);
+        sentence = findViewById(ai.ibiko.R.id.my_voice_sentence);
+        verdict = findViewById(ai.ibiko.R.id.my_voice_verdict);
+        recordButton = findViewById(ai.ibiko.R.id.my_voice_record);
+        useMine = findViewById(ai.ibiko.R.id.my_voice_use);
+        findViewById(ai.ibiko.R.id.my_voice_back).setOnClickListener(v -> go(at - 1));
         recordButton.setOnClickListener(v -> toggle());
-        TextView play = Ui.button(this, "Play", false);
-        play.setOnClickListener(v -> play());
-        TextView next = Ui.button(this, "Next", false);
-        next.setOnClickListener(v -> go(at + 1));
-        for (TextView b : new TextView[]{back, recordButton, play, next}) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
-            lp.setMargins(Ui.dp(this, 3), 0, Ui.dp(this, 3), 0);
-            row.addView(b, lp);
-        }
-        page.addView(row, Ui.wide(this, 14));
-
-        page.addView(Ui.text(this, "When you have recorded enough", 16, Ui.TEXT, true), Ui.wide(this, 26));
-        page.addView(Ui.text(this, "1. Share your recordings and open the training notebook (Google Colab, free).\n2. Run it: it trains a"
-                + " voice from your recordings, in an hour or two on its GPU.\n3. Add the trained voice here, and Ibiko speaks with it.",
-                14, Ui.SUB, false), Ui.wide(this, 6));
-        TextView share = Ui.button(this, "Share my recordings for training", false);
-        share.setOnClickListener(v -> share());
-        page.addView(share, Ui.wide(this, 10));
-        TextView add = Ui.button(this, "Add my trained voice (zip)", false);
-        add.setOnClickListener(v -> {
+        findViewById(ai.ibiko.R.id.my_voice_play).setOnClickListener(v -> play());
+        findViewById(ai.ibiko.R.id.my_voice_next).setOnClickListener(v -> go(at + 1));
+        findViewById(ai.ibiko.R.id.my_voice_share).setOnClickListener(v -> share());
+        findViewById(ai.ibiko.R.id.my_voice_add).setOnClickListener(v -> {
             Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
             startActivityForResult(pick, PICK_VOICE);
         });
-        page.addView(add, Ui.wide(this, 8));
-        useMine = new android.widget.Switch(this);
-        useMine.setText("Speak with my voice");
-        useMine.setTextColor(Ui.TEXT);
-        useMine.setOnCheckedChangeListener((b, on) -> {
-            MyVoice.choose(getFilesDir(), on);
-            refresh();
-        });
-        page.addView(useMine, Ui.wide(this, 12));
-        setContentView(scroll);
-        Ui.fitInsets(scroll);
+        for (int id : new int[]{ai.ibiko.R.id.my_voice_back, ai.ibiko.R.id.my_voice_record, ai.ibiko.R.id.my_voice_play,
+            ai.ibiko.R.id.my_voice_next, ai.ibiko.R.id.my_voice_share, ai.ibiko.R.id.my_voice_add}) {
+            Ui.press(findViewById(id));
+        }
+        Ui.fitInsets(findViewById(ai.ibiko.R.id.my_voice_root));
         go(firstUnrecorded());
     }
 
@@ -158,7 +108,7 @@ public class MyVoiceActivity extends AppCompatActivity {
         number.setText("Sentence " + (at + 1) + " of " + lines.size() + (MyVoice.wav(getFilesDir(), l.id).isFile() ? " · recorded ✓" : ""));
         sentence.setText(l.text);
         verdict.setText(MyVoice.wav(getFilesDir(), l.id).isFile() ? "Tap Record to read it again, or Next." : "Tap Record, read the sentence, then tap Stop.");
-        verdict.setTextColor(Ui.SUB);
+        verdict.setTextColor(getColor(ai.ibiko.R.color.text_secondary));
         lastTake = null;
         refresh();
     }
@@ -217,7 +167,7 @@ public class MyVoiceActivity extends AppCompatActivity {
         recording = true;
         recordButton.setText("Stop");
         verdict.setText("Recording… read the sentence, then tap Stop.");
-        verdict.setTextColor(Ui.ACCENT);
+        verdict.setTextColor(getColor(ai.ibiko.R.color.accent));
         recorder = new Thread(() -> {
             short[] buf = new short[rate / 10];
             java.io.ByteArrayOutputStream all = new java.io.ByteArrayOutputStream();
@@ -259,7 +209,7 @@ public class MyVoiceActivity extends AppCompatActivity {
                 recording = false;
                 recordButton.setText("Record");
                 verdict.setText(s);
-                verdict.setTextColor(ok ? Ui.ACCENT : 0xFFE5484D);
+                verdict.setTextColor(ok ? getColor(ai.ibiko.R.color.accent) : 0xFFE5484D);
                 refresh();
                 if (ok) {
                     verdict.postDelayed(() -> go(firstUnrecorded() > at ? firstUnrecorded() : at + 1), 900); // on to the next one

@@ -133,6 +133,10 @@ public class RoutingAuditTest {
                         .append(String.join(" | ", chat.steps).replaceAll("(.{0,240}).*", "$1")).append('\n');
                 if (!ok) {
                     misrouted.add(line[0] + ": " + line[1]);
+                    // what the shared knowledge held at the miss, to tell a wrong route from missing knowledge
+                    report.append("            built-in facts: ").append(Ibiko1.builtIn().size()).append(", currency of Ghana: ")
+                            .append(Ibiko1.builtIn().answer("What is the currency of Ghana?")).append(", asset: ")
+                            .append(Plug.asset.apply("knowledge/world_facts.tsv.ibk") != null).append('\n');
                 }
             }
         } finally {
