@@ -1924,6 +1924,30 @@ public final class Ibiko1 {
         if (coding != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODING);
         }
+        // comparisons said ("Ada is taller than Obi"), kept for the conversation; a question about them reasoned from them
+        List<ai.ibiko.ibiko1.formulas.Order.Fact> compared = ai.ibiko.ibiko1.formulas.Order.read(message);
+        if (!compared.isEmpty()) {
+            synchronized (orderFacts) {
+                orderFacts.addAll(compared);
+                while (orderFacts.size() > 30) {
+                    orderFacts.remove(0);
+                }
+            }
+        }
+        List<ai.ibiko.ibiko1.formulas.Order.Fact> known;
+        synchronized (orderFacts) {
+            known = new ArrayList<ai.ibiko.ibiko1.formulas.Order.Fact>(orderFacts);
+        }
+        final ai.ibiko.ibiko1.formulas.Order.Question orderAsk = snippet == null && !known.isEmpty() ? ai.ibiko.ibiko1.formulas.Order.asked(message, known) : null;
+        final String ordered = orderAsk == null ? null : ai.ibiko.ibiko1.formulas.Order.answer(orderAsk, known);
+        if (ordered != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ORDER);
+        }
+        // a counting story: "I have 3 apples and eat one: how many are left?"
+        final String counted = snippet == null ? ai.ibiko.ibiko1.formulas.Counting.reply(message) : null;
+        if (counted != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.COUNT);
+        }
         // "shorter", "in one sentence", "as points", "more simply", "give me an example": the last answer, said again
         final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
         if (reshapeAsk != null) {
@@ -1989,6 +2013,18 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case COUNT:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading the story: what there is to start with", "Following each thing that happens to it",
+                            "Working out what's asked"), () -> saysExact(who, counted));
+                    return true;
+                case ORDER:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading your question: who is more, from what you told me", "Putting each one above or below the others",
+                            "Following the chain from one to the next"), () -> saysExact(who, ordered));
+                    return true;
                 case RESHAPE:
                     if (reshapeTurn(who, reshapeAsk)) {
                         turnDomain = "talk";
@@ -2277,6 +2313,9 @@ public final class Ibiko1 {
     private ai.ibiko.ibiko1.formulas.Sites sites;
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
+
+    /** The comparisons said in this conversation ("Ada is taller than Obi"), for "who is the tallest?" later. */
+    private final List<ai.ibiko.ibiko1.formulas.Order.Fact> orderFacts = new ArrayList<ai.ibiko.ibiko1.formulas.Order.Fact>();
 
     /** The last answer (not a reshaping of one), and what it was about, for "shorter", "as points", "give me an example". */
     private volatile String lastAnswer, lastAnswerAbout;

@@ -426,4 +426,33 @@ public class WhyFlowTest {
             Plug.asset = was;
         }
     }
+
+    @Test(timeout = 180000)
+    public void reasonedFromWhatWasSaid() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            String puzzle = ask(brain, chat, "Ada is taller than Obi. Obi is taller than Emeka. Who is the tallest?");
+            assertEquals("Ada is the tallest: Ada is taller than Obi, and Obi is taller than Emeka.", puzzle);
+            String later = ask(brain, chat, "And who is the shortest?");
+            assertTrue("the comparisons kept for the conversation: " + later, later.startsWith("Emeka is the shortest"));
+            String check = ask(brain, chat, "Is Emeka taller than Ada?");
+            assertTrue(check, check.startsWith("No: it's the other way round."));
+            String apples = ask(brain, chat, "If I have 3 apples and eat one, how many are left?");
+            assertTrue("a counting story, worked through: " + apples, apples.startsWith("2 apples are left.") && apples.contains("3 − 1 = 2"));
+            String world = ask(brain, chat, "Who is the tallest man in the world?");
+            assertTrue("a question of its own: not from the puzzle: " + world, !world.contains("Ada") && !world.contains("Obi"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
 }

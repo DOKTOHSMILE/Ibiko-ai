@@ -33,7 +33,8 @@ public final class Readings {
 
     /** What a message can be. */
     public enum Kind {
-        CODE("code to explain", "code"), ERROR("an error to explain", "code"), RESHAPE("my last answer, said another way", "talk"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
+        CODE("code to explain", "code"), ERROR("an error to explain", "code"), RESHAPE("my last answer, said another way", "talk"),
+        ORDER("a puzzle about who is more", "reasons"), COUNT("a counting story", "reasons"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
         WORD("a word's meaning", "language"), SYNTAX("a sentence's structure", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
         CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
         KINDQ("whether one thing is a kind of another", "kinds"), AHEAD("what something leads to", "reasons"), WHY("a reason", "reasons");
@@ -117,6 +118,8 @@ public final class Readings {
     /** How surely each reader takes a message when it recognises it (before the words and the context). */
     private static double base(Kind k) {
         switch (k) {
+            case COUNT: return 0.9; // the numbers and what happens to them are all in the message
+            case ORDER: return 0.9; // the comparisons are in what was said: reasoned from them, not looked up
             case RESHAPE: return 0.85; // "shorter", "in one sentence": about the answer just given
             case ERROR: return 0.95; // an error as a tool prints it: what was pasted with it is what it's about
             case CODE: return 0.9; // code is in the message: hard to mistake
