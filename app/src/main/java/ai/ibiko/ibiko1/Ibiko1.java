@@ -1924,6 +1924,11 @@ public final class Ibiko1 {
         if (coding != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODING);
         }
+        // "shorter", "in one sentence", "as points", "more simply", "give me an example": the last answer, said again
+        final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
+        if (reshapeAsk != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.RESHAPE);
+        }
         if (snippet == null && WordTalk.asks(message)) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.WORD);
         }
@@ -1981,6 +1986,12 @@ public final class Ibiko1 {
                     }
                     if (siteTurn(who, t, siteAsk)) {
                         turnDomain = "web";
+                        return true;
+                    }
+                    break;
+                case RESHAPE:
+                    if (reshapeTurn(who, reshapeAsk)) {
+                        turnDomain = "talk";
                         return true;
                     }
                     break;
@@ -2267,6 +2278,58 @@ public final class Ibiko1 {
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
 
+    /** The last answer (not a reshaping of one), and what it was about, for "shorter", "as points", "give me an example". */
+    private volatile String lastAnswer, lastAnswerAbout;
+    private volatile boolean reshaping;
+    private ai.ibiko.ibiko1.formulas.Reshape reshape;
+
+    /** The plain words, for "more simply" (knowledge/language/plain_words.tsv: a newer one downloaded to the phone first). */
+    public synchronized ai.ibiko.ibiko1.formulas.Reshape reshape() {
+        if (reshape == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/language/plain_words.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            reshape = new ai.ibiko.ibiko1.formulas.Reshape(in);
+        }
+        return reshape;
+    }
+
+    /** S1–S5: the last answer said again as asked. False: nothing to say it from (code, or no example in what it read). */
+    private boolean reshapeTurn(final String who, ai.ibiko.ibiko1.formulas.Reshape.Ask ask) {
+        final String before = lastAnswer;
+        String said;
+        if (ask == ai.ibiko.ibiko1.formulas.Reshape.Ask.EXAMPLE) {
+            String about = lastAnswerAbout;
+            Encyclopedia.Article a = about == null ? null : encyclopedia().find(about);
+            String ex = a == null ? null : ai.ibiko.ibiko1.formulas.Reshape.example(a.text, lastSaid);
+            if (about == null) {
+                return false;
+            }
+            said = ex != null ? "For example: " + ex : "I haven't read an example of " + about + " that I could give you. Ask me about a part of it,"
+                    + " and I'll say what I know.";
+        } else {
+            said = reshape().again(before, ask);
+            if (said == null || said.equals(before.trim())) {
+                return false;
+            }
+        }
+        final String out = said;
+        how = How.MEMORY;
+        think(Arrays.asList("Reading your request: my last answer, " + ask.said, "Dropping what it said twice",
+                ask == ai.ibiko.ibiko1.formulas.Reshape.Ask.EXAMPLE ? "Finding an example in what I've read" : "Saying it again, " + ask.said), () -> {
+                    reshaping = true;
+                    try {
+                        saysExact(who, out);
+                    } finally {
+                        reshaping = false;
+                    }
+                });
+        return true;
+    }
+
     /** The signature of the error whose fix was found on the web, until it's said to work or not. */
     private volatile String pendingErrorFix;
 
@@ -2490,6 +2553,10 @@ public final class Ibiko1 {
     /** Keeps the turn just answered: what was asked, what it was about, and what was said. */
     private void kept(String said) {
         Context.Focus f = context.focus(System.currentTimeMillis());
+        if (!reshaping && said != null && !said.trim().isEmpty()) {
+            lastAnswer = said; // what "shorter" or "as points" will say again
+            lastAnswerAbout = f == null ? null : f.name;
+        }
         talk.add(asking, f == null ? null : f.name, said);
         // what this turn was about, for reading the next one with the conversation
         String domain = turnDomain;
