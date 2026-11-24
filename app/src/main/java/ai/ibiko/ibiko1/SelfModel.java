@@ -63,7 +63,11 @@ public final class SelfModel {
         out.add("answer questions from my built-in encyclopedia (" + n(ARTICLES) + " articles) and fact tables (" + n(FACTS) + " facts), offline");
         out.add("follow our conversation: “he”, “it”, “what about Ghana?”");
         out.add("read a text you paste and answer questions about it");
-        out.add("work out sums, unit conversions, dates and percentages exactly");
+        out.add("work out sums, unit conversions, dates and percentages exactly, and word problems step by step");
+        out.add("reason from what you tell me: who is tallest, \u201call cats are mammals\u2026\u201d, if-thens, counting stories");
+        out.add("write code in many languages, explain code you paste, and tell you what an error means and how to fix it");
+        out.add("build a website or a small app (a calculator, a quiz, a to-do list) and change it when you ask");
+        out.add("say my last answer again shorter, simpler, as points or in one sentence");
         out.add("write letters, notes and messages");
         out.add("draw a sentence's syntax tree, test its constituents and explain why it is ambiguous");
         out.add(s.words() > 0 ? "explain words (" + n(s.words()) + " in my dictionary)" : "explain words and what they mean");
@@ -110,7 +114,8 @@ public final class SelfModel {
                     + " Kenya?”), science and how things work, books, films and music, words and their meanings, sums, dates and"
                     + " conversions, or a text you paste for me to read. Or tell me about yourself and what you're into." + now;
         }
-        if (q.matches("(so )?(what can you do|what are you (able|good) (to do|at)|what do you do|how can you help( me)?|what are your (skills|abilities|features)|what are you capable of)")) {
+        if (q.matches("(so )?(what can you do|what are you (able|good) (to do|at)|what do you do|how can you help( me)?|what are your (skills|abilities|features)|what are you capable of"
+                + "|what (can|could|should) (i|we) (do|use you for)( with you| here| for me)?|what can you do for me|what do you know how to do)")) {
             return "Here's what I can do right now:" + list(abilities(s)) + "\n\nWhat would you like to start with?";
         }
         if (q.matches("(what do you know|how much do you know|what do you know about the world)")) {

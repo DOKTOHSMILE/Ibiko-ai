@@ -112,6 +112,11 @@ public class BenchTest {
                     took = (System.nanoTime() - t0) / 1_000_000;
                 }
                 times.add(took);
+                if ("1".equals(System.getenv("BENCH_MEMORY")) && cases.indexOf(c) % 20 == 0) {
+                    System.gc();
+                    Runtime rt = Runtime.getRuntime();
+                    System.out.println("MEMORY after " + cases.indexOf(c) + " cases: " + (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024) + " MB");
+                }
                 boolean ok = last != null && Pattern.compile(c.expect, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE).matcher(last).find();
                 int[] a = areas.computeIfAbsent(c.area, k -> new int[2]);
                 a[1]++;

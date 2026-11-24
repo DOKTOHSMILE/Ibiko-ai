@@ -53,6 +53,11 @@ public final class Conversation {
         return turns.size();
     }
 
+    /** The last {@code n} turns, oldest first: what a new question is read against. */
+    public synchronized List<Turn> recent(int n) {
+        return new ArrayList<Turn>(turns.subList(Math.max(0, turns.size() - n), turns.size()));
+    }
+
     public synchronized void clear() {
         turns.clear();
     }

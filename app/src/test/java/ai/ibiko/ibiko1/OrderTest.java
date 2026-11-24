@@ -39,6 +39,8 @@ public class OrderTest {
         assertEquals("Musa is the most careful.", ask("Musa is more careful than Sani. Who is the most careful?"));
         assertEquals("Yes: Joy is faster than Ann.", ask("Ann is not as fast as Joy. Is Joy faster than Ann?"));
         assertEquals("Bayo is the richest.", ask("Bayo is much richer than Femi. Who is the richest?"));
+        assertEquals("the second comparison is the first one's subject's", "Bisi is the oldest: Bisi is older than Ada, and Ada is older than Obi.",
+                ask("Ada is older than Obi but younger than Bisi. Who is the oldest?"));
     }
 
     @Test

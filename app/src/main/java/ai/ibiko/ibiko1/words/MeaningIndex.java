@@ -81,7 +81,17 @@ public final class MeaningIndex {
         this.lexicon = lexicon;
     }
 
-    private static final Map<String, MeaningIndex> OPEN = new HashMap<String, MeaningIndex>();
+    /**
+     * The indexes open, by file: the app has one (its brain folder's), so it's kept for good. Only the last two used are
+     * held, so a process that opens many folders (each test's own) doesn't keep every one: about 10 MB each, and they
+     * were never let go.
+     */
+    private static final Map<String, MeaningIndex> OPEN = new java.util.LinkedHashMap<String, MeaningIndex>(4, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, MeaningIndex> eldest) {
+            return size() > 2;
+        }
+    };
 
     /** The index of a lexicon file, built or loaded once per file. Null when the file isn't there. */
     public static synchronized MeaningIndex of(File lexicon) {

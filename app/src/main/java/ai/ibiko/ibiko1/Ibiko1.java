@@ -545,6 +545,8 @@ public final class Ibiko1 {
      * up.
      */
     public void answer(final String typed) {
+        thinkingSince = System.currentTimeMillis(); // Stop shows until it answers, or is stopped
+        understood = null; // worked out again for this message
         final String message = asQuestion(typed); // "capital of france", typed as a search: "What is the capital of france?"
         final String who = host.persona();
         long heardAt = System.currentTimeMillis();
@@ -599,6 +601,10 @@ public final class Ibiko1 {
         } else if (heardAt - topicAt > 30 * 60 * 1000L) {
             topic = null;
         }
+        // what this message asks, read with the running conversation: every part below reads this one understanding
+        Context.Focus inFocus = context.focus(heardAt);
+        understood = new Understanding(message, t, questionTypes().of(message), topic, inFocus == null ? null : inFocus.name,
+                talk.recent(Understanding.TURNS));
         if (inquiry == null && curiousTurn(who, message.trim())) {
             return; // the answer to what it asked back about, formed into a sentence before it is kept
         }
@@ -769,7 +775,7 @@ public final class Ibiko1 {
                     Plug.workers.end(worker, true);
                     worker = null;
                 }
-                host.answered(How.OTHER);
+                answeredNow(How.OTHER);
                 host.act(t, code);
             });
             return;
@@ -1109,6 +1115,10 @@ public final class Ibiko1 {
         if (frame.wants != ai.ibiko.ibiko1.formulas.Asking.Wants.OTHER) {
             researching.add("Looking for " + frame.said());
         }
+        final Understanding reading = understood == null ? null : understood.with(asked);
+        if (reading != null && reading.step() != null && (reading.focus != null || !reading.recent.isEmpty())) {
+            researching.add(reading.step());
+        }
         researching.add("Checking what I already know");
         researching.add(way != null ? "Following the way that worked before: " + way.said() : "Thinking it through");
         think(researching, () -> {
@@ -1123,7 +1133,15 @@ public final class Ibiko1 {
                             }
                         }
                         if (r == null) {
-                            r = LearningJob.research(host.context(), asked); // the question as understood (its name repaired)
+                            // the question as understood (its name repaired), searched in words phrased for the most results
+                            int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+                            List<String> searches = reading == null ? null
+                                    : reading.searches(ai.ibiko.ibiko1.formulas.SearchPhrase.get(), year);
+                            r = LearningJob.research(host.context(), asked, searches, q -> host.onScreen(() -> {
+                                if (mine == token) {
+                                    host.step("Searching the web for: " + q);
+                                }
+                            }));
                         }
                         if (r != null) {
                             long now = System.currentTimeMillis();
@@ -1365,7 +1383,8 @@ public final class Ibiko1 {
     }
 
     static final String TEACHER_SYSTEM = "Answer the question in two to four plain, factual sentences. State facts with their dates and"
-            + " numbers. If it is not known, or is about the future, say so plainly; never guess.";
+            + " numbers. If it is not known, or is about the future, say so plainly; never guess. When the conversation so far is"
+            + " given, use it only to tell what the question refers to.";
 
     /**
      * L1–L4: what Ibiko v1 doesn't know, asked of the pilot's API model, then checked by Ibiko against what it holds
@@ -1375,11 +1394,13 @@ public final class Ibiko1 {
      */
     private void fromTeacher(final String who, final String t, final String subject) {
         final int mine = token;
+        final Understanding reading = understood;
         final String name = host.teacherName();
         new Thread(() -> {
             String a = null;
             try {
-                a = host.askTeacher(TEACHER_SYSTEM, "Question: " + PromptReader.guard(t));
+                // asked with the conversation before it, so "when did he die?" is about the one we were talking about
+                a = host.askTeacher(TEACHER_SYSTEM, reading == null ? "Question: " + PromptReader.guard(t) : reading.forModel(t));
             } catch (RuntimeException ignored) {
                 // no answer: said below
             }
@@ -1429,7 +1450,8 @@ public final class Ibiko1 {
 
     /** Ibiko v1 and the device's model as one brain: what Ibiko v1 knows goes in, and the model can run a function. */
     static final String MODEL_SYSTEM = "You are Ibiko, answering for Ibiko's own brain. Answer in a few plain sentences."
-            + " Use what Ibiko already knows when it is given. If you don't know, say so. "
+            + " Use what Ibiko already knows when it is given, and the conversation so far to tell what the question refers to."
+            + " If you don't know, say so. "
             + ai.ibiko.suit.FunctionCode.directions()
             + " /no_think";
 
@@ -1438,6 +1460,7 @@ public final class Ibiko1 {
 
     private void fromModel(final String who, final String t, final String subject, final boolean online) {
         final int mine = token;
+        final Understanding reading = understood;
         final String known = foundation(t);
         final boolean[] settled = {false};
         host.later(() -> {
@@ -1452,9 +1475,22 @@ public final class Ibiko1 {
         }, MODEL_WAIT_MS);
         new Thread(() -> {
             String asked = (known == null || known.trim().isEmpty() ? "" : "What Ibiko already knows:\n" + known.trim() + "\n\n")
-                    + "Question: " + PromptReader.guard(t); // orders hidden in pasted text are fenced off as text
+                    + (reading == null ? "Question: " + PromptReader.guard(t) : reading.forModel(t)); // pasted orders fenced off as text
             String a = host.askModel(MODEL_SYSTEM, asked);
             final String said = a == null ? null : a.trim();
+            // the device's model is checked the way the API model is: against the facts, the knowledge and the encyclopedia
+            String plain = said == null ? null : ai.ibiko.suit.FunctionCode.withoutCode(said);
+            TeacherCheck.Result checked = null;
+            if (plain != null && !plain.trim().isEmpty() && ai.ibiko.suit.FunctionCode.parse(said) == null
+                    && !ai.ibiko.learn.Corroborate.failure(plain)) {
+                try {
+                    Encyclopedia.Article art = subject == null ? null : encyclopedia().find(subject);
+                    checked = TeacherCheck.check(plain.trim(), subject, facts(), knowledge(), art == null ? null : art.text);
+                } catch (RuntimeException ignored) {
+                    // unchecked: said as the model's own, below
+                }
+            }
+            final TeacherCheck.Result check = checked;
             host.onScreen(() -> {
                 if (mine != token || settled[0]) {
                     return; // a newer message took over, or it already replied
@@ -1478,7 +1514,7 @@ public final class Ibiko1 {
                         Plug.workers.end(worker, true);
                         worker = null;
                     }
-                    host.answered(How.OTHER);
+                    answeredNow(How.OTHER);
                     host.act(t, call.toString());
                     return;
                 }
@@ -1490,6 +1526,17 @@ public final class Ibiko1 {
                     return;
                 }
                 how = How.OTHER;
+                if (check != null && check.verdict == TeacherCheck.Verdict.CONFLICT) {
+                    saysPlain(who, "The device's model says: " + shown.trim() + "\n\nBut that goes against what I hold: " + check.because
+                            + ". I've kept what I had. Tell me which is right, and I'll remember it.");
+                    return;
+                }
+                if (check != null && check.verdict == TeacherCheck.Verdict.CONFIRMED) {
+                    knowledge().confirm(t, shown.trim());
+                    saysSure(who, shown.trim(), ai.ibiko.ibiko1.formulas.Critical.Ground.TWO_SOURCES,
+                            "Thought through with the device's model, and checked against " + check.because + ": it agrees.");
+                    return;
+                }
                 saysSure(who, shown.trim(), ai.ibiko.ibiko1.formulas.Critical.Ground.UNCHECKED, "Thought through with the device's model");
                 rateable(t, shown.trim()); // the pilot's check keeps it in Ibiko v1's memory (and in the next adapter's training)
             });
@@ -1500,6 +1547,36 @@ public final class Ibiko1 {
         ratingQuestion = question;
         learner().answered(question, answer, System.currentTimeMillis());
         host.askRating(question, answer);
+    }
+
+    /** When the current answer began, or 0 when Ibiko v1 isn't thinking: the app shows Stop meanwhile. */
+    private volatile long thinkingSince;
+    /** The longest a turn counts as thinking: past it the Stop button gives way, whatever is still pending. */
+    static final long THINKING_MAX_MS = MODEL_WAIT_MS + 20_000;
+
+    /** Whether Ibiko v1 is working out an answer now (its steps showing, or waiting on a model). */
+    public boolean isThinking() {
+        long since = thinkingSince;
+        return since != 0 && System.currentTimeMillis() - since < THINKING_MAX_MS;
+    }
+
+    private void answeredNow(How h) {
+        thinkingSince = 0;
+        host.answered(h);
+    }
+
+    /**
+     * The Stop button: the answer being worked out is let go, like a model's reply that is stopped. Its pending steps and
+     * any late answer (from the web, the device's model or the API model) see a newer token and say nothing. The screen
+     * clears its own steps (the app's Stop drops them rather than folding them into the chat).
+     */
+    public void stop() {
+        token++;
+        thinkingSince = 0;
+        if (worker != null) {
+            Plug.workers.end(worker, false);
+            worker = null;
+        }
     }
 
     /** It thinks visibly, like the models: its steps show one by one, then it answers. */
@@ -1587,7 +1664,7 @@ public final class Ibiko1 {
             worker = null;
         }
         host.say(who, text);
-        host.answered(how);
+        answeredNow(how);
     }
 
     private void saysPlain(String who, String text) {
@@ -1863,8 +1940,10 @@ public final class Ibiko1 {
                     new Thread(() -> {
                         String found = null;
                         try {
-                            String q = t + (ai.ibiko.ibiko1.formulas.Recipes.language(t) == null ? " in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) : "")
-                                    + " code example";
+                            // search words, not the sentence: "reverse a string python code example"
+                            String w = ai.ibiko.ibiko1.formulas.SearchPhrase.get().words(t, 0);
+                            String q = (w.isEmpty() ? t : w) + (ai.ibiko.ibiko1.formulas.Recipes.language(w) == null
+                                    ? " " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) : "") + " code example";
                             found = ai.ibiko.ibiko1.formulas.Recipes.code(Plug.web.search(q), language);
                         } catch (RuntimeException ignored) {
                             // nothing found on the web
@@ -2042,9 +2121,51 @@ public final class Ibiko1 {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SPELL);
         }
         // "who will win the next World Cup?": what hasn't happened, said plainly
-        final String notHappened = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.future(message) : null;
+        String future = snippet == null ? ai.ibiko.ibiko1.formulas.Spelling.future(message) : null;
+        if (future == null && snippet == null && !host.online()) {
+            future = ai.ibiko.ibiko1.formulas.Spelling.weather(message); // a forecast it can't see offline (online, it's looked up)
+        }
+        final String notHappened = future;
         if (notHappened != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.FUTURE);
+        }
+        // the kind of question, by how it starts ("why": a reason; "what was": the past; "what happened": an event…), said in
+        // the thinking; a question that is only its opening ("What was?") answered from its kind and the subject we're on
+        final ai.ibiko.ibiko1.formulas.QuestionTypes.Kind qkind = snippet == null ? questionTypes().of(message) : null;
+        if (qkind != null) {
+            String kindStep = "It's " + qkind.said();
+            contextStep = contextStep == null ? kindStep : contextStep + "; " + kindStep;
+        }
+        Context.Focus onNow = context.focus(System.currentTimeMillis());
+        boolean followsAnswer = lastAnswer != null && (ai.ibiko.ibiko1.formulas.Social.huh(message)
+                || qkind != null && qkind.row.type.equals("REASON")); // "Why?" / "What?" just after an answer: the follow-ups do those
+        final String openingOnly = qkind == null || followsAnswer ? null
+                : ai.ibiko.ibiko1.formulas.QuestionTypes.alone(qkind, onNow == null ? null : onNow.name);
+        // said to Ibiko itself: "can I ask you something private?", "You!", a question cut short
+        String toMe = snippet == null ? ai.ibiko.ibiko1.formulas.Social.reply(message, lastAnswer, previous, openingOnly) : null;
+        if (toMe == null) {
+            toMe = openingOnly;
+        }
+        final String social = toMe;
+        if (social != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.SOCIAL);
+        }
+        // logic from what was said: "All cats are mammals. Tom is a cat. Is Tom a mammal?"
+        final String reasoned = snippet == null ? ai.ibiko.ibiko1.formulas.Logic.answer(message, logicKnown) : null;
+        if (snippet == null) {
+            logicKnown.addAll(ai.ibiko.ibiko1.formulas.Logic.read(message)); // kept for the conversation's later questions
+        }
+        if (reasoned != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.LOGIC);
+        }
+        // everyday sums in words: "half of 250", "20% off 5000", "is 97 prime?", "what day is 10 days after Monday?"
+        String sum = snippet == null ? ai.ibiko.ibiko1.formulas.Quick.reply(message) : null;
+        if (sum == null && snippet == null) {
+            sum = yearsAgo(t); // "how many years ago was Nelson Mandela born?": the date looked up, then the years counted
+        }
+        final String quick = sum;
+        if (quick != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.QUICK);
         }
         // a counting story: "I have 3 apples and eat one: how many are left?"
         final String counted = snippet == null ? ai.ibiko.ibiko1.formulas.Counting.reply(message) : null;
@@ -2052,7 +2173,11 @@ public final class Ibiko1 {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.COUNT);
         }
         // "shorter", "in one sentence", "as points", "more simply", "give me an example": the last answer, said again
-        final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
+        ai.ibiko.ibiko1.formulas.Reshape.Ask reshaped = snippet == null && lastAnswer != null ? ai.ibiko.ibiko1.formulas.Reshape.asked(message) : null;
+        if (reshaped == null && snippet == null && lastAnswer != null && ai.ibiko.ibiko1.formulas.Social.huh(message)) {
+            reshaped = ai.ibiko.ibiko1.formulas.Reshape.Ask.SIMPLER; // "What?" just after an answer: it wasn't followed, so said again more simply
+        }
+        final ai.ibiko.ibiko1.formulas.Reshape.Ask reshapeAsk = reshaped;
         if (reshapeAsk != null) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.RESHAPE);
         }
@@ -2138,6 +2263,22 @@ public final class Ibiko1 {
                     how = How.MEMORY;
                     think(Arrays.asList("Reading the story: what there is to start with", "Following each thing that happens to it",
                             "Working out what's asked"), () -> saysExact(who, counted));
+                    return true;
+                case QUICK:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading the sum in your words", "Working it out exactly"), () -> saysExact(who, quick));
+                    return true;
+                case SOCIAL:
+                    turnDomain = "talk";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading what you said to me"), () -> saysPlain(who, social));
+                    return true;
+                case LOGIC:
+                    turnDomain = "reasons";
+                    how = How.MEMORY;
+                    think(Arrays.asList("Reading what you said as rules and facts", "Following them to your question",
+                            "Saying only what follows from them"), () -> saysExact(who, reasoned));
                     return true;
                 case ORDER:
                     turnDomain = "reasons";
@@ -2454,6 +2595,22 @@ public final class Ibiko1 {
 
     private ai.ibiko.ibiko1.formulas.Sites sites;
 
+    private ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes;
+
+    /** The kinds of question by how they start (knowledge/language/question_types.tsv: a newer one downloaded first). */
+    public synchronized ai.ibiko.ibiko1.formulas.QuestionTypes questionTypes() {
+        if (questionTypes == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/language/question_types.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            questionTypes = new ai.ibiko.ibiko1.formulas.QuestionTypes(in);
+        }
+        return questionTypes;
+    }
+
     private ai.ibiko.ibiko1.formulas.Records records;
 
     /** The records the encyclopedia names (knowledge/records.tsv: a newer one downloaded to the phone first). */
@@ -2471,6 +2628,41 @@ public final class Ibiko1 {
     }
 
     private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
+
+    /** The rules and facts said in this conversation ("all cats are mammals"), for questions about them later. */
+    private final ai.ibiko.ibiko1.formulas.Logic.Known logicKnown = new ai.ibiko.ibiko1.formulas.Logic.Known();
+
+    private static final java.util.regex.Pattern YEARS_AGO = java.util.regex.Pattern.compile("(?i)^\\s*how (?:many years ago|long ago) "
+            + "(?:was|did|were)\\s+(.{2,60}?)\\s+(born|die|pass away)\\s*[?.!]*\\s*$");
+
+    /** Two steps: the date it happened, from the facts; then the whole years from it to today. Null when not asked or not known. */
+    String yearsAgo(String t) {
+        java.util.regex.Matcher m = YEARS_AGO.matcher(t);
+        if (!m.matches()) {
+            return null;
+        }
+        String who = m.group(1).trim(), relation = m.group(2).equalsIgnoreCase("born") ? "born" : "died";
+        String when = fact(who, relation);
+        if (when == null) {
+            return null;
+        }
+        java.util.regex.Matcher d = java.util.regex.Pattern.compile("(?:(\\d{1,2}) (January|February|March|April|May|June|July|August|September|October"
+                + "|November|December) )?(\\d{3,4})").matcher(when);
+        if (!d.find()) {
+            return null;
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int year = Integer.parseInt(d.group(3));
+        int years = today.getYear() - year;
+        if (d.group(1) != null) {
+            java.time.LocalDate then = java.time.LocalDate.of(year, java.time.Month.valueOf(d.group(2).toUpperCase(Locale.ROOT)), Integer.parseInt(d.group(1)));
+            years = java.time.Period.between(then, today).getYears(); // whole years, counting the day
+        }
+        String name = who.replaceFirst("(?i)^(the )", "");
+        return years + " years ago. " + Character.toUpperCase(name.charAt(0)) + name.substring(1) + " " + (relation.equals("born") ? "was born" : "died")
+                + " on " + d.group() + ", and today is " + today.getDayOfMonth() + " " + today.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)
+                + " " + today.getYear() + ".";
+    }
 
     /** The comparisons said in this conversation ("Ada is taller than Obi"), for "who is the tallest?" later. */
     private final List<ai.ibiko.ibiko1.formulas.Order.Fact> orderFacts = new ArrayList<ai.ibiko.ibiko1.formulas.Order.Fact>();
@@ -2525,11 +2717,38 @@ public final class Ibiko1 {
             + "president|prime minister|leader|king|queen|official language|languages?|area|size|height|length|founder|flag|anthem|"
             + "dialling code|dialing code|time zone|motto)\\s+of\\s+([\\p{L}][\\p{L} .'-]{1,40}?)\\s*[.!]*$");
 
+    private static final String[][] CHAT_SPELLINGS = {{"wats|whats|what's|watz|wots", "what is"}, {"wat|wht|wot", "what"},
+        {"whos|who's|hu's|hoos", "who is"}, {"whr|wer", "where"}, {"hw", "how"}, {"wen", "when"}}; // not "y" for "why": "Y is a letter"
+    private static final java.util.regex.Pattern ASKING_START = java.util.regex.Pattern.compile("(?i)^\\s*(?:what|who|where|when|why|how|which|whose|"
+            + "is|are|was|were|can|could|does|do|did|will|would|should)\\b"); // not "tell me", "define": asks, not questions
+
+    /**
+     * A question typed the way people chat: "whats the capital of ghana", "who's mandela" (no question mark, a chat
+     * spelling for the question word). Its first word put right and a question mark added, so it's read as asked, not
+     * as something said ("Noted."). Only the first word: names and the rest stay as typed.
+     */
+    static String asked(String message) {
+        String m = message.trim();
+        for (String[] c : CHAT_SPELLINGS) {
+            java.util.regex.Matcher x = java.util.regex.Pattern.compile("(?i)^(?:" + c[0] + ")\\b(?=\\s+\\S)").matcher(m);
+            if (x.find()) {
+                m = c[1] + m.substring(x.end());
+                break;
+            }
+        }
+        if (!m.endsWith("?") && !m.contains("\n") && m.length() < 160 && ASKING_START.matcher(m).find()
+                && !m.matches("(?is).*[.!]\\s+\\S.*")) { // one sentence, asked: not a story that ends with a question
+            m = m.replaceAll("[.!]+$", "") + "?";
+        }
+        return m.equals(message.trim()) ? message : m;
+    }
+
     /** A bare phrase typed as a search ("capital of france", "population of Kano"): the question it stands for. */
     static String asQuestion(String message) {
         if (message == null) {
             return null;
         }
+        message = asked(message);
         java.util.regex.Matcher m = BARE.matcher(message);
         // a sentence about it ("the capital of France is lovely") isn't a search: the name runs into a verb
         if (!m.matches() || m.group(2).matches("(?i).*\\b(?:is|are|was|were|has|have|had|does|do|did|looks?|seems?|and|but|because)\\b.*")) {
@@ -2798,6 +3017,14 @@ public final class Ibiko1 {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    /** What the message being answered asks, read with the conversation ({@link Understanding}); null before it is read. */
+    private volatile Understanding understood;
+
+    /** What the message being answered asks, read with the conversation; null when none is being answered. */
+    public Understanding understood() {
+        return understood;
     }
 
     /** The conversation so far, turn by turn (one per chat), to be talked about. */
@@ -3213,7 +3440,7 @@ public final class Ibiko1 {
             worker = null;
         }
         host.say(who, text);
-        host.answered(how);
+        answeredNow(how);
     }
 
     /** The text the person pasted last, for questions about it ({@link Passage}). */
@@ -3222,8 +3449,9 @@ public final class Ibiko1 {
     /** A question about the person asking it ("what's my…", "where do I…", "am I…"), not about the world. */
     static boolean aboutThePerson(String t) {
         String q = Paraphrase.normalize(t);
-        return EncyclopediaQA.question(q) && (q.matches(".*\\bmy\\b.*") || q.matches("^(where|what|who|when|how|why|which) (am|do|did|was|will|should|can) i\\b.*")
-                || q.matches("^(am|do|did|was|should|can) i\\b.*")) && !q.matches(".*\\b(tell|show|give|teach|help|let) me\\b.*")
+        // "can I …" and "should I …" ask leave or advice ("can I ask you something?", "what can I do with you?"), not about the person
+        return EncyclopediaQA.question(q) && (q.matches(".*\\bmy\\b.*") || q.matches("^(where|what|who|when|how|why|which) (am|do|did|was|will) i\\b.*")
+                || q.matches("^(am|do|did|was) i\\b.*")) && !q.matches(".*\\b(tell|show|give|teach|help|let) me\\b.*")
                 && !q.matches(".*\\bmy (own )?(code|file|files|phone|app|chat|message|messages|question)\\b.*");
     }
 

@@ -451,8 +451,60 @@ public class WhyFlowTest {
             assertTrue("a counting story, worked through: " + apples, apples.startsWith("2 apples are left.") && apples.contains("3 − 1 = 2"));
             String bat = ask(brain, chat, "Is a bat a bird?");
             assertEquals("a sure no, from groups that can't overlap", "No. Bats are mammals, and mammals aren't birds.", bat);
+            String ago = ask(brain, chat, "How many years ago was Nelson Mandela born?");
+            int expect = java.time.Period.between(java.time.LocalDate.of(1918, 7, 18), java.time.LocalDate.now()).getYears();
+            assertTrue("two steps, the date then the years: " + ago, ago.startsWith(expect + " years ago. Nelson Mandela was born on 18 July 1918"));
+            String syllogism = ask(brain, chat, "All cats are mammals. Tom is a cat. Is Tom a mammal?");
+            assertTrue(syllogism, syllogism.startsWith("Yes: Tom is a cat, and all cats are mammals"));
+            String typed = ask(brain, chat, "whats the capital of ghana");
+            assertTrue("a question typed the way people chat: " + typed, typed.contains("Accra"));
             String world = ask(brain, chat, "Who is the tallest man in the world?");
             assertTrue("a question of its own: not from the puzzle: " + world, !world.contains("Ada") && !world.contains("Obi"));
+        } finally {
+            Plug.asset = was;
+        }
+    }
+
+    @Test(timeout = 180000)
+    public void talkingWithIbikoItself() throws Exception {
+        java.util.function.Function<String, java.io.InputStream> was = Plug.asset;
+        Plug.asset = p -> {
+            try {
+                return new java.io.FileInputStream(new java.io.File("src/main/assets/" + p));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        };
+        try {
+            Store.reset();
+            Chat chat = new Chat();
+            Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+            // the conversation from the pilot's phone
+            String leave = ask(brain, chat, "Can I ask you something private?");
+            assertTrue("asking leave isn't a question about them: " + leave, leave.startsWith("Of course, go ahead."));
+            String can = ask(brain, chat, "What can I do with you?");
+            assertTrue("what it can do: " + can, can.startsWith("Here's what I can do right now:") && can.contains("Write code in many languages"));
+            String cut = ask(brain, chat, "What can I?");
+            assertTrue("a question cut short, that the last one began the same way: " + cut,
+                    cut.startsWith("That's how your last question began: “What can I do with you?”"));
+            String bare = ask(brain, chat, "Can I?");
+            assertTrue("its kind's own reply: " + bare, bare.startsWith("Can you what? Go ahead"));
+            ask(brain, chat, "Tell me about Nigeria");
+            String wasAlone = ask(brain, chat, "What was?");
+            assertTrue("an opening alone, with the subject we're on: " + wasAlone, wasAlone.startsWith("‘What was…’ asks about something in the past")
+                    && wasAlone.contains("About Nigeria"));
+            boolean kindSaid = false;
+            for (String st : new ArrayList<String>(chat.steps)) {
+                kindSaid |= st.contains("It's a what-was question, about the past");
+            }
+            assertTrue("the kind is in the thinking: " + chat.steps, kindSaid);
+            String you = ask(brain, chat, "You!");
+            assertTrue(you, you.startsWith("Yes, me!"));
+            ask(brain, chat, "What is photosynthesis?");
+            String huh = ask(brain, chat, "What?");
+            assertTrue("\"What?\" after an answer: said again more simply: " + huh, huh.startsWith("Photosynthesis is how"));
+            String mine = ask(brain, chat, "What is my blood group?");
+            assertTrue("a question about the person still asks them: " + mine, mine.startsWith("I don't know that about you yet"));
         } finally {
             Plug.asset = was;
         }

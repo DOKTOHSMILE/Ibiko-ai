@@ -28,6 +28,7 @@ public class TeacherFlowTest {
         final List<String> said = Collections.synchronizedList(new ArrayList<String>());
         final List<String> steps = Collections.synchronizedList(new ArrayList<String>());
         final AtomicInteger asked = new AtomicInteger();
+        volatile String lastQuestion;
         String teacherSays = "The national bird of Zorbania is the blue heron. It was chosen in 1952.";
 
         @Override public String persona() { return "obi"; }
@@ -57,6 +58,7 @@ public class TeacherFlowTest {
         @Override
         public String askTeacher(String system, String question) {
             asked.incrementAndGet();
+            lastQuestion = question;
             return teacherSays;
         }
 
@@ -94,5 +96,26 @@ public class TeacherFlowTest {
         assertNotNull(second);
         assertTrue("from memory: " + second, second.contains("blue heron"));
         assertEquals("no tokens spent the second time", 0, later.asked.get());
+    }
+
+    @Test(timeout = 60000)
+    public void askedWithTheConversation() throws Exception {
+        Plug.web = Plug.NONE;
+        Store.reset();
+        Chat chat = new Chat();
+        Ibiko1 brain = new Ibiko1(chat, Files.createTempDirectory("ibiko1").toFile());
+        brain.answer("What is the national bird of Zorbania?");
+        assertNotNull(chat.next(0));
+        chat.teacherSays = "Zorbania's national flower is the white lily.";
+        brain.answer("And what is its national flower?");
+        String reply = chat.next(1);
+        assertNotNull(reply);
+        String q = chat.lastQuestion;
+        assertEquals("asked twice: " + reply + " " + chat.steps, 2, chat.asked.get());
+        assertNotNull(q);
+        // the API model is asked in the conversation, not with the words alone
+        assertTrue(q, q.contains("The conversation so far"));
+        assertTrue(q, q.contains("national bird of Zorbania"));
+        assertTrue(q, q.contains("Question: "));
     }
 }

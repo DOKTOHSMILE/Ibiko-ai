@@ -34,7 +34,7 @@ public final class Readings {
     /** What a message can be. */
     public enum Kind {
         CODE("code to explain", "code"), ERROR("an error to explain", "code"), RESHAPE("my last answer, said another way", "talk"),
-        ORDER("a puzzle about who is more", "reasons"), COUNT("a counting story", "reasons"),
+        SOCIAL("something said to me", "talk"), ORDER("a puzzle about who is more", "reasons"), LOGIC("a question of logic, from what you said", "reasons"), COUNT("a counting story", "reasons"), QUICK("an everyday sum", "reasons"),
         SPELL("how a word is spelled", "language"), RECORD("a record: the most of something", "facts"), FUTURE("what hasn't happened yet", "reasons"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
         WORD("a word's meaning", "language"), SYNTAX("a sentence's structure", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
         CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
@@ -122,7 +122,10 @@ public final class Readings {
             case RECORD: return 0.85; // "the highest mountain in the world": found by what it is
             case SPELL: return 0.9; // "how do you spell X": the word, not a question about me
             case FUTURE: return 0.85; // what hasn't happened yet: said plainly, not looked up
+            case QUICK: return 0.9; // "half of 250", "is 97 prime": worked out, not looked up
             case COUNT: return 0.9; // the numbers and what happens to them are all in the message
+            case SOCIAL: return 0.95; // said to Ibiko itself: leave, what it can do, "You!"
+            case LOGIC: return 0.92; // the rules and facts are in what was said: reasoned from them, not looked up
             case ORDER: return 0.9; // the comparisons are in what was said: reasoned from them, not looked up
             case RESHAPE: return 0.85; // "shorter", "in one sentence": about the answer just given
             case ERROR: return 0.95; // an error as a tool prints it: what was pasted with it is what it's about

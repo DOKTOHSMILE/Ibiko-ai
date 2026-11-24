@@ -632,7 +632,13 @@ public final class MainActivity extends AppCompatActivity implements StageListen
     }
 
     boolean modelGoing() {
-        return generating || streamOpen || (model != null && (model.working() || model.coding));
+        return generating || streamOpen || (model != null && (model.working() || model.coding)) || ibikoThinking();
+    }
+
+    /** Ibiko v1 is working out an answer: Stop shows for it as it does for a model's reply. */
+    boolean ibikoThinking() {
+        ai.ibiko.ibiko1.Ibiko1 own = ibiko1; // never started just to ask
+        return own != null && own.isThinking();
     }
 
     /** The chat the current run belongs to. Another chat stays idle. */
@@ -728,6 +734,12 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
         @Override
         public void steer(String text, boolean attached) {
+            if (!attached && ibikoThinking() && !generating && !streamOpen && (model == null || !(model.working() || model.coding))) {
+                // only Ibiko v1 is thinking: a new message takes over at once (the newer one is answered), as before
+                ibiko1.stop();
+                answer(text);
+                return;
+            }
             steerIntoTask(text, attached);
         }
 
@@ -1980,6 +1992,7 @@ public final class MainActivity extends AppCompatActivity implements StageListen
 
         @Override
         public void answered(ai.ibiko.ibiko1.Ibiko1.How how) {
+            handler.post(MainActivity.this::refreshSend); // answered: Stop is Send again at once
             if (model != null) {
                 model.usage.recordOwn(
                         how == ai.ibiko.ibiko1.Ibiko1.How.MEMORY ? ai.ibiko.llm.UsageLog.Own.MEMORY

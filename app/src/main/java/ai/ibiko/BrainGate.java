@@ -210,7 +210,9 @@ final class BrainGate {
                         return false;
                     }
                     if (a.ibikoOwn()) {
+                        a.runChat = a.pageKey(); // its thinking belongs to this chat: Stop shows here
                         a.ibiko1().endpoint().chat(t); // Ibiko v1, through its endpoint: what it knows, or it researches and asks whether it got it right
+                        a.refreshSend(); // Stop, while it thinks
                         return true;
                     }
                     if (a.model != null && !a.model.remoteOn() && a.model.installed() && a.prefs.getBoolean("llm_on", true)) {

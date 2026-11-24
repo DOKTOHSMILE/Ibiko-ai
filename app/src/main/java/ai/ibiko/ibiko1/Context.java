@@ -133,6 +133,9 @@ public final class Context {
     private static final Pattern PEOPLE_PART = Pattern.compile("(?i)wife|husband|children|kids|parents|father|mother|birthday|age|height");
 
     private static final Pattern ABOUT = Pattern.compile("(?i)^\\s*(?:and |so |ok(?:ay)?,? |then )?(?:what about|how about|and what about|what of|same for|same question for|and for|and|also)\\s+(.+?)\\s*[?.!]*$");
+    /** "and", "also", "so" before a whole question of its own ("and when did he die?"). */
+    private static final Pattern LEADS = Pattern.compile("(?i)^\\s*(?:and|also|so|then|but|ok(?:ay)?,?)\\s+"
+            + "((?!what about|how about|what of)(?:what|who|whom|whose|where|when|why|how|which|is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\\b.+)$");
     private static final Pattern MORE = Pattern.compile("(?i)^\\s*(?:(?:please )?tell me more|more|go on|continue|say more|anything else|what else|more please|tell me more about (?:him|her|it|them|that))\\s*[?.!]*$");
     private static final Pattern HIS = Pattern.compile("(?i)^\\s*(?:and |so |what about |how about )?(his|her|its|their)\\s+([a-z][a-z ]{1,30}?)\\s*[?.!]*$");
 
@@ -165,6 +168,12 @@ public final class Context {
                 r.put.put(h.group(1).toLowerCase(Locale.ROOT), owner.name);
                 return r;
             }
+        }
+        // "And what is its national flower?": a whole question after "and", read as that question (its "its" put back), not
+        // as "what about <a whole question>?"
+        Matcher lead = LEADS.matcher(t);
+        if (lead.matches()) {
+            return resolve(lead.group(1), now);
         }
         // "what about Ghana?": the last question again, about Ghana
         Matcher a = ABOUT.matcher(t);

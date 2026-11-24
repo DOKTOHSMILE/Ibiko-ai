@@ -151,19 +151,48 @@ public final class LearningJob extends JobService {
      * search's sentences that answer it. Blocking; off the main thread.
      */
     public static ResearchAnswer research(Context c, String question) {
+        return research(c, question, null);
+    }
+
+    /**
+     * As {@link #research(Context, String)}, the web searched with words phrased for the most results
+     * ({@link ai.ibiko.ibiko1.formulas.SearchPhrase}): the search words first, then broader when nothing answers it.
+     * {@code searching} hears each search as it goes out (for the thinking shown), when given.
+     */
+    public static ResearchAnswer research(Context c, String question, java.util.function.Consumer<String> searching) {
+        return research(c, question, null, searching);
+    }
+
+    /**
+     * As {@link #research(Context, String, java.util.function.Consumer)}, with the searches already phrased (with the
+     * conversation: {@link Understanding#searches}); the question's own phrasing when null.
+     */
+    public static ResearchAnswer research(Context c, String question, java.util.List<String> searches,
+            java.util.function.Consumer<String> searching) {
         ResearchAnswer r = null;
         String subject = ResearchAnswer.subject(question);
         if (subject != null) {
             r = ResearchAnswer.fromSummary(Plug.web.get(ResearchAnswer.summaryUrl(subject)));
         }
         if (r == null) {
-            String found;
-            try {
-                found = Plug.web.search(question);
-            } catch (RuntimeException e) {
-                found = null;
+            int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+            java.util.List<String> tries = searches != null && !searches.isEmpty() ? searches
+                    : ai.ibiko.ibiko1.formulas.SearchPhrase.get().tries(question, year);
+            for (String q : tries) {
+                if (searching != null) {
+                    searching.accept(q);
+                }
+                String found;
+                try {
+                    found = Plug.web.search(q);
+                } catch (RuntimeException e) {
+                    found = null;
+                }
+                r = ResearchAnswer.from(question, found); // the answer is still picked for the question as asked
+                if (r != null) {
+                    break;
+                }
             }
-            r = ResearchAnswer.from(question, found);
         }
         return r;
     }
