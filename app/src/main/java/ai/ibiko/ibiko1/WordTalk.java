@@ -161,6 +161,14 @@ public final class WordTalk {
         }
         if ((x = OPPOSITES.matcher(m)).matches()) {
             List<String> opp = meanings.opposites(first(x));
+            if (opp.isEmpty()) {
+                // none listed for the word itself: worked out from what it means ("ancient" is very old: new, modern)
+                ai.ibiko.ibiko1.words.Meanings.Reasoned r = meanings.oppositesByMeaning(first(x));
+                if (r != null) {
+                    return "The opposite of “" + first(x) + "”: " + String.join(", ", r.opposites) + ". (“" + first(x) + (r.via.startsWith("like") ? "” is " : "” means ")
+                            + r.via + ", and those are the opposites of “" + r.through + "”.)";
+                }
+            }
             return opp.isEmpty() ? "My dictionary doesn't give an opposite for “" + first(x) + "”."
                     : "The opposite of “" + first(x) + "”: " + String.join(", ", opp) + ".";
         }

@@ -518,6 +518,73 @@ public final class Meanings {
         return new ArrayList<String>(out);
     }
 
+    /** An opposite found through what a word means, and the way it was found. */
+    public static final class Reasoned {
+        public final List<String> opposites;
+        /** "“ancient” means very old, and the opposite of “old” is…" */
+        public final String via, through;
+
+        Reasoned(List<String> opposites, String via, String through) {
+            this.opposites = opposites;
+            this.via = via;
+            this.through = through;
+        }
+    }
+
+    private static final java.util.regex.Pattern INTENSIFIER = java.util.regex.Pattern.compile(
+            "(?i)^(?:very|extremely|quite|rather|highly|exceedingly|especially|really|most|so|too|somewhat|fairly|slightly|a bit|more|less|being)\\s+");
+
+    /**
+     * Opposites reasoned from meaning when the dictionary lists none for the word itself: a sense said in a word or two
+     * ("ancient": very old) takes that word's opposites ("old": new, young); else a synonym's opposites ("huge" is like
+     * "large", whose opposite is "small"). Null when neither gives one.
+     */
+    public Reasoned oppositesByMeaning(String word) {
+        String h = headword(word);
+        String w = h == null ? word.toLowerCase(Locale.ROOT) : h;
+        for (MeaningIndex.Sense s : index.senses(w)) {
+            String gloss = s.definition.replaceAll("\\(.*?\\)", " ").split("[;:]")[0].trim();
+            String core = INTENSIFIER.matcher(gloss).replaceFirst("").trim();
+            if (core.isEmpty() || core.split("\\s+").length > 2) {
+                continue; // a long definition: no single word to take the opposite of
+            }
+            String key = core.split("\\s+")[core.split("\\s+").length - 1].toLowerCase(Locale.ROOT);
+            if (key.equals(w) || !index.has(key)) {
+                continue;
+            }
+            List<String> opp = direct(key);
+            if (!opp.isEmpty()) {
+                return new Reasoned(opp, gloss, key);
+            }
+        }
+        for (MeaningIndex.Sense s : index.senses(w)) {
+            for (String syn : s.synonyms) {
+                String k = syn.toLowerCase(Locale.ROOT);
+                if (!k.equals(w) && !k.contains(" ")) {
+                    List<String> opp = direct(k);
+                    if (!opp.isEmpty()) {
+                        return new Reasoned(opp, "like “" + k + "”", k);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The opposites the dictionary lists for a word itself (its senses, and the words that list it). */
+    private List<String> direct(String w) {
+        Set<String> out = new LinkedHashSet<String>();
+        for (MeaningIndex.Sense s : index.senses(w)) {
+            out.addAll(s.opposites);
+        }
+        for (int id : index.postings(index.asOpposite, w)) {
+            out.add(index.word[id]);
+        }
+        out.remove(w);
+        List<String> l = new ArrayList<String>(out);
+        return l.size() > 6 ? l.subList(0, 6) : l;
+    }
+
     // ------------------------------------------------------------------ a sentence read
 
     /** One word of a sentence, read: as written, its base, its part of speech here, the sense it has here. */

@@ -55,6 +55,7 @@ public final class Recipes {
         t("factorial", "work out a factorial", "factorial");
         t("fibonacci", "print the Fibonacci numbers", "fibonacci");
         t("is_prime", "check if a number is prime", "prime(?: number)?");
+        t("is_even", "check if a number is even", "(?:is|are|if|whether) (?:a |the |an )?(?:number|integer|int|value|it|n|x)?\\s*(?:is )?even\\b|even or odd|odd or even|even numbers?");
         t("uppercase", "make a string upper case", "upper ?case|uppercase|capital letters|to upper");
         t("split_string", "split a string", "split (?:a |the )?(?:string|text|line)|split (?:it )?(?:by|on) (?:a )?comma");
         t("string_to_int", "turn a string into a number", "(?:convert|turn|parse|change|cast) (?:a |the )?string (?:to|into) (?:an? )?(?:int|integer|number)|string to (?:int|integer|number)|parse (?:an? )?(?:int|integer)");

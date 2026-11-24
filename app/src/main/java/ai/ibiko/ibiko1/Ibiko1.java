@@ -234,6 +234,22 @@ public final class Ibiko1 {
     }
 
     /** What shipped with the app: known from the moment it is installed, with no internet and nothing learned yet. */
+    private static CoreFacts coreFacts;
+
+    /** The app's core facts, the pack the other brains are given too (knowledge/base_knowledge.json). */
+    public static synchronized CoreFacts coreFacts() {
+        if (coreFacts == null || coreFacts.size() == 0) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(Plug.asset, "knowledge/base_knowledge.json");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            coreFacts = new CoreFacts(in);
+        }
+        return coreFacts;
+    }
+
     public static synchronized BuiltIn builtIn() {
         if (builtIn == null) {
             builtIn = new BuiltIn(TextCode.open(Plug.asset, "knowledge/world_facts.tsv"),
@@ -345,6 +361,10 @@ public final class Ibiko1 {
             String shipped = builtIn().answer(request);
             if (shipped != null) {
                 claims.add(new ai.ibiko.ibiko1.formulas.Truth.Claim(about, shipped, ai.ibiko.ibiko1.formulas.Truth.Source.BUILT_IN, now));
+            }
+            String core = coreFacts().answer(request);
+            if (core != null) {
+                claims.add(new ai.ibiko.ibiko1.formulas.Truth.Claim(about, core, ai.ibiko.ibiko1.formulas.Truth.Source.BUILT_IN, now));
             }
             String read = facts().answer(request);
             if (read != null) {
@@ -1060,6 +1080,16 @@ public final class Ibiko1 {
             think(Arrays.asList("Reading your question", "Checking what I already know", "Found it in my built-in knowledge"), () -> {
                 saysSure(who, shipped, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN);
                 rateable(t, shipped);
+            });
+            return;
+        }
+        // the app's core facts, shared with the other brains: "At what temperature does water boil?"
+        final String core = coreFacts().answer(t);
+        if (core != null && !knowledge().rejected(t, core)) {
+            how = How.MEMORY;
+            think(Arrays.asList("Reading your question", "Checking what I already know", "Found it in the app's core facts"), () -> {
+                saysSure(who, core, ai.ibiko.ibiko1.formulas.Critical.Ground.BUILT_IN);
+                rateable(t, core);
             });
             return;
         }
