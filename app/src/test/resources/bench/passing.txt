@@ -10,6 +10,7 @@ fact.ghana.currency
 fact.everest
 fact.nile
 fact.sun.star
+fact.water.boils
 fact.photosynthesis
 fact.dna
 fact.azikiwe
@@ -50,8 +51,10 @@ order.younger
 order.unknown
 order.later
 order.facts.bigger
+order.facts.people
 lang.meaning
 lang.synonym
+lang.opposite
 lang.plural
 lang.spell
 lang.sense.code
@@ -139,4 +142,5 @@ h.rec.lake
 h.honest.bank
 h.honest.weather
 h.err.index
+h.code.even
 h.code.js

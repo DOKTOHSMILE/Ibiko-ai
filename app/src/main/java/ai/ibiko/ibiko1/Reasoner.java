@@ -32,7 +32,9 @@ public final class Reasoner {
 
     /** The kinds of thing it knows: countries, chemical elements, planets. */
     enum Kind {
-        COUNTRY("country", "countries"), ELEMENT("element", "elements"), PLANET("planet", "planets");
+        COUNTRY("country", "countries"), ELEMENT("element", "elements"), PLANET("planet", "planets"),
+        /** A city or a state: compared when named ("Lagos or Kano"), never ranked against every place it knows. */
+        PLACE("place", "places");
 
         final String one, many;
 
@@ -89,10 +91,10 @@ public final class Reasoner {
             return kind == Kind.PLANET ? BuiltIn.About.DIAMETER : kind == Kind.COUNTRY ? BuiltIn.About.AREA : null;
         }
         if (q.matches(".*\\b(area|land|territory|square)\\b.*")) {
-            return kind == Kind.COUNTRY ? BuiltIn.About.AREA : null;
+            return kind == Kind.COUNTRY || kind == Kind.PLACE ? BuiltIn.About.AREA : null;
         }
         if (q.matches(".*\\b(bigger|biggest|larger|largest|smaller|smallest|size|tinier|tiniest|big|large|small)\\b.*")) {
-            return kind == Kind.COUNTRY ? BuiltIn.About.AREA : kind == Kind.PLANET ? BuiltIn.About.DIAMETER
+            return kind == Kind.COUNTRY || kind == Kind.PLACE ? BuiltIn.About.AREA : kind == Kind.PLANET ? BuiltIn.About.DIAMETER
                     : kind == Kind.ELEMENT ? BuiltIn.About.MASS : null;
         }
         if (q.matches(".*\\b(closer|closest|nearer|nearest|further|farthest|furthest)\\b.*") && kind == Kind.PLANET) {
@@ -115,7 +117,10 @@ public final class Reasoner {
         if (element) {
             return Kind.ELEMENT;
         }
-        return country ? Kind.COUNTRY : null;
+        if (country) {
+            return Kind.COUNTRY;
+        }
+        return !k.get(key, BuiltIn.About.POPULATION).isEmpty() || !k.get(key, BuiltIn.About.AREA).isEmpty() ? Kind.PLACE : null;
     }
 
     /** The kind a question is about by its words ("which country", "the heaviest element"); null when it doesn't say. */

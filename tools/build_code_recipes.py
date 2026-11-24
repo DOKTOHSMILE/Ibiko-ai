@@ -27,6 +27,7 @@ EXPECT = {
     "factorial": "120",
     "fibonacci": "0 1 1 2 3 5 8 13 21 34",
     "is_prime": "true",
+    "is_even": "true false",
     "uppercase": "HELLO",
     "split_string": "a b c",
     "string_to_int": "43",
@@ -351,6 +352,19 @@ def run(task, lang, code, work):
     ok = re.match(exp[3:], out) is not None if exp.startswith("re:") else out == exp
     return ok, "" if ok else "printed %r, wanted %r" % (out[:80], exp)
 
+
+# is the number even (the remainder after dividing by 2 is 0): 4 is, 7 isn't
+put("is_even", "python", "def is_even(n):\n    return n % 2 == 0\n\nprint(str(is_even(4)).lower(), str(is_even(7)).lower())")
+put("is_even", "javascript", "function isEven(n) {\n  return n % 2 === 0;\n}\n\nconsole.log(isEven(4), isEven(7));")
+put("is_even", "typescript", "function isEven(n: number): boolean {\n  return n % 2 === 0;\n}\n\nconsole.log(isEven(4), isEven(7));")
+put("is_even", "java", java('    static boolean isEven(int n) {\n        return n % 2 == 0;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isEven(4) + " " + isEven(7));\n    }'))
+put("is_even", "c", c('bool is_even(int n) {\n    return n % 2 == 0;\n}\n\nint main(void) {\n    printf("%s %s\\n", is_even(4) ? "true" : "false", is_even(7) ? "true" : "false");\n    return 0;\n}', "#include <stdbool.h>\n#include <stdio.h>"))
+put("is_even", "cpp", "#include <iostream>\n\nbool isEven(int n) {\n    return n % 2 == 0;\n}\n\nint main() {\n    std::cout << std::boolalpha << isEven(4) << \" \" << isEven(7) << std::endl;\n}")
+put("is_even", "go", go("func isEven(n int) bool {\n\treturn n%2 == 0\n}\n\nfunc main() {\n\tfmt.Println(isEven(4), isEven(7))\n}"))
+put("is_even", "rust", "fn is_even(n: i64) -> bool {\n    n % 2 == 0\n}\n\nfn main() {\n    println!(\"{} {}\", is_even(4), is_even(7));\n}")
+put("is_even", "ruby", "def even?(n)\n  n % 2 == 0\nend\n\nputs \"#{even?(4)} #{even?(7)}\"")
+put("is_even", "php", "<?php\nfunction isEven(int $n): bool {\n    return $n % 2 === 0;\n}\n\necho (isEven(4) ? 'true' : 'false') . ' ' . (isEven(7) ? 'true' : 'false') . PHP_EOL;")
+put("is_even", "bash", "is_even() {\n  if (( $1 % 2 == 0 )); then echo true; else echo false; fi\n}\n\necho \"$(is_even 4) $(is_even 7)\"")
 
 def esc(code):
     return code.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n")
