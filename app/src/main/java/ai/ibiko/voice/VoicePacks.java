@@ -122,6 +122,13 @@ public final class VoicePacks {
             67223746L, "vits-piper-en_US-amy-medium", "en_US-amy-medium.onnx", "vits",
             new Speaker(0, "amy", "Amy (American woman)", false));
 
+    /**
+     * The pilot's own voice: a Piper (VITS) voice trained on their recordings ({@link MyVoice}), installed from the
+     * training notebook's zip, never downloaded. It shares Kokoro's pronunciation data (espeak-ng-data).
+     */
+    public static final Pack MY_VOICE = new Pack("my-voice", "My voice", "Trained on your own recordings. Fast, and it sounds like you.",
+            "", "", 0L, "my-voice", "model.onnx", "vits", new Speaker(0, "me", "My voice", true));
+
     /** The one voice pack: Kokoro (its child's voice). The Piper packs are no longer offered or kept. */
     public static final List<Pack> ALL = Collections.unmodifiableList(Arrays.asList(KOKORO));
 
@@ -154,12 +161,21 @@ public final class VoicePacks {
     }
 
     public static Pack byKey(String key) {
+        if (MY_VOICE.key.equals(key)) {
+            return MY_VOICE;
+        }
         for (Pack p : ALL) {
             if (p.key.equals(key)) {
                 return p;
             }
         }
         return null;
+    }
+
+    /** The pronunciation data a pack speaks with: its own, or (the pilot's own voice) Kokoro's. */
+    public static File espeakData(File filesDir, Pack p) {
+        File own = new File(folder(filesDir, p), "espeak-ng-data");
+        return own.isDirectory() || p != MY_VOICE ? own : new File(folder(filesDir, KOKORO), "espeak-ng-data");
     }
 
     public static File root(File filesDir) {
@@ -176,6 +192,10 @@ public final class VoicePacks {
 
     /** Downloaded, checked and unpacked. */
     public static boolean installed(File filesDir, Pack p) {
+        if (p == MY_VOICE) {
+            File d = folder(filesDir, p);
+            return new File(d, p.model).isFile() && new File(d, "tokens.txt").isFile() && espeakData(filesDir, p).isDirectory();
+        }
         File m = mark(filesDir, p);
         try {
             return m.isFile() && p.sha256.equals(new String(Files.readAllBytes(m.toPath()), StandardCharsets.UTF_8).trim())

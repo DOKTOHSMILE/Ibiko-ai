@@ -208,6 +208,19 @@ public final class Critical {
      * What the person sees under an answer: at most two of the findings that change how to read it (K2–K8), one line
      * each. Empty when none apply.
      */
+    /** The short note of each finding (what the request takes for granted), for a plan to list as risks. */
+    public static List<String> notesList(Reading r) {
+        List<String> out = new ArrayList<String>();
+        if (r != null && r.findings != null) {
+            for (Finding f : r.findings) {
+                if (f.note != null && !f.note.trim().isEmpty()) {
+                    out.add(f.note.trim().replaceAll("[.]+$", ""));
+                }
+            }
+        }
+        return out;
+    }
+
     public static String notes(Reading r) {
         if (r == null) {
             return "";

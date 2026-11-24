@@ -408,7 +408,8 @@ public final class TalkBridge extends UtteranceProgressListener {
 
     /** Picks up the voice chosen in Settings (call when the chat comes back from Settings). */
     public void refreshVoice() {
-        String key = VoicePacks.KOKORO.key; // one voice, not a setting: Kokoro's child voice
+        // one voice: the pilot's own when they trained one and chose it, else Kokoro's child voice
+        String key = MyVoice.pack(filesDir()).key;
         VoicePacks.Pack p = VoicePacks.byKey(key == null ? "" : key);
         String want = p != null && VoicePacks.installed(filesDir(), p) ? p.key : "";
         if (!want.equals(neuralKey)) {
@@ -495,7 +496,8 @@ public final class TalkBridge extends UtteranceProgressListener {
      */
     private boolean woman() {
         if (neural != null) {
-            neural.setPitch(CHILD_PITCH); // the child's voice is the only voice: not a setting
+            // the child's voice is Kokoro's Sky raised; the pilot's own voice is heard as it is
+            neural.setPitch(VoicePacks.MY_VOICE.key.equals(neuralKey) ? 1f : CHILD_PITCH);
         }
         return true; // a child's voice is a light woman's voice played higher
     }

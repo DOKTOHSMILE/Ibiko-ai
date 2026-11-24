@@ -90,6 +90,26 @@ public final class Store {
     }
 
     /** The truth ledger (formulas/Truth G9): every sentence judged true or false. */
+    public static synchronized ai.ibiko.ibiko1.cognition.Calibration calibration(File dir) {
+        String k = key(dir, "calibration.tsv");
+        Object o = OPEN.get(k);
+        if (o == null) {
+            o = new ai.ibiko.ibiko1.cognition.Calibration(new File(dir, "calibration.tsv"));
+            OPEN.put(k, o);
+        }
+        return (ai.ibiko.ibiko1.cognition.Calibration) o;
+    }
+
+    public static synchronized ai.ibiko.ibiko1.cognition.LearningRecords learningRecords(File dir) {
+        String k = key(dir, "learning.jsonl");
+        Object o = OPEN.get(k);
+        if (o == null) {
+            o = new ai.ibiko.ibiko1.cognition.LearningRecords(new File(dir, "learning.jsonl"));
+            OPEN.put(k, o);
+        }
+        return (ai.ibiko.ibiko1.cognition.LearningRecords) o;
+    }
+
     public static synchronized ai.ibiko.ibiko1.formulas.TruthLedger truthLedger(File dir) {
         String k = key(dir, "truth.tsv");
         Object o = OPEN.get(k);

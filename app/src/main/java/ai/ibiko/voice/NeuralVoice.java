@@ -406,7 +406,7 @@ public final class NeuralVoice {
         pack = p;
         if (p != null && VoicePacks.installed(filesDir, p)) {
             File d = VoicePacks.folder(filesDir, p);
-            String data = new File(d, "espeak-ng-data").getPath(), tokens = new File(d, "tokens.txt").getPath();
+            String data = VoicePacks.espeakData(filesDir, p).getPath(), tokens = new File(d, "tokens.txt").getPath();
             String model = new File(d, p.model).getPath();
             int threads = Math.max(1, Math.min(6, Runtime.getRuntime().availableProcessors() - 1));
             try {
