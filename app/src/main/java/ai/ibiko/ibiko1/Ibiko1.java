@@ -264,7 +264,8 @@ public final class Ibiko1 {
     }
 
     public static synchronized BuiltIn builtIn() {
-        if (builtIn == null) {
+        // as coreFacts(): one made before the knowledge files were in place (empty) is not kept; it is read again
+        if (builtIn == null || builtIn.size() == 0) {
             builtIn = new BuiltIn(TextCode.open(Plug.asset, "knowledge/world_facts.tsv"),
                     TextCode.open(Plug.asset, "knowledge/country_more.tsv"), TextCode.open(Plug.asset, "knowledge/elements_more.tsv"),
                     TextCode.open(Plug.asset, "knowledge/local_facts.tsv"),
