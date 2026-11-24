@@ -38,6 +38,9 @@ public class RolesTest {
     public void answersAreReadFromTheArticlesByTheirRoles() {
         assertEquals("The Mona Lisa was painted by Leonardo da Vinci.", ROLES.answer("Who painted the Mona Lisa?").text);
         assertEquals("Things Fall Apart was written by Chinua Achebe.", ROLES.answer("Who wrote Things Fall Apart?").text);
+        assertEquals("the author of it: who wrote it", "Things Fall Apart was written by Chinua Achebe.",
+                ROLES.answer("who is the author of things fall apart?").text);
+        assertEquals("The Mona Lisa was painted by Leonardo da Vinci.", ROLES.answer("Who was the painter of the Mona Lisa?").text);
         assertEquals("The Mona Lisa was painted by Leonardo da Vinci.", ROLES.answer("Who was the Mona Lisa painted by?").text);
         assertTrue(ROLES.answer("What did Thomas Edison invent?").text.startsWith("Thomas Edison developed"));
         assertNull("no sentence with that action: nothing said", ROLES.answer("Who ate the Mona Lisa?"));

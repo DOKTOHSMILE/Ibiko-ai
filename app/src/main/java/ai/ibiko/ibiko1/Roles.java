@@ -66,6 +66,19 @@ public final class Roles {
     private static final Pattern ASK_OBJECT = Pattern.compile("(?i)^(?:what|which (?:\\w+ )?\\w+|who|whom) (?:did|does|do|has|have|had) (.+) (\\w+)$");
     private static final Pattern ASK_OBJECT_PASSIVE = Pattern.compile("(?i)^(?:what|which \\w+) (?:was|were|has been|have been) (\\w+) by (.+)$");
 
+    /** "Who is the author of X?": the one who did it, named by what they did ("author" wrote it, "inventor" invented it). */
+    private static final Pattern ASK_DOER = Pattern.compile("(?i)^(?:who|what) (?:is|was|are|were) the (author|writer|inventor|founder|creator|painter|"
+            + "composer|discoverer|designer|builder|architect|director|producer) of (.+)$");
+    private static final java.util.Map<String, String> DOER = new java.util.HashMap<String, String>();
+    static {
+        String[] d = {"author", "write", "writer", "write", "inventor", "invent", "founder", "found", "creator", "create", "painter", "paint",
+            "composer", "compose", "discoverer", "discover", "designer", "design", "builder", "build", "architect", "design",
+            "director", "direct", "producer", "produce"};
+        for (int i = 0; i < d.length; i += 2) {
+            DOER.put(d[i], d[i + 1]);
+        }
+    }
+
     /** What a question asks for, read for its roles; null when it isn't a who-did-what question. */
     public static Reading question(String q) {
         if (q == null) {
@@ -73,7 +86,11 @@ public final class Roles {
         }
         String t = q.trim().replaceAll("[’`]", "'").replaceAll("[?!.]+$", "").replaceAll("\\s+", " ")
                 .replaceFirst("(?i)^(please\\s+)?((can|could) you (tell me|say)|do you know|tell me)\\s+", "");
-        Matcher m = ASK_SUBJECT_PASSIVE.matcher(t);
+        Matcher m = ASK_DOER.matcher(t);
+        if (m.matches()) {
+            return new Reading("", DOER.get(m.group(1).toLowerCase(Locale.ROOT)), m.group(2), Asks.SUBJECT, false);
+        }
+        m = ASK_SUBJECT_PASSIVE.matcher(t);
         if (m.matches() && verbish(m.group(2))) {
             return new Reading("", Grammar.base(m.group(2)), m.group(1), Asks.SUBJECT, true);
         }
@@ -196,7 +213,8 @@ public final class Roles {
         String t = asked.trim();
         String bare = t.replaceFirst("(?i)^(the|a|an)\\s+", "");
         if (bare.equalsIgnoreCase(title.replaceFirst("\\s*\\([^()]+\\)$", "")) && !title.equals(title.toLowerCase(Locale.ROOT))
-                && Character.isUpperCase(title.charAt(0)) && !bare.equals(bare.toLowerCase(Locale.ROOT))) {
+                && Character.isUpperCase(title.charAt(0)) && (!bare.equals(bare.toLowerCase(Locale.ROOT))
+                || title.replaceFirst("\\s*\\([^()]+\\)$", "").matches("\\p{Lu}\\S*(?: \\p{Lu}\\S*)+"))) { // a name of capitalised words ("Things Fall Apart")
             t = (t.length() > bare.length() ? t.substring(0, t.length() - bare.length()) : "") + title.replaceFirst("\\s*\\([^()]+\\)$", "");
         }
         return Character.toUpperCase(t.charAt(0)) + t.substring(1);
