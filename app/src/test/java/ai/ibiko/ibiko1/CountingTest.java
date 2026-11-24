@@ -27,6 +27,12 @@ public class CountingTest {
     }
 
     @Test
+    public void money() {
+        String left = Counting.reply("I had 2000 naira and spent 750. How much do I have left?");
+        assertTrue(left, left.startsWith("You have 1250 naira left.") && left.contains("Spent 750: 2000 − 750 = 1250"));
+    }
+
+    @Test
     public void impossibleOnesSaidPlainly() {
         assertTrue(Counting.reply("I have 2 pens and lose 5. How many are left?").startsWith("That can't happen as told: there are only 2 pens"));
     }

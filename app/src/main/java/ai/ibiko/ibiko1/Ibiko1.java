@@ -694,7 +694,7 @@ public final class Ibiko1 {
                     "Putting the numbers in"), () -> saysExact(who, real));
             return;
         }
-        final String sum = host.sum(t);
+        final String sum = sumOf(t);
         if (sum != null) {
             think(Arrays.asList("Reading your question", "Working it out exactly"), () -> says(who, sum));
             return;
@@ -2316,6 +2316,52 @@ public final class Ibiko1 {
 
     /** The comparisons said in this conversation ("Ada is taller than Obi"), for "who is the tallest?" later. */
     private final List<ai.ibiko.ibiko1.formulas.Order.Fact> orderFacts = new ArrayList<ai.ibiko.ibiko1.formulas.Order.Fact>();
+
+    /**
+     * A sum, worked out exactly: the host's own way first (the chat screen's), else Ibiko's, so the sums work wherever
+     * Ibiko v1 runs (picked as a model, in a campaign, in tests), not only on the chat screen.
+     */
+    private String sumOf(String t) {
+        if (!aboutTheSum(t)) {
+            return null; // "Add a question: What is 2+2? 3, 4, 5. Answer: 4" asks for a change, not a sum
+        }
+        String byHost = host.sum(t);
+        if (byHost != null) {
+            return byHost;
+        }
+        ai.ibiko.suit.Comprehension c = ai.ibiko.suit.Comprehension.of(t);
+        if (c.math != null && c.mathValue != null && !c.mathValue.isEmpty()) {
+            return c.math + " = " + c.mathValue;
+        }
+        return root(t);
+    }
+
+    /** "the square root of 169", "cube root of 27": exact when it is whole, else to six places. */
+    static String root(String t) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)\\b(square|cube) root of (\\d+(?:\\.\\d+)?)").matcher(t);
+        if (!m.find()) {
+            return null;
+        }
+        boolean square = m.group(1).equalsIgnoreCase("square");
+        double n = Double.parseDouble(m.group(2));
+        double r = square ? Math.sqrt(n) : Math.cbrt(n);
+        long whole = Math.round(r);
+        boolean exact = Math.abs(square ? whole * (double) whole - n : whole * (double) whole * whole - n) < 1e-9;
+        String v = exact ? String.valueOf(whole) : new java.math.BigDecimal(r).setScale(6, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+        return (square ? "√" : "∛") + m.group(2) + " = " + v + (exact ? "" : " (to six places)");
+    }
+
+    /** The words a sum may come with: once they and the maths are taken out, nothing of substance is left. */
+    private static final java.util.regex.Pattern SUM_WORDS = java.util.regex.Pattern.compile("(?i)\\b(?:what|what's|whats|is|are|how|much|many|"
+            + "calculate|compute|work|out|solve|evaluate|find|the|of|a|an|please|equals?|equal|to|answer|result|value|sum|product|total|"
+            + "plus|minus|times|multiplied|divided|by|over|add|added|subtract|subtracted|from|and|squared|cubed|square|cube|root|power|"
+            + "percent|percentage|half|double|tell|me|can|you|quick|quickly|again)\\b");
+
+    /** Whether the message is about a sum, not a sum inside something else (a quiz question, a story, a sentence). */
+    static boolean aboutTheSum(String t) {
+        String rest = SUM_WORDS.matcher(t).replaceAll(" ").replaceAll("[\\d.,+\\-*/×÷^()%=?!:;\\s]+", " ").trim();
+        return rest.isEmpty() || rest.split(" ").length <= 1 && rest.length() <= 3;
+    }
 
     /** The last answer (not a reshaping of one), and what it was about, for "shorter", "as points", "give me an example". */
     private volatile String lastAnswer, lastAnswerAbout;
