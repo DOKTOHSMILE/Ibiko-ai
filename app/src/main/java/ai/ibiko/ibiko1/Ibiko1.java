@@ -649,6 +649,17 @@ public final class Ibiko1 {
         // a passage with numbered tasks: every task done, in order, not a summary of the passage
         final PassageTasks tasks = inquiry == null ? PassageTasks.of(message) : null;
         if (tasks != null) {
+            // what a task asks that the passage only uses ("what does 'no wahala' mean?"): its sayings and words
+            tasks.also = q -> {
+                String saying = expressions().explain(q.replaceAll("[\"“”']", " "), null);
+                if (saying != null) {
+                    return saying;
+                }
+                java.util.regex.Matcher w = java.util.regex.Pattern.compile("(?i)what does [\"“']?([\\p{L}' -]{2,30}?)[\"”']? mean").matcher(q);
+                return w.find() ? dictionaryMeaning(w.group(1)) : null;
+            };
+        }
+        if (tasks != null) {
             passage = pasted;
             final String done = tasks.reply();
             how = How.MEMORY;

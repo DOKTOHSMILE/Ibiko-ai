@@ -218,14 +218,33 @@ public final class UsageActivity extends AppCompatActivity {
 
         // ---- storage
         section("On this device");
-        LinearLayout disk = card();
-        disk.addView(row("Model file", m.installed() ? bytes(m.file().length()) : "not downloaded"));
-        disk.addView(row("Chats", bytes(size(new File(getFilesDir(), "chats.json")))), Ui.wide(this, 8));
-        disk.addView(row("Saved drawings", bytes(size(new File(getFilesDir(), "drawings")))), Ui.wide(this, 8));
-        disk.addView(row("Everything else", bytes(Math.max(0, size(getFilesDir()) - size(new File(getFilesDir(), "drawings"))
-                - size(new File(getFilesDir(), "chats.json")) - (m.installed() ? m.file().length() : 0)))), Ui.wide(this, 8));
+        final LinearLayout disk = card();
+        final long model = m.installed() ? m.file().length() : 0;
+        disk.addView(row("Model file", m.installed() ? bytes(model) : "not downloaded"));
+        final android.view.View counting = row("Files", "counting…");
+        disk.addView(counting, Ui.wide(this, 8));
         body.addView(disk, Ui.wide(this, 8));
+        // the folders are added up off the screen's thread: with Ibiko's Linux and brain in them, a walk of every file
+        // took seconds and froze the screen (Android closed it as not responding)
+        final File files = getFilesDir();
+        final int pass = ++sizing;
+        new Thread(() -> {
+            long chats = size(new File(files, "chats.json")), drawings = size(new File(files, "drawings")), all = size(files);
+            runOnUiThread(() -> {
+                if (pass != sizing || isFinishing() || isDestroyed() || counting.getParent() != disk) {
+                    return; // the screen was refreshed or closed meanwhile
+                }
+                int at = disk.indexOfChild(counting);
+                disk.removeView(counting);
+                disk.addView(row("Chats", bytes(chats)), at, Ui.wide(this, 8));
+                disk.addView(row("Saved drawings", bytes(drawings)), at + 1, Ui.wide(this, 8));
+                disk.addView(row("Everything else", bytes(Math.max(0, all - drawings - chats - model))), at + 2, Ui.wide(this, 8));
+            });
+        }, "ibiko-usage-sizes").start();
     }
+
+    /** Which counting of the folders is the latest (a refresh starts another). */
+    private int sizing;
 
     /** Whether Ibiko learns from the API models (on unless the user turned it off). */
     public static boolean learningOn(android.content.SharedPreferences prefs) {

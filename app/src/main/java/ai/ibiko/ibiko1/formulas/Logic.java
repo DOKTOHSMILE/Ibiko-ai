@@ -37,9 +37,10 @@ public final class Logic {
         final List<String[]> lacks = new ArrayList<String[]>();      // {X, B}: X has no B
         final List<String[]> rules = new ArrayList<String[]>();      // {P, Q, as said}: if P then Q
         final List<String> happened = new ArrayList<String>();       // P: stated as so
+        final List<String[]> does = new ArrayList<String[]>();       // {A, verb, rest, as said}: every A does it ("pay a stall fee")
 
         public boolean isEmpty() {
-            return isa.isEmpty() && apart.isEmpty() && has.isEmpty() && member.isEmpty() && lacks.isEmpty() && rules.isEmpty();
+            return isa.isEmpty() && apart.isEmpty() && has.isEmpty() && member.isEmpty() && lacks.isEmpty() && rules.isEmpty() && does.isEmpty();
         }
 
         public void addAll(Known k) {
@@ -50,6 +51,7 @@ public final class Logic {
             lacks.addAll(k.lacks);
             rules.addAll(k.rules);
             happened.addAll(k.happened);
+            does.addAll(k.does);
         }
     }
 
@@ -60,6 +62,11 @@ public final class Logic {
     private static final Pattern ALL_HAVE = Pattern.compile("(?i)^(?:all|every|each)\\s+" + NOUN + "\\s+(?:have|has)\\s+(?:a |an |some )?" + NOUN + "$");
     private static final Pattern IS_A = Pattern.compile("^" + WHO + "\\s+is\\s+(?:a|an)\\s+" + NOUN + "$");
     private static final Pattern LACKS = Pattern.compile("(?i)^" + WHO + "\\s+(?:has no|does not have|doesn't have|has not got|hasn't got|lacks)\\s+(?:a |an |any )?" + NOUN + "$");
+    /** "All traders in the market pay a stall fee": what every one of a kind does (any verb but be and have). */
+    private static final Pattern ALL_DO = Pattern.compile("(?i)^(?:all|every|each)\\s+([a-z][a-z-]*)(?:\\s+(?:in|at|of|on|from)\\s+(?:the\\s+)?[a-z]+(?:\\s+[a-z]+)??)?\\s+"
+            + "(?!are\\b|is\\b|have\\b|has\\b|were\\b|was\\b)([a-z]+)\\s+(.{2,60})$");
+    // case kept: a name is its capitals ("Does Tunde pay…": "Tunde", not "Tunde pay")
+    private static final Pattern ASK_DO = Pattern.compile("^\\s*(?:[Dd]oes|[Dd]o|[Dd]id|[Ww]ill|[Mm]ust|[Ss]hould)\\s+" + WHO + "\\s+([a-z]+)\\s+(.{2,60}?)\\s*\\?\\s*$");
     private static final Pattern IF = Pattern.compile("(?i)^if\\s+(.{3,80}?),\\s*(?:then\\s+)?(.{3,80})$");
 
     /** "If all birds have feathers and a penguin is a bird, does a penguin have feathers?" asked in one sentence. */
@@ -104,6 +111,8 @@ public final class Logic {
             Matcher m;
             if ((m = ALL_HAVE.matcher(s)).matches()) {
                 k.has.add(new String[]{kind(m.group(1)), said(m.group(2))}); // what they have, as said ("feathers")
+            } else if ((m = ALL_DO.matcher(s)).matches()) {
+                k.does.add(new String[]{kind(m.group(1)), m.group(2).toLowerCase(Locale.ROOT), m.group(3).toLowerCase(Locale.ROOT).trim(), s});
             } else if ((m = ALL.matcher(s)).matches()) {
                 k.isa.add(new String[]{kind(m.group(1)), kind(m.group(2))});
             } else if ((m = NONE.matcher(s)).matches()) {
@@ -169,10 +178,55 @@ public final class Logic {
         if ((m = ASK_HAS.matcher(q)).matches()) {
             return hasIt(k, who(m.group(1)), kind(m.group(2)), m.group(1).trim(), m.group(2).trim());
         }
+        if ((m = ASK_DO.matcher(q)).matches() && !k.does.isEmpty()) {
+            String done = doesIt(k, who(m.group(1)), m.group(2).toLowerCase(Locale.ROOT), m.group(3).toLowerCase(Locale.ROOT), m.group(1).trim());
+            if (done != null) {
+                return done;
+            }
+        }
         if ((m = ASK_ANY.matcher(q)).matches() && !k.rules.isEmpty()) {
             return ifThen(k, m.group(1));
         }
         return null;
+    }
+
+    /** "Does Tunde pay a stall fee?": yes when he is one of a kind that all do it, with how that follows. */
+    private static String doesIt(Known k, String x, String verb, String rest, String xSaid) {
+        for (String[] kd : kinds(k, x)) {
+            for (String[] d : k.does) {
+                if (d[0].equals(kd[0]) && sameVerb(d[1], verb) && overlap(d[2], rest)) {
+                    return "Yes: " + kd[1] + ", and " + d[3].replaceAll("[.!]+$", "").replaceFirst("^(\\p{Lu})", "$1").toLowerCase(Locale.ROOT)
+                            .replaceFirst("^", "") + ".";
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean sameVerb(String a, String b) {
+        String x = a.replaceAll("(?:es|s)$", ""), y = b.replaceAll("(?:es|s)$", "");
+        return x.equals(y);
+    }
+
+    /** Whether two phrases say the same thing: most of the shorter one's words in the other ("a stall fee", "stall fees"). */
+    private static boolean overlap(String a, String b) {
+        java.util.Set<String> wa = new java.util.HashSet<String>(), wb = new java.util.HashSet<String>();
+        for (String w : a.replaceAll("[^a-z ]", " ").split("\\s+")) {
+            if (w.length() > 2 && !w.matches("the|and|for|any|all")) {
+                wa.add(w.replaceAll("s$", ""));
+            }
+        }
+        for (String w : b.replaceAll("[^a-z ]", " ").split("\\s+")) {
+            if (w.length() > 2 && !w.matches("the|and|for|any|all")) {
+                wb.add(w.replaceAll("s$", ""));
+            }
+        }
+        if (wa.isEmpty() || wb.isEmpty()) {
+            return false;
+        }
+        java.util.Set<String> both = new java.util.HashSet<String>(wa);
+        both.retainAll(wb);
+        return both.size() * 2 >= Math.min(wa.size(), wb.size()) + (Math.min(wa.size(), wb.size()) > 1 ? 1 : 0);
     }
 
     /** The kinds X belongs to, through "all A are B", with how each was reached. */

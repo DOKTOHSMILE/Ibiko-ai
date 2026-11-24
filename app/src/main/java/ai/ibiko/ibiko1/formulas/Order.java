@@ -176,7 +176,9 @@ public final class Order {
         // "who is the tallest man in the world?": a question of its own, not about the people compared before
         // (unless the comparisons are in this same message)
         boolean ownSubject = m.find() && text.substring(m.end()).matches("(?is)\\s+(?!of (?:them|us|the|those|these|all)|one\\b|among|person\\b|here\\b)\\p{L}.*")
-                && read(text).isEmpty();
+                && read(text).isEmpty()
+                // "the oldest of Amina, Tunde and Ngozi": the people compared, named
+                && !text.matches("(?s).*\\b(?:of|among|between)\\s+[A-Z][\\p{L}'-]+(?:,\\s*[A-Z][\\p{L}'-]+)*,?\\s+(?:and|or)\\s+[A-Z][\\p{L}'-]+.*");
         m.reset();
         if (!ownSubject && m.find()) {
             if (m.group(1) != null) {

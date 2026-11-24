@@ -33,6 +33,13 @@ public final class PassageTasks {
     /** Sentences in the passage that gave the reader orders: taken out before anything was read, never followed. */
     public final List<PromptReader.Hidden> hidden = new ArrayList<PromptReader.Hidden>();
     final Tracker tracker;
+    /** The story followed: who has what, sells and buys what, at what price, when ({@link Story}). */
+    final Story story;
+    /**
+     * Ibiko's other skills, for what a task asks that the passage alone doesn't settle ("what does 'no wahala' mean?"):
+     * its sayings, its facts; null for none. Set by the brain.
+     */
+    public java.util.function.Function<String, String> also;
 
     private PassageTasks(String passage, List<String> tasks) {
         List<PromptReader.Hidden> found = PromptReader.scan(passage);
@@ -43,6 +50,7 @@ public final class PassageTasks {
             intents.add(PromptReader.intent(t));
         }
         this.tracker = Tracker.read(this.passage);
+        this.story = new Story(this.passage);
     }
 
     private static final Pattern TASK = Pattern.compile("(?m)^\\s*(\\d{1,2})[.)]\\s+(.+)$");
@@ -80,6 +88,25 @@ public final class PassageTasks {
         if (passageAt >= 0 && tasksAt > passageAt) {
             passage = m.substring(passageAt, tasksAt).replaceFirst("(?is)^\\s*(passage|text|story|article)\\s*:\\s*", "");
             tasksText = m.substring(tasksAt).replaceFirst("(?is)^\\s*(tasks?|questions?|instructions?)\\s*:\\s*", "");
+        } else if (tasksAt > 0 && !TASK.matcher(m.substring(tasksAt)).find()) {
+            // "Tasks:" and then the tasks one a line, not numbered (numbers lost when pasted): each line a task
+            passage = m.substring(0, tasksAt).replaceFirst("(?s)^[^\\n]{0,80}\\n", "");
+            String title = m.substring(0, tasksAt).split("\\n", 2)[0];
+            if (Passage.split(title).size() > 1 || title.length() > 80) {
+                passage = m.substring(0, tasksAt); // no title line: all of it is the passage
+            }
+            tasksText = m.substring(tasksAt).replaceFirst("(?is)^\\s*(tasks?|questions?|instructions?)\\s*:\\s*", "");
+            List<String> lines = new ArrayList<String>();
+            for (String line : tasksText.split("\\n")) {
+                String l = line.replaceFirst("^\\s*(?:[-*•]|\\d{1,2}[.)])\\s*", "").trim();
+                if (l.length() > 3) {
+                    lines.add(l);
+                }
+            }
+            if (lines.size() < 2 || passage.trim().length() < 120) {
+                return null;
+            }
+            return new PassageTasks(passage.trim(), lines);
         } else {
             Matcher t = TASK.matcher(m);
             if (!t.find()) {
@@ -138,6 +165,11 @@ public final class PassageTasks {
             return json(t);
         }
         if (t.matches("(?is).*\\b(summari[sz]e|summary|sum up)\\b.*")) {
+            // a plain one-sentence summary of a story: from what the story says happened, not its first lines
+            if (!WORDS_AT_MOST.matcher(t).find() && !NO_LETTER.matcher(t).find() && story.gist() != null && story.main != null
+                    && !story.start.isEmpty()) {
+                return story.gist();
+            }
             return summary(t);
         }
         List<String> parts = questions(t);
@@ -209,9 +241,44 @@ public final class PassageTasks {
 
     private Found answerOne(String q, String lastSentence, boolean steps) {
         String low = q.toLowerCase(Locale.ROOT);
+        // worked out from the story: counts left, what someone paid (after a discount), hours open (from the passage
+        // itself, so never made up)
+        String worked = story.answer(q);
+        if (worked != null) {
+            return new Found(worked, null);
+        }
         // never made up: a name or thing the question asks about must be in the passage
         if (!grounded(q)) {
             return null;
+        }
+        // reasoned from the passage's own statements: who is oldest, whether a rule applies to someone
+        List<ai.ibiko.ibiko1.formulas.Order.Fact> order = ai.ibiko.ibiko1.formulas.Order.read(passage);
+        ai.ibiko.ibiko1.formulas.Order.Question oq = order.isEmpty() ? null : ai.ibiko.ibiko1.formulas.Order.asked(q, order);
+        String ordered = oq == null ? null : ai.ibiko.ibiko1.formulas.Order.answer(oq, order);
+        if (ordered != null) {
+            return new Found(ordered, null);
+        }
+        String reasoned = ai.ibiko.ibiko1.formulas.Logic.answer(Passage.split(passage).stream()
+                .filter(x -> x.matches("(?is)^\\s*(?:all|every|each|no|if)\\b.*|^\\s*[A-Z][a-z]+ (?:is|has|lacks)\\b.*"))
+                .reduce("", (x, y) -> x + " " + y).trim() + " " + q, null);
+        if (reasoned != null && !reasoned.startsWith("I can't tell")) {
+            return new Found(reasoned, null);
+        }
+        // "the capital of Plateau State" said in the passage itself ("Jos, the capital of Plateau State")
+        Matcher cap = Pattern.compile("(?i)^what is the (capital|head|leader|owner|founder) of (.+?)\\??$").matcher(q.trim());
+        if (cap.matches()) {
+            Matcher in = Pattern.compile("([A-Z][\\p{L}'-]+(?:\\s+[A-Z][\\p{L}'-]+)*),\\s+(?i:the\\s+" + Pattern.quote(cap.group(1).toLowerCase(Locale.ROOT))
+                    + "\\s+of\\s+" + Pattern.quote(cap.group(2).trim()) + ")").matcher(passage);
+            if (in.find()) {
+                return new Found(in.group(1) + " is the " + cap.group(1).toLowerCase(Locale.ROOT) + " of " + cap.group(2).trim() + ".", null);
+            }
+        }
+        // what the passage only uses ("No wahala"): what it means, from Ibiko's other skills
+        if (also != null && low.matches("^(what does|what do|what is the meaning of|what's the meaning of)\\b.*")) {
+            String elsewhere = also.apply(q);
+            if (elsewhere != null) {
+                return new Found(elsewhere, null);
+            }
         }
         String counted = tracker.answer(q, steps);
         if (counted != null) {
