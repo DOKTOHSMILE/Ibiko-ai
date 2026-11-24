@@ -1124,7 +1124,12 @@ public final class Ibiko1 {
                             }
                         }
                         if (r == null) {
-                            r = LearningJob.research(host.context(), asked); // the question as understood (its name repaired)
+                            // the question as understood (its name repaired), searched in words phrased for the most results
+                            r = LearningJob.research(host.context(), asked, q -> host.onScreen(() -> {
+                                if (mine == token) {
+                                    host.step("Searching the web for: " + q);
+                                }
+                            }));
                         }
                         if (r != null) {
                             long now = System.currentTimeMillis();
@@ -1894,8 +1899,10 @@ public final class Ibiko1 {
                     new Thread(() -> {
                         String found = null;
                         try {
-                            String q = t + (ai.ibiko.ibiko1.formulas.Recipes.language(t) == null ? " in " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) : "")
-                                    + " code example";
+                            // search words, not the sentence: "reverse a string python code example"
+                            String w = ai.ibiko.ibiko1.formulas.SearchPhrase.get().words(t, 0);
+                            String q = (w.isEmpty() ? t : w) + (ai.ibiko.ibiko1.formulas.Recipes.language(w) == null
+                                    ? " " + ai.ibiko.ibiko1.formulas.Recipes.shown(language) : "") + " code example";
                             found = ai.ibiko.ibiko1.formulas.Recipes.code(Plug.web.search(q), language);
                         } catch (RuntimeException ignored) {
                             // nothing found on the web
