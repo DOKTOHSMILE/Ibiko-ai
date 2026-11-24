@@ -192,3 +192,26 @@ w.wahala	newwords	What does wahala mean?	(trouble|problem)
 w.japa	newwords	What does japa mean?	(emigrat|leave|abroad)
 w.selfie	newwords	What is a selfie?	(photo|self-portrait|picture)
 w.sound	typos4	what is the meening of nolij?	(knowledge|knowing|understanding|information)
+# ---- round 4: time and dates, conversions, money word problems, memory of people, chained follow-ups, new words in use
+r4.time.add	time	It is 10am now. What time will it be in 3 hours?	\b1(:00)? ?pm\b|\b13:00\b
+r4.time.minutes	time	How many minutes are in 2.5 hours?	\b150\b
+r4.time.leap	time	Is 2024 a leap year?	^Yes
+r4.time.leap2	time	Is 1900 a leap year?	^No
+r4.conv.temp	conversions	What is 25 degrees Celsius in Fahrenheit?	\b77\b
+r4.conv.kg	conversions	How many pounds is 10 kg?	\b22\.0?\d?
+r4.conv.fraction	conversions	What is 3/4 of 200?	\b150\b
+r4.money.save	money	If I save 500 naira a day for 30 days, how much will I have?	15,?000
+r4.money.discount	money	A shirt costs 2000 naira after a 20% discount. What was the original price?	2,?500
+r4.money.profit	money	I bought a phone for 50000 naira and sold it for 65000. How much profit did I make?	15,?000
+r4.mem.sister	memory2	My sister is called Ada. || What is my sister's name?	\bAda\b
+r4.mem.dog	memory2	My dog's name is Bingo. || What is my dog called?	\bBingo\b
+r4.mem.honest	memory2	What did I eat yesterday?	(don't know|haven't told|didn't tell|no way|can't)
+r4.chain.live	chains2	I live in Ghana. || What is the capital of the country I live in?	\bAccra\b
+r4.fu.lagos	follow-ups4	Tell me about Lagos || How many people live there?	(million|\d{1,3},\d{3},\d{3})
+r4.word.abeg	newwords2	What does abeg mean?	(please|beg)
+r4.word.okada	newwords2	What is an okada?	(motorcycle|motorbike|taxi)
+r4.text.letters	text	How many letters are in the word Nigeria?	\b7\b
+r4.text.reverse	text	Reverse the word hello	\bolleh\b
+r4.text.sort	text	Sort these words alphabetically: mango, apple, banana	apple.*banana.*mango
+r4.spell.sound	typos5	how do you spell nesesary?	necessary
+r4.idiom.leg	sayings2	What does break a leg mean?	luck

@@ -87,6 +87,13 @@ public final class Person {
     // ------------------------------------------------------------------ what they say about themselves
 
     private static final String END = "\\s*[.!]*$";
+    /** The people and animals in the person's life, by what they are to them. */
+    private static final String RELATION = "sister|brother|mother|mum|mom|mama|father|dad|papa|wife|husband|son|daughter|baby|child|"
+            + "best friend|friend|boyfriend|girlfriend|partner|fiance|fiancee|boss|teacher|grandmother|grandma|grandfather|grandpa|"
+            + "aunt|aunty|auntie|uncle|cousin|niece|nephew|neighbour|neighbor|dog|cat|pet|puppy|kitten|parrot|horse|car|school|company";
+    /** "My sister is called Ada", "my dog's name is Bingo", "my best friend is Tunde" (a name, with its capital). */
+    private static final Pattern RELATED = Pattern.compile("(?i)^my\\s+(?:little |big |younger |older |elder |eldest |youngest |new |old )?(" + RELATION
+            + ")(?:'s name is|'s name's| is called| is named| name is| is)\\s+([\\p{L}'-]+(?:\\s+[\\p{L}'-]+)?)\\s*[.!]*$");
     private static final Pattern NAME = Pattern.compile("(?i)^(?:my name is|my name's|call me|i am called|i'm called|people call me)\\s+([\\p{L}'-]+(?:\\s+[\\p{L}'-]+)?)" + END);
     private static final Pattern NAME_IM = Pattern.compile("^(?:I'm|I am|Im|It's|This is)\\s+(\\p{Lu}[\\p{L}'-]+(?:\\s+\\p{Lu}[\\p{L}'-]+)?)" + END);
     private static final Pattern GENDER = Pattern.compile("(?i)^(?:i'm|i am|im)\\s+(?:a\\s+)?(man|woman|boy|girl|guy|lady|male|female|gentleman)" + END);
@@ -106,6 +113,13 @@ public final class Person {
     /** A clause about the person themselves: understood, kept, and said back in a word; null when it isn't one. */
     public synchronized String heard(String clause) {
         String raw = clause == null ? "" : clause.trim().replaceAll("[\u2019`]", "'");
+        Matcher rel = RELATED.matcher(raw.replaceFirst("(?i)^(?:hey|hi|hello|so|ok|okay|and)\\b[\\s,!.]*", ""));
+        // a name, written with its capital ("my sister is a doctor" is about her, not her name)
+        if (rel.matches() && Character.isUpperCase(rel.group(2).charAt(0)) && !rel.group(2).matches("(?i)(a|an|the|my|very|so|really)\\b.*")) {
+            String who = rel.group(1).toLowerCase(Locale.ROOT);
+            set("rel:" + who, rel.group(2).trim());
+            return "Noted: your " + who + " is " + rel.group(2).trim() + ".";
+        }
         Matcher nick = NICK.matcher(raw.replaceFirst("(?i)^(?:hey|hi|hello|so|ok|okay)\\b[\\s,!.]*", ""));
         if (nick.matches()) {
             // "I'm Valentine, you can call me Val": the name kept, and the one to use
@@ -227,6 +241,30 @@ public final class Person {
 
     // ------------------------------------------------------------------ what they ask about themselves
 
+    private static final Pattern LIVE_IN = Pattern.compile("(?i)\\b(?:the (?:country|city|town|state|place) (?:that |which )?i (?:live|stay|reside) in|"
+            + "where i (?:live|stay)(?! (?:now|currently)\\?)|my (?:current )?(?:country|city|town|state) of residence)\\b");
+    private static final Pattern FROM_IN = Pattern.compile("(?i)\\b(?:the (?:country|city|town|state|place) (?:that |which )?i(?:'m| am| come) from|"
+            + "where i(?:'m| am| come) from|my home ?town|my home country|my country of origin)\\b");
+
+    /**
+     * A question about a thing that is the person's own ("the capital of the country I live in"), with the place they
+     * told put in its place ("the capital of Ghana"); as it was when nothing they said fits.
+     */
+    public synchronized String fillIn(String question) {
+        if (question == null || question.matches("(?is)^\\s*(?:where|what) (?:do|did) i\\b.*")) {
+            return question; // "where do I live?" asks for it, it doesn't use it
+        }
+        String out = question;
+        String lives = get("lives"), from = get("from");
+        if (lives != null) {
+            out = LIVE_IN.matcher(out).replaceAll(java.util.regex.Matcher.quoteReplacement(lives));
+        }
+        if (from != null) {
+            out = FROM_IN.matcher(out).replaceAll(java.util.regex.Matcher.quoteReplacement(from));
+        }
+        return out;
+    }
+
     /** The answer to a question about the person, from what they said; null when it isn't one. */
     public synchronized String asked(String q, List<String> told) {
         String t = Paraphrase.normalize(q);
@@ -250,6 +288,14 @@ public final class Person {
             String nick = get("nickname");
             return name == null ? unknown.replace("yet.", "your name yet.")
                     : "You're " + name + (nick != null && !nick.equals(name) ? ", and I call you " + nick : "") + ".";
+        }
+        java.util.regex.Matcher named = java.util.regex.Pattern.compile("(?:what is|what's|whats|do you (?:know|remember)|tell me|who is|who's) my (?:little |big |younger |older |elder |new |old )?("
+                + RELATION + ")(?:'s name| called| named)?|what (?:is|'s) my (" + RELATION + ") called|who is my (" + RELATION + ")").matcher(t);
+        if (named.matches()) {
+            String who = named.group(1) != null ? named.group(1) : named.group(2) != null ? named.group(2) : named.group(3);
+            String n = get("rel:" + who);
+            return n == null ? "You haven't told me your " + who + "'s name yet. Tell me and I'll remember."
+                    : "Your " + who + " is " + n + ".";
         }
         if (t.matches("(what|tell me what|how much) do you (know|remember) about me|what have i told you( about me(self)?)?|do you know me|do you remember me")) {
             String about = about(told);

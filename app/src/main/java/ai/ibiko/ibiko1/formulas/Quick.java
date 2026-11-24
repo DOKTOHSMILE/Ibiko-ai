@@ -35,6 +35,18 @@ public final class Quick {
     private static final Pattern RECT = Pattern.compile("(?i)\\barea of (?:a |the )?(rectangle|square|room|field|plot|floor|garden|wall)\\b.*?" + NUM
             + "\\s*(m|cm|km|mm|ft|feet|metres?|meters?|inch(?:es)?|yards?)?\\s*(?:long|by|x|×|in length)?\\s*(?:and|by|x|×)?\\s*" + NUM
             + "\\s*(m|cm|km|mm|ft|feet|metres?|meters?|inch(?:es)?|yards?)?\\s*(?:wide|in width|broad)?");
+    /** "It is 10am now. What time will it be in 3 hours?" */
+    private static final Pattern TIME_ADD = Pattern.compile("(?i)\\bit(?:'s| is)\\s+(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm|a\\.m\\.|p\\.m\\.)?(?:\\s+now)?\\b.*?"
+            + "what time will it be (?:in|after) (\\d+(?:\\.\\d+)?) (hours?|hrs?|minutes?|mins?)\\b");
+    /** "If I save 500 naira a day for 30 days…" */
+    private static final Pattern SAVE = Pattern.compile("(?i)\\b(?:save|saved|earn|earned|pay|paid|spend|spent|put aside|set aside|make)\\s+" + CUR + NUM + MONEY
+            + "\\s+(?:a|per|each|every)\\s+(day|week|month|year)\\s+for\\s+" + NUM + "\\s+(days?|weeks?|months?|years?)\\b");
+    /** "A shirt costs 2000 naira after a 20% discount. What was the original price?" */
+    private static final Pattern BEFORE_OFF = Pattern.compile("(?i)\\b(?:costs?|is|was|sells? for|sold for|paid)\\s+" + CUR + NUM + MONEY
+            + "\\s+after\\s+(?:a\\s+)?" + NUM + "\\s*%\\s+(?:discount|reduction|off|cut)\\b.*\\b(?:original|before|full|old|first)\\b");
+    /** "I bought a phone for 50000 naira and sold it for 65000. How much profit…?" */
+    private static final Pattern TRADE = Pattern.compile("(?i)\\bbought\\b.*?\\bfor\\s+" + CUR + NUM + MONEY + "\\b.*?\\bsold\\b.*?\\bfor\\s+" + CUR + NUM
+            + MONEY + "\\b.*\\b(profit|loss|gain|make|made|lose|lost)\\b");
     private static final Pattern PRICE = Pattern.compile("(?i)\\b(?:a|an|one|each)\\s+([a-z]+)\\s+costs?\\s+([₦$£€]|N(?=\\d))?\\s*" + NUM
             + "(?:\\s*(naira|dollars?|pounds?|euros?|cedis?))?[^?]*?how much (?:do|does|would|will|for)\\s+" + NUM + "\\s+([a-z]+)(?:\\s+cost)?\\s*\\?");
 
@@ -89,6 +101,52 @@ public final class Quick {
             int to = Math.floorMod(at + step, 7);
             return days[to] + ". " + n + " days is " + (n / 7) + (n / 7 == 1 ? " week" : " weeks") + " and " + (n % 7) + (n % 7 == 1 ? " day" : " days")
                     + ", so it's " + (n % 7) + " " + (n % 7 == 1 ? "day" : "days") + " " + (step < 0 ? "before " : "after ") + days[at] + ".";
+        }
+        if ((m = TIME_ADD.matcher(message)).find()) {
+            int h = Integer.parseInt(m.group(1)), min = m.group(2) == null ? 0 : Integer.parseInt(m.group(2));
+            String ap = m.group(3) == null ? null : m.group(3).toLowerCase(Locale.ROOT).replace(".", "");
+            if (h > 23 || min > 59 || ap != null && (h < 1 || h > 12)) {
+                return null;
+            }
+            int start = (ap == null ? h : h % 12 + (ap.equals("pm") ? 12 : 0)) * 60 + min;
+            double n = num(m.group(4));
+            int add = (int) Math.round(m.group(5).toLowerCase(Locale.ROOT).startsWith("h") ? n * 60 : n);
+            int end = Math.floorMod(start + add, 24 * 60);
+            int eh = end / 60, em = end % 60;
+            String said = ap == null ? String.format(Locale.US, "%02d:%02d", eh, em)
+                    : (eh % 12 == 0 ? 12 : eh % 12) + (em == 0 ? "" : String.format(Locale.US, ":%02d", em)) + (eh < 12 ? "am" : "pm");
+            int days = (start + add) / (24 * 60);
+            return "It will be " + said + (days == 1 ? " the next day" : days > 1 ? ", " + days + " days later" : "") + ": "
+                    + m.group(1) + (m.group(2) == null ? "" : ":" + m.group(2)) + (ap == null ? "" : ap) + " + " + m.group(4) + " " + m.group(5) + ".";
+        }
+        if ((m = SAVE.matcher(message)).find()) {
+            double each = num(m.group(2)), times = num(m.group(5));
+            String per = m.group(4).toLowerCase(Locale.ROOT), over = m.group(6).toLowerCase(Locale.ROOT).replaceAll("s$", "");
+            if (!per.equals(over)) {
+                return null; // "a day for 3 weeks": a change of unit, left to the longer working
+            }
+            String cur = m.group(1) != null ? m.group(1) : "", unit = m.group(3) != null ? " " + m.group(3) : "";
+            return cur + show(each * times) + unit + ": " + cur + show(each) + unit + " × " + show(times) + " " + m.group(6) + " = " + cur
+                    + show(each * times) + unit + ".";
+        }
+        if ((m = BEFORE_OFF.matcher(message)).find()) {
+            double now = num(m.group(2)), pct = num(m.group(4));
+            if (pct <= 0 || pct >= 100) {
+                return null;
+            }
+            String cur = m.group(1) != null ? m.group(1) : "", unit = m.group(3) != null ? " " + m.group(3) : "";
+            double was = now / (1 - pct / 100);
+            return "The original price was " + cur + show(was) + unit + ": after " + show(pct) + "% off, " + show(100 - pct) + "% is left, so "
+                    + cur + show(now) + " ÷ " + show((100 - pct) / 100) + " = " + cur + show(was) + unit + ".";
+        }
+        if ((m = TRADE.matcher(message)).find()) {
+            double paid = num(m.group(2)), got = num(m.group(5));
+            String cur = m.group(1) != null ? m.group(1) : m.group(4) != null ? m.group(4) : "";
+            String unit = m.group(3) != null ? " " + m.group(3) : m.group(6) != null ? " " + m.group(6) : "";
+            double d = got - paid;
+            String working = cur + show(got) + " − " + cur + show(paid) + " = " + cur + show(d) + unit;
+            return d >= 0 ? "A profit of " + cur + show(d) + unit + ": " + working + "."
+                    : "A loss of " + cur + show(-d) + unit + ": you sold it for " + cur + show(-d) + unit + " less than you paid (" + working + ").";
         }
         if ((m = NEXT_DAY.matcher(message)).matches()) {
             String[] days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
