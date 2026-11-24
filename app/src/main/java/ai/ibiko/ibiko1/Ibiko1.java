@@ -537,14 +537,16 @@ public final class Ibiko1 {
         // a long text pasted in: read and kept, never rewritten with the conversation's names
         // code pasted in: read as code (to explain), never as a passage of prose or rewritten with the talk's names
         final ai.ibiko.ibiko1.formulas.CodeReader.Snippet snippet = inquiry == null ? ai.ibiko.ibiko1.formulas.CodeReader.find(message) : null;
-        final Passage pasted = inquiry == null && snippet == null ? Passage.of(message, heardAt) : null;
-        final Context.Resolved withContext = pasted != null || snippet != null || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
+        // an error message pasted in: read as an error (to explain), not as prose, and not rewritten with the talk's names
+        final boolean errorPasted = inquiry == null && snippet == null && errors().find(message) != null;
+        final Passage pasted = inquiry == null && snippet == null && !errorPasted ? Passage.of(message, heardAt) : null;
+        final Context.Resolved withContext = pasted != null || snippet != null || errorPasted || inquiry != null || inquiryAnswer != null && Inquiry.corrects(message)
                 ? Context.unchanged(message) : context.resolve(message, heardAt);
         turnDomain = null;
         // questions inside the question ("the capital of the country where Kilimanjaro is"): the inner ones answered
         // from the facts first, so what is left is one question
         // (not a yes-or-no claim: "is Lagos the capital of Nigeria?" is checked as said, not made "is Lagos Abuja?")
-        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || snippet != null || inquiry != null
+        final ai.ibiko.ibiko1.formulas.Hops.Done hops = pasted != null || snippet != null || errorPasted || inquiry != null
                 || ai.ibiko.ibiko1.formulas.Verify.check(withContext.text, this::fact) != null ? null
                 : ai.ibiko.ibiko1.formulas.Hops.resolve(withContext.text, this::fact);
         final String t = hops == null ? withContext.text : hops.text;
@@ -1868,6 +1870,11 @@ public final class Ibiko1 {
         if (snippet != null && !runIt) {
             offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.CODE);
         }
+        // an error message pasted (on its own, or with the code that gave it): what it means and the fix
+        final ai.ibiko.ibiko1.formulas.ErrorTalk.Found error = runIt ? null : errors().find(message);
+        if (error != null) {
+            offered.add(ai.ibiko.ibiko1.formulas.Readings.Kind.ERROR);
+        }
         // a follow-up about the code just read: convert it, one line of it, a mistake in it
         final ai.ibiko.ibiko1.formulas.CodeReader.Snippet before = lastSnippet;
         final ai.ibiko.ibiko1.formulas.CodeReader.Follow follow = snippet == null && before != null
@@ -1968,6 +1975,18 @@ public final class Ibiko1 {
                         return true;
                     }
                     break;
+                case ERROR:
+                    turnDomain = "code";
+                    final String fixIt = ai.ibiko.ibiko1.formulas.ErrorTalk.explain(error);
+                    how = How.MEMORY;
+                    List<String> reading = new ArrayList<String>(Arrays.asList("Reading what you pasted: an error message",
+                            "Recognising it: " + error.known.seen.replaceAll("'[^']*'|\"[^\"]*\"|`[^`]*`", "…")));
+                    if (error.file != null) {
+                        reading.add("Finding where it happened: " + error.file + (error.at > 0 ? " line " + error.at : ""));
+                    }
+                    reading.add("What causes it, and the fix");
+                    think(reading, () -> saysExact(who, fixIt));
+                    return true;
                 case APP:
                     turnDomain = "web";
                     if (appChange) {
@@ -2206,6 +2225,22 @@ public final class Ibiko1 {
     }
 
     private ai.ibiko.ibiko1.formulas.Sites sites;
+
+    private ai.ibiko.ibiko1.formulas.ErrorTalk errors;
+
+    /** The programming errors it explains (knowledge/code/errors.tsv: a newer one downloaded to the phone first). */
+    public synchronized ai.ibiko.ibiko1.formulas.ErrorTalk errors() {
+        if (errors == null) {
+            java.io.InputStream in = null;
+            try {
+                in = TextCode.open(path -> Plug.asset.apply(path), "knowledge/code/errors.tsv");
+            } catch (RuntimeException ignored) {
+                // none shipped here
+            }
+            errors = new ai.ibiko.ibiko1.formulas.ErrorTalk(in);
+        }
+        return errors;
+    }
 
     private ai.ibiko.ibiko1.formulas.Apps apps;
 

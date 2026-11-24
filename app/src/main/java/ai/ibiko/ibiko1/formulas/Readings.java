@@ -33,7 +33,7 @@ public final class Readings {
 
     /** What a message can be. */
     public enum Kind {
-        CODE("code to explain", "code"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
+        CODE("code to explain", "code"), ERROR("an error to explain", "code"), CODING("code to write", "code"), SITE("a website", "web"), APP("a small web app", "web"), CLAIM("a claim to check", "facts"),
         WORD("a word's meaning", "language"), SYNTAX("a sentence's structure", "language"), FACT("a question of fact", "facts"), TALK("about our conversation", "talk"),
         CONTRAST("two things to tell apart", "compare"), HOW("how something is done", "ways"),
         KINDQ("whether one thing is a kind of another", "kinds"), AHEAD("what something leads to", "reasons"), WHY("a reason", "reasons");
@@ -117,6 +117,7 @@ public final class Readings {
     /** How surely each reader takes a message when it recognises it (before the words and the context). */
     private static double base(Kind k) {
         switch (k) {
+            case ERROR: return 0.95; // an error as a tool prints it: what was pasted with it is what it's about
             case CODE: return 0.9; // code is in the message: hard to mistake
             case TALK: return 0.8;
             case CLAIM: return 0.75;
@@ -230,7 +231,7 @@ public final class Readings {
             return false;
         }
         Reading a = ranked.get(0), b = ranked.get(1);
-        if (a.kind.domain.equals(b.kind.domain) || a.kind == Kind.CODE || b.kind == Kind.CODE) {
+        if (a.kind.domain.equals(b.kind.domain) || a.kind == Kind.CODE || b.kind == Kind.CODE || a.kind == Kind.ERROR) {
             return false; // the same subject either way, or code in the message: nothing to ask
         }
         return a.score - b.score < TIE && !fromContext(a) && !fromContext(b);
