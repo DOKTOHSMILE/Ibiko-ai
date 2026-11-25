@@ -1,5 +1,6 @@
 package ai.ibiko.voice;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,6 +33,29 @@ public class SentenceStreamTest {
     }
 
     /** Listen splits the saved reply the same way the live stream cuts it, so the files made early are the ones it plays. */
+    @Test
+    public void aLongFirstSentenceStartsAtItsFirstClause() {
+        SentenceStream s = new SentenceStream();
+        // the voice is given "The capital of Nigeria is Abuja," while the model is still writing the rest of the sentence
+        List<String> early = feed(s, "The capital of Nigeria is Abuja, which became the capital in nineteen ninety one", 4);
+        assertEquals(Arrays.asList("The capital of Nigeria is Abuja,"), early);
+        List<String> rest = new java.util.ArrayList<String>(s.add(". It replaced Lagos."));
+        rest.addAll(s.finish());
+        assertEquals(Arrays.asList("which became the capital in nineteen ninety one.", "It replaced Lagos."), rest);
+        // a short first sentence, and a comma too early to pause at, stay whole
+        assertEquals(Arrays.asList("Yes, I can do that.", "Here it is."), SentenceStream.split("Yes, I can do that. Here it is."));
+        // later sentences are never cut at their commas
+        assertEquals(Arrays.asList("Sure.", "Lagos is the largest city in Nigeria by population, and Abuja is its capital."),
+                SentenceStream.split("Sure. Lagos is the largest city in Nigeria by population, and Abuja is its capital."));
+    }
+
+    @Test
+    public void threadCountsTriedOnAPhone() {
+        assertArrayEquals(new int[]{2, 4, 6}, NeuralVoice.threadChoices(8));
+        assertArrayEquals(new int[]{2, 4, 3}, NeuralVoice.threadChoices(4));
+        assertArrayEquals(new int[]{1}, NeuralVoice.threadChoices(1));
+    }
+
     @Test
     public void aReportFedAsItArrivesIsTheSameSentencesListenWillRead() {
         String report = "The survey is done. Twelve files were read from the top.\n\nNothing failed. The build is green.";
