@@ -62,7 +62,7 @@ public final class IbikoApp extends Application {
         if (ai.ibiko.main.AppFiles.ready(getFilesDir()) && !"robolectric".equals(android.os.Build.FINGERPRINT) && !safeStart) {
             ai.ibiko.voice.NeuralVoice.preload(getFilesDir(), ai.ibiko.voice.MyVoice.pack(getFilesDir()).key); // the one voice
             final java.io.File files = getFilesDir();
-            new Thread(() -> ai.ibiko.voice.VoicePacks.dropOthers(files), "ibiko-old-voices").start(); // Piper, no longer offered
+            new Thread(() -> ai.ibiko.voice.VoicePacks.dropOthers(files), "ibiko-old-voices").start(); // Piper Ryan and Kokoro, no longer offered
         }
     }
 

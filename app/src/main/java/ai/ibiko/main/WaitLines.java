@@ -67,7 +67,7 @@ public final class WaitLines {
             "Holds 316,294 common-sense links: what things are, are for and are made of",
             "Answers 4,887 built-in facts about countries, elements, Nigeria's states and the planets, offline",
             "Reads what a message means before any model sees it: the intent, the actions, what “it” is",
-            "Speaks at once with a fast voice built in, or the more natural Kokoro voice if you choose it",
+            "Speaks at once in a child's voice, built in",
             "Runs Alpine Linux on your device for real commands",
             "Works with an API model, a model on the device, or its own brain, Ibiko v1",
             "Ibiko v1 runs code tasks and every app control with no model at all",

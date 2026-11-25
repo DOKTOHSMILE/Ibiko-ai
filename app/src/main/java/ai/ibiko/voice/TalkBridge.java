@@ -408,8 +408,7 @@ public final class TalkBridge extends UtteranceProgressListener {
 
     /** Picks up the voice chosen in Settings (call when the chat comes back from Settings). */
     public void refreshVoice() {
-        // one voice: the pilot's own when they trained one and chose it, else the child's (Piper Amy, or Kokoro's Sky
-        // when the most natural voice was chosen)
+        // one voice: the pilot's own when they trained one and chose it, else the child's (Piper Amy, played higher)
         String key = MyVoice.pack(filesDir()).key;
         VoicePacks.Pack p = VoicePacks.byKey(key == null ? "" : key);
         String want = p != null && VoicePacks.installed(filesDir(), p) ? p.key : "";
@@ -444,7 +443,7 @@ public final class TalkBridge extends UtteranceProgressListener {
         if (p == null) {
             return 0;
         }
-        return p.speaker(false, CHILD_SPEAKER).id; // one voice: the child's, made from Sky (Kokoro) or Amy (Piper)
+        return p.speaker(false, CHILD_SPEAKER).id; // one voice: the child's, made from Amy
     }
 
     /** Opens the device's page for downloading voices (Google's voice data: the higher-quality voices). */
@@ -492,12 +491,12 @@ public final class TalkBridge extends UtteranceProgressListener {
     }
 
     /**
-     * There are no personas and no choice: every line is spoken in the one voice, a child's (Kokoro's Sky played
+     * There are no personas and no choice: every line is spoken in the one voice, a child's (Piper Amy played
      * higher). The flag callers pass for who is speaking is not used.
      */
     private boolean woman() {
         if (neural != null) {
-            // the child's voice is a woman's voice (Amy, or Kokoro's Sky) raised; the pilot's own voice is heard as it is
+            // the child's voice is Amy's raised; the pilot's own voice is heard as it is
             neural.setPitch(VoicePacks.MY_VOICE.key.equals(neuralKey) ? 1f : CHILD_PITCH);
         }
         return true; // a child's voice is a light woman's voice played higher
@@ -506,8 +505,8 @@ public final class TalkBridge extends UtteranceProgressListener {
     /** How much higher the child's voice is played: young and bright, still clear. */
     static final float CHILD_PITCH = 1.32f;
 
-    /** The voice a child's voice is made from: Sky, the lightest of the woman's voices. */
-    static final String CHILD_SPEAKER = "af_sky";
+    /** The voice a child's voice is made from: Amy, a light woman's voice. */
+    static final String CHILD_SPEAKER = "amy";
 
     private volatile boolean robot;
     private volatile float rateScale = 1f;

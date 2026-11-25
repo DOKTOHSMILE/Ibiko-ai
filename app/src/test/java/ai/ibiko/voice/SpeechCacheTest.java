@@ -55,7 +55,7 @@ public class SpeechCacheTest {
     @Test
     public void theChildsVoiceIsALightVoicePlayedHigher() {
         assertTrue(TalkBridge.CHILD_PITCH > 1.2f && TalkBridge.CHILD_PITCH < 1.5f);
-        assertTrue("Sky is in the pack", VoicePacks.byKey("kokoro").byName(TalkBridge.CHILD_SPEAKER) != null);
+        assertTrue("Amy is in the pack", VoicePacks.byKey("piper-amy").byName(TalkBridge.CHILD_SPEAKER) != null);
     }
 
     @Test
