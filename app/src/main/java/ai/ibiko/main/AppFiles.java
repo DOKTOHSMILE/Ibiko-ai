@@ -44,8 +44,8 @@ public final class AppFiles {
         void at(int percent, String line);
     }
 
-    /** The voice every start needs: Kokoro holds both the man's and the woman's voices. */
-    public static final ai.ibiko.voice.VoicePacks.Pack VOICE = ai.ibiko.voice.VoicePacks.KOKORO;
+    /** The voice every start needs: the fast one (Piper Amy), carried in the app; Kokoro is downloaded only when chosen. */
+    public static final ai.ibiko.voice.VoicePacks.Pack VOICE = ai.ibiko.voice.VoicePacks.DEFAULT;
     /** The common-sense table's download size, for the one progress bar over everything. */
     static final long CONCEPTS_BYTES = 2_622_379L;
 

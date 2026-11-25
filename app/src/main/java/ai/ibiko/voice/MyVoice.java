@@ -356,7 +356,7 @@ public final class MyVoice {
         return new File(VoicePacks.root(filesDir), "my-voice.use").isFile() && VoicePacks.installed(filesDir, VoicePacks.MY_VOICE);
     }
 
-    /** Speak with the pilot's own voice, or with Kokoro again. */
+    /** Speak with the pilot's own voice, or with Ibiko's own again. */
     public static void choose(File filesDir, boolean mine) {
         File f = new File(VoicePacks.root(filesDir), "my-voice.use");
         if (mine) {
@@ -371,9 +371,9 @@ public final class MyVoice {
         }
     }
 
-    /** The pack Ibiko speaks with: the pilot's own voice when chosen, else Kokoro. */
+    /** The pack Ibiko speaks with: the pilot's own voice when chosen, else the chosen one of the others. */
     public static VoicePacks.Pack pack(File filesDir) {
-        return chosen(filesDir) ? VoicePacks.MY_VOICE : VoicePacks.KOKORO;
+        return VoicePacks.chosen(filesDir);
     }
 
     static void deleteTree(File f) {

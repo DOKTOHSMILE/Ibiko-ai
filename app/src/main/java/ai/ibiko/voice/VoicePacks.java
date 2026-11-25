@@ -129,16 +129,27 @@ public final class VoicePacks {
     public static final Pack MY_VOICE = new Pack("my-voice", "My voice", "Trained on your own recordings. Fast, and it sounds like you.",
             "", "", 0L, "my-voice", "model.onnx", "vits", new Speaker(0, "me", "My voice", true));
 
-    /** The one voice pack: Kokoro (its child's voice). The Piper packs are no longer offered or kept. */
-    public static final List<Pack> ALL = Collections.unmodifiableList(Arrays.asList(KOKORO));
+    /**
+     * The one voice pack: Piper Amy, carried in the app, heard at its natural pitch (about twenty times faster
+     * than Kokoro, measured on the same files: 0.17 s against 4 s for a 14-word sentence). Kokoro is no longer offered.
+     */
+    public static final List<Pack> ALL = Collections.unmodifiableList(Arrays.asList(PIPER_AMY));
+
+    /** The voice every phone has: carried in the app, fast on any device. */
+    public static final Pack DEFAULT = PIPER_AMY;
+
+    /** The pack Ibiko speaks with: the pilot's own voice when trained and chosen, else Piper Amy. */
+    public static Pack chosen(File filesDir) {
+        return MyVoice.chosen(filesDir) ? MY_VOICE : DEFAULT;
+    }
 
     /**
-     * Removes the voice packs that are no longer offered (Piper Ryan and Amy, downloaded by older versions) and their
+     * Removes the voice packs that are no longer offered (Piper Ryan and Kokoro, kept by older versions) and their
      * marks, freeing their space. How many were removed.
      */
     public static int dropOthers(File filesDir) {
         int n = 0;
-        for (Pack p : Arrays.asList(PIPER_RYAN, PIPER_AMY)) {
+        for (Pack p : Arrays.asList(PIPER_RYAN, KOKORO)) {
             File d = folder(filesDir, p);
             if (d.exists()) {
                 deleteTree(d);
@@ -172,10 +183,14 @@ public final class VoicePacks {
         return null;
     }
 
-    /** The pronunciation data a pack speaks with: its own, or (the pilot's own voice) Kokoro's. */
+    /** The pronunciation data a pack speaks with: its own, or (the pilot's own voice) the default voice's, else Kokoro's. */
     public static File espeakData(File filesDir, Pack p) {
         File own = new File(folder(filesDir, p), "espeak-ng-data");
-        return own.isDirectory() || p != MY_VOICE ? own : new File(folder(filesDir, KOKORO), "espeak-ng-data");
+        if (own.isDirectory() || p != MY_VOICE) {
+            return own;
+        }
+        File piper = new File(folder(filesDir, DEFAULT), "espeak-ng-data");
+        return piper.isDirectory() ? piper : new File(folder(filesDir, KOKORO), "espeak-ng-data");
     }
 
     public static File root(File filesDir) {

@@ -408,7 +408,7 @@ public final class TalkBridge extends UtteranceProgressListener {
 
     /** Picks up the voice chosen in Settings (call when the chat comes back from Settings). */
     public void refreshVoice() {
-        // one voice: the pilot's own when they trained one and chose it, else Kokoro's child voice
+        // one voice: the pilot's own when they trained one and chose it, else Piper Amy, as she sounds
         String key = MyVoice.pack(filesDir()).key;
         VoicePacks.Pack p = VoicePacks.byKey(key == null ? "" : key);
         String want = p != null && VoicePacks.installed(filesDir(), p) ? p.key : "";
@@ -443,7 +443,7 @@ public final class TalkBridge extends UtteranceProgressListener {
         if (p == null) {
             return 0;
         }
-        return p.speaker(false, CHILD_SPEAKER).id; // one voice: the child's, made from Sky
+        return p.speaker(false, SPEAKER).id; // one voice: Amy's own
     }
 
     /** Opens the device's page for downloading voices (Google's voice data: the higher-quality voices). */
@@ -491,22 +491,22 @@ public final class TalkBridge extends UtteranceProgressListener {
     }
 
     /**
-     * There are no personas and no choice: every line is spoken in the one voice, a child's (Kokoro's Sky played
+     * There are no personas and no choice: every line is spoken in the one voice (Piper Amy at her natural pitch,
      * higher). The flag callers pass for who is speaking is not used.
      */
     private boolean woman() {
         if (neural != null) {
-            // the child's voice is Kokoro's Sky raised; the pilot's own voice is heard as it is
-            neural.setPitch(VoicePacks.MY_VOICE.key.equals(neuralKey) ? 1f : CHILD_PITCH);
+            // the voice is heard as it is: no pitch put on it (a child's voice was Amy raised; the pilot asked for her natural voice)
+            neural.setPitch(PITCH);
         }
-        return true; // a child's voice is a light woman's voice played higher
+        return true; // Amy is a woman's voice
     }
 
-    /** How much higher the child's voice is played: young and bright, still clear. */
-    static final float CHILD_PITCH = 1.32f;
+    /** How high the voice is played: its own natural pitch. */
+    static final float PITCH = 1f;
 
-    /** The voice a child's voice is made from: Sky, the lightest of the woman's voices. */
-    static final String CHILD_SPEAKER = "af_sky";
+    /** The speaker in the pack: Amy. */
+    static final String SPEAKER = "amy";
 
     private volatile boolean robot;
     private volatile float rateScale = 1f;
@@ -855,7 +855,7 @@ public final class TalkBridge extends UtteranceProgressListener {
         ivie = woman();
         if (human()) {
             VoicePacks.Pack p = neural.pack();
-            return "a child's voice made from " + p.speaker(false, CHILD_SPEAKER).title + ", on the device";
+            return p.speaker(false, SPEAKER).title + ", on the device";
         }
         VoiceTuning t = tuning[ivie ? 1 : 0];
         String g = t.voice == null ? "" : genders.getOrDefault(t.voice, "");

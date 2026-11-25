@@ -123,8 +123,9 @@ configurations.configureEach {
 // unpacks them on its first start from the APK (AppFiles.bundled) instead of the internet. A build that can't reach
 // them (offline) still succeeds: the app falls back to downloading them as before.
 def appFiles = [
-    ["kokoro-int8-en-v0_19.tar.bz2", "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-en-v0_19.tar.bz2",
-     "c9f0dd393615805b0bab050c340834d5e684e732aec91c0e860cd30e982c08bd"],
+    // the fast voice (Piper Amy); Kokoro, the most natural, is downloaded only when chosen in Settings
+    ["vits-piper-en_US-amy-medium.tar.bz2", "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-amy-medium.tar.bz2",
+     "9a5d1fc497f85e8022b785bff5f8105203b1e33099ee6265203efc70b0cb0264"],
     ["concepts-2026-11-11.tsv.gz", "https://raw.githubusercontent.com/DOKTOHSMILE/Dvine-ai-frontend/main/downloads/knowledge/concepts-2026-11-11.tsv.gz",
      "4e019a34747edd6fa3989f3d570978b2a7c266cfe202b570de5200abd16d9f04"],
 ]

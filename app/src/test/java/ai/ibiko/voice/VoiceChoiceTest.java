@@ -30,13 +30,13 @@ public class VoiceChoiceTest {
     public void aVoiceThatCantStartIsToldAndNoOtherVoiceReads() throws Exception {
         android.app.Application app = RuntimeEnvironment.getApplication();
         File files = app.getFilesDir();
-        // Kokoro on the device (its files in place), but no engine to run it here: as on a device whose library fails
-        File d = VoicePacks.folder(files, VoicePacks.KOKORO);
+        // the voice on the device (its files in place), but no engine to run it here: as on a device whose library fails
+        File d = VoicePacks.folder(files, VoicePacks.PIPER_AMY);
         d.mkdirs();
-        Files.write(new File(d, VoicePacks.KOKORO.model).toPath(), new byte[] {1});
-        Files.write(new File(VoicePacks.root(files), "kokoro.ready").toPath(), VoicePacks.KOKORO.sha256.getBytes(StandardCharsets.UTF_8));
-        assertTrue(VoicePacks.installed(files, VoicePacks.KOKORO));
-        app.getSharedPreferences("ibiko", 0).edit().putString("voice_pack", "kokoro").apply();
+        Files.write(new File(d, VoicePacks.PIPER_AMY.model).toPath(), new byte[] {1});
+        Files.write(new File(VoicePacks.root(files), VoicePacks.PIPER_AMY.key + ".ready").toPath(),
+                VoicePacks.PIPER_AMY.sha256.getBytes(StandardCharsets.UTF_8));
+        assertTrue(VoicePacks.installed(files, VoicePacks.PIPER_AMY));
         TalkBridge t = new TalkBridge(app);
         File problem = new File(VoicePacks.root(files), NeuralVoice.PROBLEM);
         long until = System.currentTimeMillis() + 10000;
@@ -45,16 +45,19 @@ public class VoiceChoiceTest {
         }
         assertTrue("why it couldn't start is kept for Settings", problem.isFile());
         assertFalse(t.human());
-        assertTrue(new String(Files.readAllBytes(problem.toPath()), StandardCharsets.UTF_8).contains("Kokoro"));
+        assertTrue(new String(Files.readAllBytes(problem.toPath()), StandardCharsets.UTF_8).contains("Piper"));
         t.shutdown();
     }
 
-    /** One voice, not a setting: the child's (Kokoro's Sky, played higher), at normal speed; no Voice page in Settings. */
+    /** One voice: Piper Amy at her natural pitch (fast, carried in the app); no Voice page, no voice choice. */
     @Test
-    public void theChildsVoiceIsTheOnlyVoiceAndNotASetting() throws Exception {
-        assertEquals(java.util.Arrays.asList(VoicePacks.KOKORO), VoicePacks.ALL);
-        assertEquals("af_sky", TalkBridge.CHILD_SPEAKER);
-        assertEquals(1.32f, TalkBridge.CHILD_PITCH, 0.0001f);
+    public void oneNaturalVoiceAndNotASetting() throws Exception {
+        assertEquals(java.util.Arrays.asList(VoicePacks.PIPER_AMY), VoicePacks.ALL);
+        File none = Files.createTempDirectory("voices").toFile();
+        assertEquals("Piper Amy, always", VoicePacks.PIPER_AMY, VoicePacks.chosen(none));
+        assertEquals(VoicePacks.PIPER_AMY, ai.ibiko.main.AppFiles.VOICE);
+        assertEquals("amy", TalkBridge.SPEAKER);
+        assertEquals(1f, TalkBridge.PITCH, 0.0001f);
         java.lang.reflect.Field f = ai.ibiko.chat.ui.SettingsActivity.class.getDeclaredField("SECTIONS");
         f.setAccessible(true);
         for (String[] section : (String[][]) f.get(null)) {
@@ -63,17 +66,17 @@ public class VoiceChoiceTest {
         java.lang.reflect.Field sc = ai.ibiko.chat.ui.SettingsActivity.class.getDeclaredField("SCREENS");
         sc.setAccessible(true);
         assertEquals("every section still opens its own screen", ((String[][]) f.get(null)).length, ((Class<?>[]) sc.get(null)).length);
-        // the voices an older version downloaded (Piper) are removed, Kokoro stays
+        // the voices older versions kept and no longer offered (Piper Ryan, Kokoro) are removed
         File files = RuntimeEnvironment.getApplication().getFilesDir();
         File piper = VoicePacks.folder(files, VoicePacks.PIPER_RYAN), kokoro = VoicePacks.folder(files, VoicePacks.KOKORO);
         piper.mkdirs();
         kokoro.mkdirs();
         Files.write(new File(piper, "model.onnx").toPath(), new byte[] {1});
         Files.write(new File(VoicePacks.root(files), VoicePacks.PIPER_RYAN.key + ".ready").toPath(), new byte[] {1});
-        assertEquals(1, VoicePacks.dropOthers(files));
+        assertEquals(2, VoicePacks.dropOthers(files));
         assertFalse(piper.exists());
+        assertFalse(kokoro.exists());
         assertFalse(new File(VoicePacks.root(files), VoicePacks.PIPER_RYAN.key + ".ready").exists());
-        assertTrue(kokoro.exists());
     }
 
     @Test

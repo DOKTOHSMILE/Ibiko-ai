@@ -123,7 +123,7 @@ public class MyVoiceTest {
         File files = Files.createTempDirectory("myvoice").toFile();
         // Kokoro's pronunciation data, which the pilot's voice shares
         new File(VoicePacks.folder(files, VoicePacks.KOKORO), "espeak-ng-data").mkdirs();
-        assertEquals(VoicePacks.KOKORO, MyVoice.pack(files));
+        assertEquals(VoicePacks.DEFAULT, MyVoice.pack(files));
         ByteArrayOutputStream zip = new ByteArrayOutputStream();
         try (ZipOutputStream z = new ZipOutputStream(zip)) {
             z.putNextEntry(new ZipEntry("out/my_voice.onnx"));
@@ -145,7 +145,10 @@ public class MyVoiceTest {
         assertTrue(MyVoice.chosen(files));
         assertEquals(VoicePacks.MY_VOICE, MyVoice.pack(files));
         MyVoice.choose(files, false);
-        assertEquals(VoicePacks.KOKORO, MyVoice.pack(files));
+        assertEquals(VoicePacks.DEFAULT, MyVoice.pack(files));
+        // with the fast voice in place, the pilot's voice reads its pronunciation data (Kokoro may not be on the phone)
+        new File(VoicePacks.folder(files, VoicePacks.DEFAULT), "espeak-ng-data").mkdirs();
+        assertEquals(new File(VoicePacks.folder(files, VoicePacks.DEFAULT), "espeak-ng-data"), VoicePacks.espeakData(files, VoicePacks.MY_VOICE));
         // a zip without a voice is refused, and the voice that was there stays
         ByteArrayOutputStream bad = new ByteArrayOutputStream();
         try (ZipOutputStream z = new ZipOutputStream(bad)) {
