@@ -130,7 +130,7 @@ public final class VoicePacks {
             "", "", 0L, "my-voice", "model.onnx", "vits", new Speaker(0, "me", "My voice", true));
 
     /**
-     * The one voice pack: Piper Amy, carried in the app, played higher as the child's voice (about twenty times faster
+     * The one voice pack: Piper Amy, carried in the app, heard at its natural pitch (about twenty times faster
      * than Kokoro, measured on the same files: 0.17 s against 4 s for a 14-word sentence). Kokoro is no longer offered.
      */
     public static final List<Pack> ALL = Collections.unmodifiableList(Arrays.asList(PIPER_AMY));
@@ -138,7 +138,7 @@ public final class VoicePacks {
     /** The voice every phone has: carried in the app, fast on any device. */
     public static final Pack DEFAULT = PIPER_AMY;
 
-    /** The pack Ibiko speaks with: the pilot's own voice when trained and chosen, else the child's voice. */
+    /** The pack Ibiko speaks with: the pilot's own voice when trained and chosen, else Piper Amy. */
     public static Pack chosen(File filesDir) {
         return MyVoice.chosen(filesDir) ? MY_VOICE : DEFAULT;
     }

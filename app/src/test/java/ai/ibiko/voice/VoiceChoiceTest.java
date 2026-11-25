@@ -30,7 +30,7 @@ public class VoiceChoiceTest {
     public void aVoiceThatCantStartIsToldAndNoOtherVoiceReads() throws Exception {
         android.app.Application app = RuntimeEnvironment.getApplication();
         File files = app.getFilesDir();
-        // the child's voice on the device (its files in place), but no engine to run it here: as on a device whose library fails
+        // the voice on the device (its files in place), but no engine to run it here: as on a device whose library fails
         File d = VoicePacks.folder(files, VoicePacks.PIPER_AMY);
         d.mkdirs();
         Files.write(new File(d, VoicePacks.PIPER_AMY.model).toPath(), new byte[] {1});
@@ -49,15 +49,15 @@ public class VoiceChoiceTest {
         t.shutdown();
     }
 
-    /** One voice, the child's: Piper Amy played higher (fast, carried in the app); no Voice page, no voice choice. */
+    /** One voice: Piper Amy at her natural pitch (fast, carried in the app); no Voice page, no voice choice. */
     @Test
-    public void theChildsVoiceIsTheOnlyVoiceAndNotASetting() throws Exception {
+    public void oneNaturalVoiceAndNotASetting() throws Exception {
         assertEquals(java.util.Arrays.asList(VoicePacks.PIPER_AMY), VoicePacks.ALL);
         File none = Files.createTempDirectory("voices").toFile();
-        assertEquals("the child's voice, always", VoicePacks.PIPER_AMY, VoicePacks.chosen(none));
+        assertEquals("Piper Amy, always", VoicePacks.PIPER_AMY, VoicePacks.chosen(none));
         assertEquals(VoicePacks.PIPER_AMY, ai.ibiko.main.AppFiles.VOICE);
-        assertEquals("amy", TalkBridge.CHILD_SPEAKER);
-        assertEquals(1.32f, TalkBridge.CHILD_PITCH, 0.0001f);
+        assertEquals("amy", TalkBridge.SPEAKER);
+        assertEquals(1f, TalkBridge.PITCH, 0.0001f);
         java.lang.reflect.Field f = ai.ibiko.chat.ui.SettingsActivity.class.getDeclaredField("SECTIONS");
         f.setAccessible(true);
         for (String[] section : (String[][]) f.get(null)) {
