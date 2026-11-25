@@ -70,7 +70,17 @@ public final class SentenceStream {
                 inCode = false;
                 continue;
             }
-            int stop = boundary(fence < 0 ? buf.length() : fence);
+            int limit = fence < 0 ? buf.length() : fence;
+            int stop = boundary(limit);
+            if (first) {
+                // the voice starts on the first clause ("Sure, …", "The capital of Nigeria is Abuja, …") rather than the
+                // first whole sentence: a voice takes about as long to make speech as to say it, so a long first sentence
+                // was heard seconds later than its first words could be
+                int clause = clauseEnd(stop < 0 ? limit : stop);
+                if (clause > 0 && (stop < 0 || stop > LONG)) {
+                    stop = clause;
+                }
+            }
             if (stop >= 0) {
                 String s = buf.substring(0, stop);
                 buf.delete(0, stop);
@@ -90,6 +100,28 @@ public final class SentenceStream {
             }
             return;
         }
+    }
+
+    /** A first sentence longer than this is begun at its first clause. */
+    static final int LONG = 48;
+
+    /**
+     * The end of the first clause in buf[0, limit): after a comma, semicolon or dash followed by a space, with at least
+     * three words before it ("Sure," alone is too short to be worth a pause) and some words after; -1 when there is none.
+     */
+    private int clauseEnd(int limit) {
+        int words = 1;
+        for (int i = 0; i < limit; i++) {
+            char c = buf.charAt(i);
+            if (c == ' ') {
+                words++;
+            }
+            if ((c == ',' || c == ';' || c == '\u2014') && i + 1 < limit && buf.charAt(i + 1) == ' ' && words >= 3 && i >= 12
+                    && limit - i > 12) {
+                return i + 2;
+            }
+        }
+        return -1;
     }
 
     /** The end of the first whole sentence in buf[0, limit): after . ! ? : followed by a space, or a new line. */

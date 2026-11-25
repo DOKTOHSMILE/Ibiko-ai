@@ -399,6 +399,87 @@ public final class NeuralVoice {
         release();
     }
 
+    /** Thread counts tried the first time a voice loads on this phone (the fastest is kept in voice/<pack>.threads). */
+    static int[] threadChoices(int cores) {
+        java.util.LinkedHashSet<Integer> t = new java.util.LinkedHashSet<Integer>();
+        t.add(Math.min(2, Math.max(1, cores)));
+        t.add(Math.max(1, Math.min(4, cores)));
+        t.add(Math.max(1, Math.min(6, cores - 1)));
+        int[] out = new int[t.size()];
+        int i = 0;
+        for (int n : t) {
+            out[i++] = n;
+        }
+        return out;
+    }
+
+    /**
+     * The voice made with the thread count that speaks fastest on this phone. On phones with fast and slow cores, more
+     * threads can be slower (the slow cores hold each step back), so the counts are timed once on a test sentence and
+     * the fastest kept; later starts read it and load once.
+     */
+    private com.k2fsa.sherpa.onnx.OfflineTts fastest(VoicePacks.Pack p, File d, String model, String tokens, String data) {
+        File saved = new File(VoicePacks.root(filesDir), p.key + ".threads");
+        int cores = Runtime.getRuntime().availableProcessors();
+        try {
+            int n = Integer.parseInt(new String(java.nio.file.Files.readAllBytes(saved.toPath()), "UTF-8").trim());
+            if (n >= 1 && n <= 8) {
+                return make(p, d, model, tokens, data, n);
+            }
+        } catch (Exception ignored) {
+            // not measured yet on this phone
+        }
+        com.k2fsa.sherpa.onnx.OfflineTts best = null;
+        long bestMs = Long.MAX_VALUE;
+        int bestN = threadChoices(cores)[0];
+        for (int n : threadChoices(cores)) {
+            com.k2fsa.sherpa.onnx.OfflineTts t = make(p, d, model, tokens, data, n);
+            long ms;
+            try {
+                t.generate("Hello.", 0, 1f); // the first run sets the model up: not timed
+                long start = System.nanoTime();
+                t.generate("The capital of Nigeria is Abuja.", 0, 1f);
+                ms = (System.nanoTime() - start) / 1_000_000L;
+            } catch (Throwable e) {
+                t.release();
+                continue;
+            }
+            if (ms < bestMs) {
+                if (best != null) {
+                    best.release();
+                }
+                best = t;
+                bestMs = ms;
+                bestN = n;
+            } else {
+                t.release();
+            }
+        }
+        if (best == null) {
+            return make(p, d, model, tokens, data, threadChoices(cores)[0]);
+        }
+        try {
+            java.nio.file.Files.write(saved.toPath(), String.valueOf(bestN).getBytes("UTF-8"));
+        } catch (java.io.IOException ignored) {
+            // measured again next time
+        }
+        return best;
+    }
+
+    private static com.k2fsa.sherpa.onnx.OfflineTts make(VoicePacks.Pack p, File d, String model, String tokens, String data, int threads) {
+        com.k2fsa.sherpa.onnx.OfflineTtsModelConfig.Builder m = com.k2fsa.sherpa.onnx.OfflineTtsModelConfig.builder()
+                .setNumThreads(threads).setProvider("cpu").setDebug(false);
+        if ("kokoro".equals(p.kind)) {
+            m.setKokoro(com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig.builder().setModel(model)
+                    .setVoices(new File(d, "voices.bin").getPath()).setTokens(tokens).setDataDir(data).build());
+        } else {
+            m.setVits(com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig.builder().setModel(model).setTokens(tokens)
+                    .setDataDir(data).build());
+        }
+        return new com.k2fsa.sherpa.onnx.OfflineTts(com.k2fsa.sherpa.onnx.OfflineTtsConfig.builder()
+                .setModel(m.build()).setMaxNumSentences(1).build());
+    }
+
     private void load(String key) {
         release();
         ready = false;
@@ -408,19 +489,8 @@ public final class NeuralVoice {
             File d = VoicePacks.folder(filesDir, p);
             String data = VoicePacks.espeakData(filesDir, p).getPath(), tokens = new File(d, "tokens.txt").getPath();
             String model = new File(d, p.model).getPath();
-            int threads = Math.max(1, Math.min(6, Runtime.getRuntime().availableProcessors() - 1));
             try {
-                com.k2fsa.sherpa.onnx.OfflineTtsModelConfig.Builder m = com.k2fsa.sherpa.onnx.OfflineTtsModelConfig.builder()
-                        .setNumThreads(threads).setProvider("cpu").setDebug(false);
-                if ("kokoro".equals(p.kind)) {
-                    m.setKokoro(com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig.builder().setModel(model)
-                            .setVoices(new File(d, "voices.bin").getPath()).setTokens(tokens).setDataDir(data).build());
-                } else {
-                    m.setVits(com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig.builder().setModel(model).setTokens(tokens)
-                            .setDataDir(data).build());
-                }
-                tts = new com.k2fsa.sherpa.onnx.OfflineTts(com.k2fsa.sherpa.onnx.OfflineTtsConfig.builder()
-                        .setModel(m.build()).setMaxNumSentences(1).build());
+                tts = fastest(p, d, model, tokens, data);
                 rate = tts.getSampleRate();
                 int min = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT);
                 track = new AudioTrack.Builder()
