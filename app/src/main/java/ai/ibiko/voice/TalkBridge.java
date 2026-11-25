@@ -408,7 +408,8 @@ public final class TalkBridge extends UtteranceProgressListener {
 
     /** Picks up the voice chosen in Settings (call when the chat comes back from Settings). */
     public void refreshVoice() {
-        // one voice: the pilot's own when they trained one and chose it, else Kokoro's child voice
+        // one voice: the pilot's own when they trained one and chose it, else the child's (Piper Amy, or Kokoro's Sky
+        // when the most natural voice was chosen)
         String key = MyVoice.pack(filesDir()).key;
         VoicePacks.Pack p = VoicePacks.byKey(key == null ? "" : key);
         String want = p != null && VoicePacks.installed(filesDir(), p) ? p.key : "";
@@ -443,7 +444,7 @@ public final class TalkBridge extends UtteranceProgressListener {
         if (p == null) {
             return 0;
         }
-        return p.speaker(false, CHILD_SPEAKER).id; // one voice: the child's, made from Sky
+        return p.speaker(false, CHILD_SPEAKER).id; // one voice: the child's, made from Sky (Kokoro) or Amy (Piper)
     }
 
     /** Opens the device's page for downloading voices (Google's voice data: the higher-quality voices). */
@@ -496,7 +497,7 @@ public final class TalkBridge extends UtteranceProgressListener {
      */
     private boolean woman() {
         if (neural != null) {
-            // the child's voice is Kokoro's Sky raised; the pilot's own voice is heard as it is
+            // the child's voice is a woman's voice (Amy, or Kokoro's Sky) raised; the pilot's own voice is heard as it is
             neural.setPitch(VoicePacks.MY_VOICE.key.equals(neuralKey) ? 1f : CHILD_PITCH);
         }
         return true; // a child's voice is a light woman's voice played higher

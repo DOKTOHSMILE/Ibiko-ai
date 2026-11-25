@@ -129,16 +129,59 @@ public final class VoicePacks {
     public static final Pack MY_VOICE = new Pack("my-voice", "My voice", "Trained on your own recordings. Fast, and it sounds like you.",
             "", "", 0L, "my-voice", "model.onnx", "vits", new Speaker(0, "me", "My voice", true));
 
-    /** The one voice pack: Kokoro (its child's voice). The Piper packs are no longer offered or kept. */
-    public static final List<Pack> ALL = Collections.unmodifiableList(Arrays.asList(KOKORO));
+    /**
+     * The voice packs: Piper Amy, the default (carried in the app; about twenty times faster than Kokoro, measured on
+     * the same files: 0.17 s against 4 s for a 14-word sentence), and Kokoro, the most natural, downloaded only when
+     * chosen (Settings › Chat › Most natural voice). The child's voice is either one played higher.
+     */
+    public static final List<Pack> ALL = Collections.unmodifiableList(Arrays.asList(PIPER_AMY, KOKORO));
+
+    /** The voice every phone has: carried in the app, fast on any device. */
+    public static final Pack DEFAULT = PIPER_AMY;
+
+    /** The mark that the pilot chose the most natural voice (Kokoro) over the fast one. */
+    static File naturalMark(File filesDir) {
+        return new File(root(filesDir), "natural.use");
+    }
+
+    /** Whether the pilot chose the most natural voice (Kokoro), slower to start. */
+    public static boolean naturalChosen(File filesDir) {
+        return naturalMark(filesDir).isFile();
+    }
+
+    /** Chooses the most natural voice (Kokoro) or the fast one (Piper Amy). */
+    public static void chooseNatural(File filesDir, boolean natural) {
+        File f = naturalMark(filesDir);
+        if (natural) {
+            f.getParentFile().mkdirs();
+            try {
+                java.nio.file.Files.write(f.toPath(), new byte[0]);
+            } catch (IOException ignored) {
+                // not chosen
+            }
+        } else {
+            f.delete();
+        }
+    }
 
     /**
-     * Removes the voice packs that are no longer offered (Piper Ryan and Amy, downloaded by older versions) and their
+     * The pack Ibiko speaks with: the pilot's own voice when trained and chosen; Kokoro when chosen and in place;
+     * otherwise Piper Amy (a chosen Kokoro that is still downloading is not waited for).
+     */
+    public static Pack chosen(File filesDir) {
+        if (MyVoice.chosen(filesDir)) {
+            return MY_VOICE;
+        }
+        return naturalChosen(filesDir) && installed(filesDir, KOKORO) ? KOKORO : DEFAULT;
+    }
+
+    /**
+     * Removes the voice packs that are no longer offered (Piper Ryan, downloaded by older versions) and their
      * marks, freeing their space. How many were removed.
      */
     public static int dropOthers(File filesDir) {
         int n = 0;
-        for (Pack p : Arrays.asList(PIPER_RYAN, PIPER_AMY)) {
+        for (Pack p : Arrays.asList(PIPER_RYAN)) {
             File d = folder(filesDir, p);
             if (d.exists()) {
                 deleteTree(d);
@@ -172,10 +215,14 @@ public final class VoicePacks {
         return null;
     }
 
-    /** The pronunciation data a pack speaks with: its own, or (the pilot's own voice) Kokoro's. */
+    /** The pronunciation data a pack speaks with: its own, or (the pilot's own voice) the default voice's, else Kokoro's. */
     public static File espeakData(File filesDir, Pack p) {
         File own = new File(folder(filesDir, p), "espeak-ng-data");
-        return own.isDirectory() || p != MY_VOICE ? own : new File(folder(filesDir, KOKORO), "espeak-ng-data");
+        if (own.isDirectory() || p != MY_VOICE) {
+            return own;
+        }
+        File piper = new File(folder(filesDir, DEFAULT), "espeak-ng-data");
+        return piper.isDirectory() ? piper : new File(folder(filesDir, KOKORO), "espeak-ng-data");
     }
 
     public static File root(File filesDir) {

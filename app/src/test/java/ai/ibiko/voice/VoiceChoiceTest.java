@@ -37,6 +37,7 @@ public class VoiceChoiceTest {
         Files.write(new File(VoicePacks.root(files), "kokoro.ready").toPath(), VoicePacks.KOKORO.sha256.getBytes(StandardCharsets.UTF_8));
         assertTrue(VoicePacks.installed(files, VoicePacks.KOKORO));
         app.getSharedPreferences("ibiko", 0).edit().putString("voice_pack", "kokoro").apply();
+        VoicePacks.chooseNatural(files, true); // the most natural voice chosen (Settings › Chat)
         TalkBridge t = new TalkBridge(app);
         File problem = new File(VoicePacks.root(files), NeuralVoice.PROBLEM);
         long until = System.currentTimeMillis() + 10000;
@@ -49,10 +50,25 @@ public class VoiceChoiceTest {
         t.shutdown();
     }
 
-    /** One voice, not a setting: the child's (Kokoro's Sky, played higher), at normal speed; no Voice page in Settings. */
+    /**
+     * One voice, the child's: Piper Amy played higher by default (fast, carried in the app), Kokoro's Sky only when the
+     * most natural voice is chosen and in place; no Voice page in Settings.
+     */
     @Test
     public void theChildsVoiceIsTheOnlyVoiceAndNotASetting() throws Exception {
-        assertEquals(java.util.Arrays.asList(VoicePacks.KOKORO), VoicePacks.ALL);
+        assertEquals(java.util.Arrays.asList(VoicePacks.PIPER_AMY, VoicePacks.KOKORO), VoicePacks.ALL);
+        File none = Files.createTempDirectory("voices").toFile();
+        assertEquals("the fast voice by default", VoicePacks.PIPER_AMY, VoicePacks.chosen(none));
+        VoicePacks.chooseNatural(none, true);
+        assertEquals("Kokoro chosen but not downloaded yet: the fast voice speaks", VoicePacks.PIPER_AMY, VoicePacks.chosen(none));
+        File k = VoicePacks.folder(none, VoicePacks.KOKORO);
+        k.mkdirs();
+        Files.write(new File(k, VoicePacks.KOKORO.model).toPath(), new byte[] {1});
+        Files.write(new File(VoicePacks.root(none), "kokoro.ready").toPath(), VoicePacks.KOKORO.sha256.getBytes(StandardCharsets.UTF_8));
+        assertEquals(VoicePacks.KOKORO, VoicePacks.chosen(none));
+        VoicePacks.chooseNatural(none, false);
+        assertEquals(VoicePacks.PIPER_AMY, VoicePacks.chosen(none));
+        assertEquals(VoicePacks.PIPER_AMY, ai.ibiko.main.AppFiles.VOICE);
         assertEquals("af_sky", TalkBridge.CHILD_SPEAKER);
         assertEquals(1.32f, TalkBridge.CHILD_PITCH, 0.0001f);
         java.lang.reflect.Field f = ai.ibiko.chat.ui.SettingsActivity.class.getDeclaredField("SECTIONS");
@@ -63,7 +79,7 @@ public class VoiceChoiceTest {
         java.lang.reflect.Field sc = ai.ibiko.chat.ui.SettingsActivity.class.getDeclaredField("SCREENS");
         sc.setAccessible(true);
         assertEquals("every section still opens its own screen", ((String[][]) f.get(null)).length, ((Class<?>[]) sc.get(null)).length);
-        // the voices an older version downloaded (Piper) are removed, Kokoro stays
+        // the voice an older version downloaded and no longer offered (Piper Ryan) is removed; Amy and Kokoro stay
         File files = RuntimeEnvironment.getApplication().getFilesDir();
         File piper = VoicePacks.folder(files, VoicePacks.PIPER_RYAN), kokoro = VoicePacks.folder(files, VoicePacks.KOKORO);
         piper.mkdirs();

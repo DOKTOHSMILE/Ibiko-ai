@@ -49,9 +49,41 @@ public class SettingsChatActivity extends SettingsActivity {
                     + " Pidgin, code and words you use often are left alone.", ai.ibiko.AutoCorrect.TYPOS, true, null));
             chat.addView(toggle("Show the working steps", "What Ibiko is doing while it answers: searches, sources, models.", "show_steps", true, null),
                     Ui.wide(this, 10));
+            chat.addView(toggle("Most natural voice", "Kokoro: the most human-sounding voice, but slower to start speaking (a"
+                    + " few seconds on most phones) and a " + ai.ibiko.voice.VoicePacks.KOKORO.size() + " download. Off: the fast"
+                    + " voice, built in, which starts at once.", NATURAL, false, on -> natural(on)));
             chat.addView(action("My voice", ai.ibiko.voice.MyVoice.chosen(getFilesDir()) ? "Ibiko speaks with your own voice. Record more, or switch back."
                     : "Record yourself reading, train a voice of your own from it, and Ibiko speaks with your voice: fast, and yours.",
                     () -> startActivity(new android.content.Intent(this, MyVoiceActivity.class))), Ui.wide(this, 6));
 
+    }
+
+    static final String NATURAL = "voice_natural";
+
+    /** The most natural voice chosen or not: Kokoro downloaded when it isn't on the phone yet, then spoken with. */
+    private void natural(boolean on) {
+        final java.io.File files = getFilesDir();
+        ai.ibiko.voice.VoicePacks.chooseNatural(files, on);
+        if (!on || ai.ibiko.voice.VoicePacks.installed(files, ai.ibiko.voice.VoicePacks.KOKORO)) {
+            android.widget.Toast.makeText(this, on ? "Speaking with the most natural voice." : "Speaking with the fast voice.",
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        android.widget.Toast.makeText(this, "Downloading the natural voice (" + ai.ibiko.voice.VoicePacks.KOKORO.size()
+                + "). The fast voice speaks until it is ready.", android.widget.Toast.LENGTH_LONG).show();
+        final android.content.Context app = getApplicationContext();
+        new Thread(() -> {
+            String said;
+            try {
+                ai.ibiko.voice.VoicePacks.install(files, ai.ibiko.voice.VoicePacks.KOKORO, ai.ibiko.voice.VoicePacks.WEB, (stage, pct) -> { });
+                said = "The natural voice is ready.";
+            } catch (java.io.IOException | RuntimeException e) {
+                ai.ibiko.voice.VoicePacks.chooseNatural(files, false);
+                said = "The natural voice couldn't be downloaded; the fast voice stays.";
+            }
+            final String note = said;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(app, note, android.widget.Toast.LENGTH_LONG).show());
+        }, "ibiko-natural-voice").start();
     }
 }
